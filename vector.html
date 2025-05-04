@@ -1,0 +1,1354 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Animador de Vectores (Validación Input Filas)</title> <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        /* Estilos base */
+        body {
+            background-color: #000000; font-family: 'Inter', sans-serif; color: #e5e7eb;
+            margin: 0; height: 100vh; display: flex; flex-direction: column;
+        }
+        .main-container { display: flex; flex-direction: column; height: 100%; }
+        #svg-container {
+            flex-grow: 1; padding: 1.5rem; display: flex; align-items: center; justify-content: center;
+            overflow: hidden; background-color: #000000; min-height: 0;
+        }
+        #svg-container svg {
+            background-color: #000000; display: block; max-width: 100%; max-height: 100%;
+            width: auto; height: auto; border-radius: 0.5rem;
+            box-shadow: 0 4px 6px rgba(255, 255, 255, 0.1); cursor: crosshair;
+        }
+        /* Estilos Botones */
+        button, .modal-button {
+            padding: 0.5rem 1rem; border: none; border-radius: 0.375rem; background-color: #3b82f6;
+            color: white; font-weight: 600; cursor: pointer; transition: background-color 0.2s ease;
+            width: auto; text-align: center; display: inline-flex; align-items: center; justify-content: center;
+            gap: 0.25rem; height: 2.5rem; box-sizing: border-box;
+        }
+        button:hover, .modal-button:hover { background-color: #2563eb; }
+        button.active { background-color: #1d4ed8; box-shadow: inset 0 2px 4px rgba(0,0,0,0.2); }
+        button.export-button { background-color: #10b981; padding-left: 1rem; padding-right: 1rem; }
+        button.export-button:hover { background-color: #059669; }
+        button.pause-resume-button { background-color: #f59e0b; padding: 0.625rem; }
+        button.pause-resume-button:hover { background-color: #d97706; }
+
+        .pause-text, .resume-text { display: none; }
+        .modal-button.close-button { background-color: #4b5563; }
+        .modal-button.close-button:hover { background-color: #374151; }
+        /* Estilos Labels, Inputs, Selects */
+        label { margin-bottom: 0.25rem; font-size: 0.75rem; font-weight: 500; color: #9ca3af; white-space: nowrap; }
+        input[type="number"], select, input[type="range"], input[type="color"] { /* Añadido color */
+            border-radius: 0.375rem; border: 1px solid #4b5563; background-color: #1f2937;
+            color: #e5e7eb; margin-bottom: 0; padding-top: 0.5rem; padding-bottom: 0.5rem; padding-right: 0.75rem;
+            line-height: 1.25rem; height: 2.5rem; box-sizing: border-box;
+            font-size: 0.875rem; /* Tamaño de fuente unificado */
+            padding-left: 1rem; /* Padding izquierdo unificado (aumentado) */
+            vertical-align: middle; /* Alinear verticalmente */
+        }
+        input[type="number"] {
+             -moz-appearance: textfield; text-align: right; width: 4.5rem;
+             /* padding-left: 0.75rem; /* Padding específico si se necesita diferente */
+        }
+        input[type="number"]::-webkit-outer-spin-button, input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        select {
+            appearance: none; background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+            background-position: right 0.75rem center; background-repeat: no-repeat; background-size: 1.5em 1.5em;
+            padding-right: 3rem; cursor: pointer; width: auto; min-width: 9rem;
+            /* font-size y padding-left ahora definidos arriba */
+        }
+        select option[disabled] { color: #9ca3af; }
+        /* Estilos para sliders */
+        input[type="range"] {
+            height: 1rem; /* Altura menor para sliders */
+            cursor: pointer;
+            padding-left: 0.5rem; /* Menos padding para sliders */
+            padding-right: 0.5rem;
+            width: 6rem; /* Ancho fijo para sliders */
+            vertical-align: middle; /* Alinear con texto */
+        }
+        /* Estilos específicos del navegador para la apariencia del slider (opcional) */
+        input[type=range]::-webkit-slider-thumb { appearance: none; width: 1rem; height: 1rem; background: #3b82f6; border-radius: 50%; cursor: pointer; }
+        input[type=range]::-moz-range-thumb { width: 1rem; height: 1rem; background: #3b82f6; border-radius: 50%; cursor: pointer; border: none; }
+
+        input[type="color"] {
+            padding: 0.25rem; /* Menos padding para el color picker */
+            width: 3rem; /* Ancho más pequeño */
+            height: 2.5rem; /* Mantener altura */
+            cursor: pointer;
+            border-color: #6b7280; /* Borde más visible */
+        }
+        /* Barras Superior e Inferior */
+        #top-bar, #bottom-bar {
+            background-color: #111827; padding: 0.75rem 1.5rem; flex-shrink: 0; display: flex;
+            flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem; border-color: #374151;
+        }
+        #top-bar { border-bottom-width: 1px; }
+        #bottom-bar { border-top-width: 1px; }
+        /* Grupos de control */
+        .control-group { display: flex; align-items: center; gap: 0.5rem; flex-wrap: nowrap; }
+        .control-group label { color: #d1d5db; margin-bottom: 0; }
+        .control-group input[type="number"], .control-group select, .control-group input[type="range"], .control-group input[type="color"] { margin-bottom: 0; } /* Añadido range y color */
+        .control-group output { font-size: 0.75rem; color: #9ca3af; min-width: 2.5rem; text-align: right; }
+        .control-group-inline {
+             display: inline-flex; align-items: center; gap: 0.5rem; height: 2.5rem;
+             background-color: #1f2937; border: 1px solid #4b5563; border-radius: 0.375rem; padding-left: 0.75rem;
+        }
+        .control-group-inline input[type="number"] {
+            border: none; background-color: transparent; height: calc(2.5rem - 2px); padding-left: 0; width: 4rem;
+            font-size: 0.875rem;
+        }
+        .control-group-inline .top-bar-icon { color: #9ca3af; }
+        .left-controls, .right-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; }
+        #action-buttons-group { display: flex; gap: 0.5rem; align-items: center; }
+        .aspect-buttons { display: flex; }
+        .aspect-buttons button { border-radius: 0; padding-left: 1rem; padding-right: 1rem; }
+        .aspect-buttons button:first-child { border-top-left-radius: 0.375rem; border-bottom-left-radius: 0.375rem; }
+        .aspect-buttons button:last-child { border-top-right-radius: 0.375rem; border-bottom-right-radius: 0.375rem; }
+        .aspect-buttons button.active { background-color: #3b82f6; z-index: 1; }
+
+        .top-bar-icon { width: 1.125rem; height: 1.125rem; color: #9ca3af; }
+        /* Modal */
+        .modal-overlay { position: fixed; inset: 0; background-color: rgba(50, 50, 50, 0.7); display: flex; align-items: center; justify-content: center; z-index: 50; padding: 1rem; }
+        .modal-content { background-color: #111827; padding: 2rem; border-radius: 0.5rem; box-shadow: 0 10px 15px rgba(0, 0, 0, 0.2); width: 100%; max-width: 4xl; max-height: 80vh; overflow-y: auto; border: 1px solid #374151; }
+        .modal-content h3 { color: white; font-size: 1.25rem; font-weight: 600; margin-bottom: 1rem; }
+        .modal-content h4 { color: #e5e7eb; font-size: 1.1rem; font-weight: 500; margin-bottom: 0.5rem; margin-top: 1rem; }
+        .modal-content p { color: #9ca3af; margin-bottom: 0.5rem; font-size: 0.875rem;}
+        .modal-content pre { background-color: #000000; color: #d1d5db; padding: 1rem; border-radius: 0.375rem; overflow-x: auto; font-family: monospace; font-size: 0.875rem; margin-bottom: 1.5rem; max-height: 300px; overflow-y: auto; border: 1px solid #374151; }
+        .modal-buttons { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1.5rem; }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+
+    <div id="top-bar">
+        <div class="left-controls">
+             <select id="animation-type" title="Tipo de Animación">
+                 <option value="smoothWaves">Ondas Suaves</option>
+                 <option value="seaWaves">Olas de Mar</option>
+                 <option value="pinwheels">Molinos</option>
+                 <option value="centerPulse">Pulsación Central</option>
+                 <option value="geometricPattern">Patrón Geométrico</option>
+                 <option value="vortex">Vórtice / Remolino</option>
+                 <option value="jitter">Vibración Aleatoria</option>
+                 <option value="followPath">Seguir Camino</option>
+                 <option value="oceanCurrents">Corrientes Marinas</option>
+                 <option value="rippleEffect">Onda Continua</option>
+                 <option value="expandingWave">Onda Expansiva (Capas)</option>
+                 <option value="mouseInteraction">Interacción Ratón</option>
+                 <option value="cellularAutomata">Autómata Celular</option>
+                 <option value="lissajous">Lissajous</option>
+                 <option value="perlinFlow">Ruido Perlin</option>
+                 <option value="flocking">Comportamiento de Bandada</option>
+             </select>
+             <div id="mouse-radius-control" class="control-group hidden"> <label for="mouse-radius-input">Radio Ratón (%):</label> <input type="number" id="mouse-radius-input" name="mouse-radius" min="5" max="50" value="20"> </div>
+             <div id="pinwheel-count-control" class="control-group hidden"> <label for="pinwheel-count-input">Nº Molinos:</label> <input type="number" id="pinwheel-count-input" name="pinwheel-count" min="1" max="9" value="2"> </div>
+             <div id="vortex-intensity-control" class="control-group hidden"> <label for="vortex-intensity-input">Int. Vórtice:</label> <input type="number" id="vortex-intensity-input" name="vortex-intensity" min="0" max="1" step="0.1" value="0.3"> </div>
+             <div id="pulse-interval-control" class="control-group hidden"> <label for="pulse-interval-input">Int. Pulso (s):</label> <input type="number" id="pulse-interval-input" name="pulse-interval" min="0.5" max="10" step="0.1" value="3.0"> </div>
+             <div id="jitter-intensity-control" class="control-group hidden"> <label for="jitter-intensity-input">Int. Vibración (°):</label> <input type="number" id="jitter-intensity-input" name="jitter-intensity" min="0" max="90" step="1" value="15"> </div>
+             <div id="ripple-speed-control" class="control-group hidden"> <label for="ripple-speed-input">Vel. Onda Cont.:</label> <input type="number" id="ripple-speed-input" name="ripple-speed" min="0.1" max="5.0" step="0.1" value="1.0"> </div>
+             <div id="expanding-wave-delay-control" class="control-group hidden"> <label for="expanding-wave-delay-input">Retardo Capas (ms):</label> <input type="number" id="expanding-wave-delay-input" name="expanding-wave-delay" min="10" max="500" step="10" value="50"> </div>
+             <div id="perlin-controls" class="control-group hidden">
+                 <label for="perlin-scale-input">Escala Ruido:</label>
+                 <input type="range" id="perlin-scale-input" name="perlin-scale" min="0.001" max="0.05" step="0.001" value="0.008">
+                 <output for="perlin-scale-input" id="perlin-scale-output">0.008</output>
+                 <label for="perlin-speed-input">Vel. Ruido:</label>
+                 <input type="range" id="perlin-speed-input" name="perlin-speed" min="0.1" max="2.0" step="0.1" value="0.5">
+                 <output for="perlin-speed-input" id="perlin-speed-output">0.5</output>
+             </div>
+             <div id="sea-wave-controls" class="control-group hidden">
+                 <label for="sea-wave-freq-input">Frec. Onda:</label>
+                 <input type="range" id="sea-wave-freq-input" name="sea-wave-freq" min="5" max="30" step="1" value="15">
+                 <output for="sea-wave-freq-input" id="sea-wave-freq-output">15</output>
+                 <label for="sea-wave-amp-input">Amp. Onda (°):</label>
+                 <input type="range" id="sea-wave-amp-input" name="sea-wave-amp" min="10" max="90" step="1" value="45">
+                 <output for="sea-wave-amp-input" id="sea-wave-amp-output">45</output>
+             </div>
+             <div id="flocking-controls" class="control-group hidden">
+                 <label for="flock-num-input">Nº Bandadas:</label>
+                 <input type="number" id="flock-num-input" name="flock-num" min="1" max="5" step="1" value="1">
+                 <label for="flock-radius-input">Radio Vecindad:</label>
+                 <input type="number" id="flock-radius-input" name="flock-radius" min="50" max="500" step="10" value="150">
+                 <label for="flock-alignment-input">Alineación:</label>
+                 <input type="range" id="flock-alignment-input" name="flock-alignment" min="0" max="1" step="0.1" value="0.5">
+                 <output for="flock-alignment-input" id="flock-alignment-output">0.5</output>
+                 <label for="flock-cohesion-input">Cohesión:</label>
+                 <input type="range" id="flock-cohesion-input" name="flock-cohesion" min="0" max="1" step="0.1" value="0.3">
+                 <output for="flock-cohesion-input" id="flock-cohesion-output">0.3</output>
+                 <label for="flock-separation-input">Separación:</label>
+                 <input type="range" id="flock-separation-input" name="flock-separation" min="0" max="1" step="0.1" value="0.7">
+                 <output for="flock-separation-input" id="flock-separation-output">0.7</output>
+                 <label for="flock-mouse-input">Atracción Ratón:</label>
+                 <select id="flock-mouse-input" name="flock-mouse">
+                     <option value="off">Desactivada</option>
+                     <option value="on">Activada</option>
+                 </select>
+             </div>
+             <div class="control-group"> <label for="easing-factor-input">Elasticidad:</label> <input type="number" id="easing-factor-input" name="easing-factor" min="0.01" max="1.0" step="0.01" value="0.1"> </div>
+             <div class="control-group"> <label for="animation-speed-input">Velocidad:</label> <input type="number" id="animation-speed-input" name="animation-speed" min="0.1" max="2" step="0.1" value="1"> </div>
+        </div>
+        <div class="right-controls">
+            <div class="control-group">
+                <div class="aspect-buttons">
+                     <button id="aspect-1-1" title="Relación de Aspecto 1:1">1:1</button>
+                     <button id="aspect-16-9" class="active" title="Relación de Aspecto 16:9">16:9</button>
+                     <button id="aspect-2-1" title="Relación de Aspecto 2:1 (Semicírculo)">2:1</button>
+                 </div>
+            </div>
+            <div class="control-group-inline" title="Número de Filas"> <svg class="top-bar-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"> <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" /> </svg>
+                 <input type="number" id="grid-rows-input" name="grid-rows" min="3" value="25"> </div>
+            <div class="control-group-inline" title="Espaciado entre Vectores"> <svg class="top-bar-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"> <path stroke-linecap="round" stroke-linejoin="round" d="M4 12h16m-4-4 4 4m0 0-4 4m-12-4 4 4m-4-4 4-4" /> </svg>
+                 <input type="number" id="spacing-input" name="spacing" min="10" step="1" value="40"> </div>
+        </div>
+    </div>
+
+    <div id="svg-container"> <svg id="vectorSvg" xmlns="http://www.w3.org/2000/svg" version="1.1"></svg> </div>
+
+    <div id="bottom-bar">
+        <div class="left-controls">
+             <select id="vector-shape-select" title="Forma del Vector">
+                 <option value="" disabled selected>Forma</option>
+                 <option value="curved">Curvo</option>
+                 <option value="straight">Recto</option>
+                 <option value="semicircle">Semicírculo</option>
+             </select>
+             <select id="line-cap-select" title="Acabado de Línea"> <option value="" disabled selected>Acabado</option> <option value="butt">Recto</option> <option value="round">Redondeado</option> <option value="square">Cuadrado</option> </select>
+            <div class="control-group"> <label for="vector-length-input">Longitud</label>
+                 <input type="number" id="vector-length-input" name="vector-length" min="2" value="10"> </div>
+             <div class="control-group"> <label for="stroke-width-input">Grosor</label> <input type="number" id="stroke-width-input" name="stroke-width" min="0.5" max="10" step="0.1" value="1.5"> </div>
+             <div class="control-group">
+                 <label for="vector-color-input">Color:</label>
+                 <input type="color" id="vector-color-input" name="vector-color" value="#ffffff" title="Color del Vector">
+             </div>
+             <select id="stroke-variability-select" title="Variabilidad de Grosor">
+                 <option value="off">Grosor: Fijo</option>
+                 <option value="on">Grosor: Variable</option>
+             </select>
+        </div>
+        <div id="action-buttons-group">
+             <button id="pause-resume-button" class="pause-resume-button" title="Pausar/Reanudar Animación"> <svg class="pause-icon w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.75 4.75a.75.75 0 00-.75.75v9.5c0 .414.336.75.75.75h1.5a.75.75 0 00.75-.75v-9.5a.75.75 0 00-.75-.75h-1.5zm7 0a.75.75 0 00-.75.75v9.5c0 .414.336.75.75.75h1.5a.75.75 0 00.75-.75v-9.5a.75.75 0 00-.75-.75h-1.5z" clip-rule="evenodd" /></svg> <svg class="resume-icon hidden w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" /></svg> </button>
+             <button id="export-code-button" class="export-button">Exportar</button>
+        </div>
+    </div>
+
+    <div id="export-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+             <h3>Exportar Código</h3>
+            <p>Copia y pega estos bloques en tu archivo HTML para replicar la animación.</p>
+            <div> <h4>1. Código SVG</h4> <pre><code id="export-svg-code"></code></pre> <button id="copy-svg-button" class="modal-button">Copiar SVG</button> </div>
+            <div> <h4>2. Código JavaScript</h4> <p>Nota: Este script asume que el SVG tiene el id 'vectorSvg'.</p> <pre><code id="export-js-code"></code></pre> <button id="copy-js-button" class="modal-button">Copiar JS</button> </div>
+            <div class="modal-buttons"> <button id="close-modal-button" class="modal-button close-button">Cerrar</button> </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Variables de Estado (Inicializadas con valores por defecto) ---
+        let gridRows = 25;
+        let vectorSpacing = 40;
+        let vectorLength = 10;
+        let vectorShape = 'curved';
+        let vectorLineCap = 'butt';
+        let vectorStrokeWidth = 1.5;
+        let vectorColor = '#ffffff'; // Variable para el color
+        let animationSpeedFactor = 1;
+        let currentAnimationType = 'smoothWaves';
+        let easingFactor = 0.1;
+        let mouseInteractionRadiusPercent = 20;
+        let pinwheelCount = 2;
+        let flowFieldIntensity = 0.5;
+        let vortexInwardFactor = 0.3;
+        let pulseInterval = 3.0;
+        let jitterIntensity = 15;
+        let rippleWaveSpeed = 1.0;
+        let expandingWaveDelay = 50;
+        let perlinNoiseScale = 0.008;
+        let perlinTimeSpeed = 0.5;
+        let seaWaveFrequency = 15;
+        let seaWaveAmplitude = 45;
+        let flockNumFlocks = 1;
+        let flockNeighborhoodRadius = 150;
+        let flockAlignmentStrength = 0.5;
+        let flockCohesionStrength = 0.3;
+        let flockSeparationStrength = 0.7;
+        let flockMouseAttraction = false;
+        let flockMouseAttractionStrength = 0.2;
+        //const vectorColor = 'white'; // Color base por defecto -> Ahora es variable
+        const viewBoxMargin = 20;
+        let currentAspectRatio = 16 / 9;
+        let animationFrameId = null;
+        let isPaused = false;
+        let isStrokeVariabilityActive = false;
+        let svgLines = [];
+        let vectorGridMap = new Map();
+        let mouseX = null; let mouseY = null;
+        let pinwheelCenters = [];
+        let lastPulseTime = -Infinity;
+        const pulseDuration = 500;
+        let oceanEddies = [];
+        let calculatedGridCols = 0;
+        let logicalWidth = 0; let logicalHeight = 0;
+        let waveStartTime = 0;
+        const pinwheelMoveSpeed = 2;
+        const maxPinwheelSpeed = 4;
+
+        // --- Parámetros de Variabilidad ---
+        const strokeWidthVariationPercent = 0.6;
+        const variabilityFrequency = 0.05;
+
+        // --- Referencias a Elementos DOM ---
+        const svgElement = document.getElementById('vectorSvg');
+        const svgContainer = document.getElementById('svg-container');
+        const button11 = document.getElementById('aspect-1-1');
+        const button169 = document.getElementById('aspect-16-9');
+        const button21 = document.getElementById('aspect-2-1');
+        const gridRowsInput = document.getElementById('grid-rows-input');
+        const spacingInput = document.getElementById('spacing-input');
+        const vectorLengthInput = document.getElementById('vector-length-input');
+        const vectorShapeSelect = document.getElementById('vector-shape-select');
+        const strokeWidthInput = document.getElementById('stroke-width-input');
+        const lineCapSelect = document.getElementById('line-cap-select');
+        const vectorColorInput = document.getElementById('vector-color-input'); // Nuevo color picker
+        const animationSpeedInput = document.getElementById('animation-speed-input');
+        const animationTypeSelect = document.getElementById('animation-type');
+        const easingFactorInput = document.getElementById('easing-factor-input');
+        const mouseRadiusControlDiv = document.getElementById('mouse-radius-control');
+        const mouseRadiusInput = document.getElementById('mouse-radius-input');
+        const pinwheelCountControlDiv = document.getElementById('pinwheel-count-control');
+        const pinwheelCountInput = document.getElementById('pinwheel-count-input');
+        // Se elimina referencia a flowIntensityControlDiv y flowIntensityInput
+        const vortexIntensityControlDiv = document.getElementById('vortex-intensity-control');
+        const vortexIntensityInput = document.getElementById('vortex-intensity-input');
+        const pulseIntervalControlDiv = document.getElementById('pulse-interval-control');
+        const pulseIntervalInput = document.getElementById('pulse-interval-input');
+        const jitterIntensityControlDiv = document.getElementById('jitter-intensity-control');
+        const jitterIntensityInput = document.getElementById('jitter-intensity-input');
+        const rippleSpeedControlDiv = document.getElementById('ripple-speed-control');
+        const rippleSpeedInput = document.getElementById('ripple-speed-input');
+        const expandingWaveDelayControlDiv = document.getElementById('expanding-wave-delay-control');
+        const expandingWaveDelayInput = document.getElementById('expanding-wave-delay-input');
+        const perlinControlsDiv = document.getElementById('perlin-controls');
+        const perlinScaleInput = document.getElementById('perlin-scale-input');
+        const perlinScaleOutput = document.getElementById('perlin-scale-output');
+        const perlinSpeedInput = document.getElementById('perlin-speed-input');
+        const perlinSpeedOutput = document.getElementById('perlin-speed-output');
+        const seaWaveControlsDiv = document.getElementById('sea-wave-controls');
+        const seaWaveFreqInput = document.getElementById('sea-wave-freq-input');
+        const seaWaveFreqOutput = document.getElementById('sea-wave-freq-output');
+        const seaWaveAmpInput = document.getElementById('sea-wave-amp-input');
+        const seaWaveAmpOutput = document.getElementById('sea-wave-amp-output');
+        const flockControlsDiv = document.getElementById('flocking-controls');
+        const flockNumInput = document.getElementById('flock-num-input');
+        const flockRadiusInput = document.getElementById('flock-radius-input');
+        const flockAlignmentInput = document.getElementById('flock-alignment-input');
+        const flockAlignmentOutput = document.getElementById('flock-alignment-output');
+        const flockCohesionInput = document.getElementById('flock-cohesion-input');
+        const flockCohesionOutput = document.getElementById('flock-cohesion-output');
+        const flockSeparationInput = document.getElementById('flock-separation-input');
+        const flockSeparationOutput = document.getElementById('flock-separation-output');
+        const flockMouseInput = document.getElementById('flock-mouse-input');
+        const exportButton = document.getElementById('export-code-button');
+        const pauseResumeButton = document.getElementById('pause-resume-button');
+        const pauseIcon = pauseResumeButton.querySelector('.pause-icon');
+        const resumeIcon = pauseResumeButton.querySelector('.resume-icon');
+        const strokeVariabilitySelect = document.getElementById('stroke-variability-select');
+        const exportModal = document.getElementById('export-modal');
+        const closeModalButton = document.getElementById('close-modal-button');
+        const exportSvgCodeElement = document.getElementById('export-svg-code');
+        const exportJsCodeElement = document.getElementById('export-js-code');
+        const copySvgButton = document.getElementById('copy-svg-button');
+        const copyJsButton = document.getElementById('copy-js-button');
+
+        // --- Implementación de Ruido Perlin ---
+        const noise = (() => {
+            const p = new Uint8Array(512);
+            const permutation = [ 151,160,137,91,90,15,131,13,201,95,96,53,194,233,7,225,140,36,103,30,69,142,8,99,37,240,21,10,
+                                  23,190, 6,148,247,120,234,75,0,26,197,62,94,252,219,203,117,35,11,32,57,177,33,88,237,149,56,87,
+                                  174,20,125,136,171,168, 68,175,74,165,71,134,139,48,27,166,77,146,158,231,83,111,229,122,60,211,
+                                  133,230,220,105,92,41,55,46,245,40,244,102,143,54, 65,25,63,161,1,216,80,73,209,76,132,187,208,
+                                  89,18,169,200,196,135,130,116,188,159,86,164,100,109,198,173,186, 3,64,52,217,226,250,124,123,
+                                  5,202,38,147,118,126,255,82,85,212,207,206,59,227,47,16,58,17,182,189,28,42,223,183,170,213,119,
+                                  248,152, 2,44,154,163, 70,221,153,101,155,167, 43,172,9,129,22,39,253, 19,98,108,110,79,113,224,
+                                  232,178,185, 112,104,218,246,97,228,251,34,242,193,238,210,144,12,191,179,162,241, 81,51,145,235,
+                                  249,14,239,107,49,192,214, 31,181,199,106,157,184, 84,204,176,115,121,50,45,127, 4,150,254,138,
+                                  236,205,93,222,114,67,29,24,72,243,141,128,195,78,66,215,61,156,180 ];
+            for (let i=0; i < 256 ; i++) p[i] = p[i+256] = permutation[i];
+
+            function fade(t) { return t * t * t * (t * (t * 6 - 15) + 10); }
+            function lerp(t, a, b) { return a + t * (b - a); }
+            function grad(hash, x, y) {
+                const h = hash & 15;
+                const u = h < 8 ? x : y, v = h < 4 ? y : h === 12 || h === 14 ? x : 0;
+                return ((h & 1) === 0 ? u : -u) + ((h & 2) === 0 ? v : -v);
+            }
+
+            return {
+                noise2D: function(x, y) {
+                    const X = Math.floor(x) & 255, Y = Math.floor(y) & 255;
+                    x -= Math.floor(x); y -= Math.floor(y);
+                    const fx = fade(x), fy = fade(y);
+                    const gi00 = p[X + p[Y]] % 12;
+                    const gi01 = p[X + p[Y + 1]] % 12;
+                    const gi10 = p[X + 1 + p[Y]] % 12;
+                    const gi11 = p[X + 1 + p[Y + 1]] % 12;
+                    const n00 = grad(gi00, x, y);
+                    const n10 = grad(gi10, x - 1, y);
+                    const n01 = grad(gi01, x, y - 1);
+                    const n11 = grad(gi11, x - 1, y - 1);
+                    const nx0 = lerp(fx, n00, n10);
+                    const nx1 = lerp(fx, n01, n11);
+                    return lerp(fy, nx0, nx1);
+                }
+            };
+        })();
+
+
+        // --- Funciones Principales ---
+        // ... (getSVGCoordinates, setupSvgGridAndViewBox, restartAnimation - sin cambios) ...
+        function getSVGCoordinates(event) {
+            const svgPoint = svgElement.createSVGPoint(); svgPoint.x = event.clientX; svgPoint.y = event.clientY;
+            const CTM = svgElement.getScreenCTM(); if (!CTM) { console.error("No CTM"); return { x: null, y: null }; }
+            try { const inverseCTM = CTM.inverse(); if (!inverseCTM) { console.error("No inverse CTM"); return { x: null, y: null }; } const svgCoords = svgPoint.matrixTransform(inverseCTM); return { x: svgCoords.x, y: svgCoords.y }; }
+            catch (error) { console.error("Error invirtiendo CTM:", error); return { x: null, y: null }; }
+        }
+
+        function setupSvgGridAndViewBox() {
+            console.log("--- setupSvgGridAndViewBox ---");
+            svgElement.innerHTML = ''; svgLines = []; vectorGridMap.clear();
+            logicalHeight = (gridRows + 1) * vectorSpacing; logicalWidth = logicalHeight * currentAspectRatio;
+            calculatedGridCols = Math.max(1, Math.floor(logicalWidth / vectorSpacing) - 1);
+            const centerColIndex = Math.floor((calculatedGridCols - 1) / 2); const centerRowIndex = Math.floor((gridRows - 1) / 2);
+            waveStartTime = performance.now();
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+
+            // Validar valores antes de usarlos
+            if (isNaN(vectorLength) || vectorLength <= 0) vectorLength = 10;
+            if (isNaN(vectorStrokeWidth) || vectorStrokeWidth <= 0) vectorStrokeWidth = 1.5;
+            if (isNaN(gridRows) || gridRows < 3) gridRows = 25;
+            if (isNaN(vectorSpacing) || vectorSpacing < 10) vectorSpacing = 40;
+            if (isNaN(flockNumFlocks) || flockNumFlocks < 1) flockNumFlocks = 1;
+
+            console.log(`Creando grid: ${gridRows}x${calculatedGridCols}, L=${vectorLength}, W=${vectorStrokeWidth}, Forma=${vectorShape}, Cap=${vectorLineCap}, Aspecto=${currentAspectRatio}, Bandadas=${flockNumFlocks}`);
+
+            let itemIndex = 0;
+            for (let r = 0; r < gridRows; r++) {
+                for (let c = 0; c < calculatedGridCols; c++) {
+                    const x = (c + 1) * vectorSpacing; const y = (r + 1) * vectorSpacing;
+                    if (x < minX) minX = x; if (x > maxX) maxX = x; if (y < minY) minY = y; if (y > maxY) maxY = y;
+                    const layer = Math.max(Math.abs(c - centerColIndex), Math.abs(r - centerRowIndex));
+                    const activationTime = waveStartTime + layer * expandingWaveDelay;
+                    let vectorElement; const elementId = `vector-${r}-${c}`;
+                    const initialLength = vectorLength;
+                    const initialStrokeWidth = vectorStrokeWidth;
+
+                    // --- Asignación de Flock ID por Zonas ---
+                    let flockId = 0;
+                    if (flockNumFlocks === 2) { flockId = (c < calculatedGridCols / 2) ? 0 : 1; }
+                    else if (flockNumFlocks === 3) {
+                        if (c < calculatedGridCols / 3) flockId = 0;
+                        else if (c < 2 * calculatedGridCols / 3) flockId = 1;
+                        else flockId = 2;
+                    } else if (flockNumFlocks === 4) {
+                        const halfCols = calculatedGridCols / 2; const halfRows = gridRows / 2;
+                        if (r < halfRows && c < halfCols) flockId = 0;
+                        else if (r < halfRows && c >= halfCols) flockId = 1;
+                        else if (r >= halfRows && c < halfCols) flockId = 2;
+                        else flockId = 3;
+                    } else if (flockNumFlocks >= 5) { flockId = itemIndex % flockNumFlocks; }
+                    else { flockId = 0; }
+
+                    try {
+                        if (vectorShape === 'straight') {
+                            vectorElement = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                            vectorElement.setAttribute('x1', -initialLength / 2); vectorElement.setAttribute('y1', 0);
+                            vectorElement.setAttribute('x2', initialLength / 2); vectorElement.setAttribute('y2', 0);
+                        } else if (vectorShape === 'curved') {
+                            vectorElement = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                            const halfLen = initialLength / 2; const curveHeight = initialLength * 0.3;
+                            const pathData = `M ${-halfLen},0 Q 0,${-curveHeight} ${halfLen},0`;
+                            if (!pathData || pathData.includes("NaN")) { console.error(`Error creando path ${elementId}: pathData inválido con L=${initialLength}`); continue; }
+                            vectorElement.setAttribute('d', pathData); vectorElement.setAttribute('fill', 'none');
+                        } else if (vectorShape === 'semicircle') {
+                            vectorElement = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                            const radius = initialLength / 2;
+                            const pathData = `M ${-radius},0 A ${radius},${radius} 0 0 1 ${radius},0`;
+                             if (!pathData || pathData.includes("NaN")) { console.error(`Error creando path ${elementId}: pathData inválido con L=${initialLength}`); continue; }
+                            vectorElement.setAttribute('d', pathData);
+                            vectorElement.setAttribute('fill', 'none');
+                        } else {
+                            console.warn(`Forma de vector desconocida: ${vectorShape}`);
+                            continue;
+                        }
+
+                        vectorElement.setAttribute('id', elementId);
+                        vectorElement.setAttribute('transform', `translate(${x} ${y}) rotate(90)`);
+                        vectorElement.setAttribute('stroke', vectorColor); // Empezar siempre con el color base
+                        vectorElement.setAttribute('stroke-width', initialStrokeWidth);
+                        vectorElement.setAttribute('stroke-linecap', vectorLineCap);
+                        svgElement.appendChild(vectorElement);
+                        const newItem = { id: elementId, element: vectorElement, baseX: x, baseY: y, currentAngle: 90, layer: layer, activationTime: activationTime, shape: vectorShape, r: r, c: c, flockId: flockId };
+                        svgLines.push(newItem);
+                        vectorGridMap.set(`${r}-${c}`, itemIndex);
+                        itemIndex++;
+                    } catch (e) {
+                        console.error(`Error creando SVG element ${elementId}:`, e);
+                    }
+                }
+            }
+             let vbMinX = 0, vbMinY = 0, vbWidth = 100, vbHeight = 100;
+             if (svgLines.length > 0) { const halfVector = vectorLength / 2; vbMinX = minX - halfVector - viewBoxMargin; vbMinY = minY - halfVector - viewBoxMargin; const totalContentWidth = maxX + halfVector + viewBoxMargin - vbMinX; const totalContentHeight = maxY + halfVector + viewBoxMargin - vbMinY; if (totalContentWidth / totalContentHeight > currentAspectRatio) { vbWidth = totalContentWidth; vbHeight = totalContentWidth / currentAspectRatio; vbMinY -= (vbHeight - totalContentHeight) / 2; } else { vbHeight = totalContentHeight; vbWidth = totalContentHeight * currentAspectRatio; vbMinX -= (vbWidth - totalContentWidth) / 2; } }
+             svgElement.setAttribute('viewBox', `${vbMinX} ${vbMinY} ${vbWidth} ${vbHeight}`);
+             console.log(`ViewBox set to: ${vbMinX.toFixed(1)} ${vbMinY.toFixed(1)} ${vbWidth.toFixed(1)} ${vbHeight.toFixed(1)}`);
+            // Crear/Resetear centros de molinos con velocidad inicial
+            pinwheelCenters = [];
+            const numCenters = pinwheelCount;
+            if (numCenters > 0) {
+                const edgeFactor = 0.20; const centerFactor = 0.5; const topFactor = 0.25; const bottomFactor = 0.75;
+                const initialPositions = [];
+                if (numCenters === 1) { initialPositions.push({ x: logicalWidth * centerFactor, y: logicalHeight * centerFactor }); }
+                else if (numCenters === 2) { initialPositions.push({ x: logicalWidth * edgeFactor, y: logicalHeight * centerFactor }); initialPositions.push({ x: logicalWidth * (1 - edgeFactor), y: logicalHeight * centerFactor }); }
+                else if (numCenters === 3) { initialPositions.push({ x: logicalWidth * centerFactor, y: logicalHeight * topFactor }); initialPositions.push({ x: logicalWidth * edgeFactor, y: logicalHeight * bottomFactor }); initialPositions.push({ x: logicalWidth * (1 - edgeFactor), y: logicalHeight * bottomFactor }); }
+                else if (numCenters === 4) { initialPositions.push({ x: logicalWidth * edgeFactor, y: logicalHeight * topFactor }); initialPositions.push({ x: logicalWidth * (1 - edgeFactor), y: logicalHeight * topFactor }); initialPositions.push({ x: logicalWidth * edgeFactor, y: logicalHeight * bottomFactor }); initialPositions.push({ x: logicalWidth * (1 - edgeFactor), y: logicalHeight * bottomFactor }); }
+                else { const gridColsCenters = Math.ceil(Math.sqrt(numCenters * currentAspectRatio)); const gridRowsCenters = Math.ceil(numCenters / gridColsCenters); for (let i = 0; i < numCenters; i++) { const row = Math.floor(i / gridColsCenters); const col = i % gridColsCenters; const divisorX = gridColsCenters + 1.5; const divisorY = gridRowsCenters + 1.5; const centerX = (col + 1) * (logicalWidth / divisorX); const centerY = (row + 1) * (logicalHeight / divisorY); initialPositions.push({ x: centerX, y: centerY }); } }
+
+                initialPositions.forEach(pos => {
+                    pinwheelCenters.push({
+                        ...pos,
+                        vx: (Math.random() - 0.5) * pinwheelMoveSpeed * 2, // Velocidad X inicial aleatoria
+                        vy: (Math.random() - 0.5) * pinwheelMoveSpeed * 2  // Velocidad Y inicial aleatoria
+                    });
+                });
+            }
+            oceanEddies = [ { x: logicalWidth * 0.3, y: logicalHeight * 0.3, strength: 0.6, radius: logicalWidth * 0.4, direction: 1 }, { x: logicalWidth * 0.7, y: logicalHeight * 0.7, strength: 0.5, radius: logicalWidth * 0.35, direction: -1 } ];
+            console.log("--- setupSvgGridAndViewBox FIN ---");
+            restartAnimation();
+        }
+
+        function restartAnimation() {
+             if (animationFrameId) { cancelAnimationFrame(animationFrameId); animationFrameId = null; }
+             lastPulseTime = -Infinity; waveStartTime = performance.now();
+             isPaused = false;
+             pauseIcon.classList.remove('hidden'); resumeIcon.classList.add('hidden');
+             animate(performance.now());
+        }
+
+        // --- Funciones de Cálculo de Ángulo ---
+        function calculateAngle_SmoothWaves(baseX, baseY, timeFactor) { const normX = baseX / logicalWidth; const normY = baseY / logicalHeight; const angleOffset = Math.sin(normX * 10 + timeFactor) + Math.cos(normY * 10 + timeFactor); return angleOffset * 180; }
+        function calculateAngle_SeaWaves(baseX, baseY, timeFactor) {
+            const normX = baseX / logicalWidth;
+            const normY = baseY / logicalHeight;
+            const wave = Math.sin(normX * seaWaveFrequency + timeFactor * 2);
+            const ripple = Math.cos(normY * 5 + timeFactor * 0.5);
+            const angleOffset = (wave * 0.8 + ripple * 0.2);
+            return angleOffset * seaWaveAmplitude;
+        }
+        function calculateAngle_Pinwheels(baseX, baseY, timeFactor) {
+            if (!pinwheelCenters || pinwheelCenters.length === 0) {
+                return calculateAngle_SmoothWaves(baseX, baseY, timeFactor * 0.5);
+            }
+            let nearestCenter = null;
+            let minDistSq = Infinity;
+            pinwheelCenters.forEach(center => {
+                const dx = baseX - center.x;
+                const dy = baseY - center.y;
+                const distSq = dx * dx + dy * dy;
+                if (distSq < minDistSq) {
+                    minDistSq = distSq;
+                    nearestCenter = center;
+                }
+            });
+
+            const maxDist = logicalWidth * 0.3;
+            if (nearestCenter && minDistSq < maxDist * maxDist) {
+                const dx_final = baseX - nearestCenter.x;
+                const dy_final = baseY - nearestCenter.y;
+                const angleToCenter = Math.atan2(dy_final, dx_final);
+                const rotationSpeed = 4;
+                const angleRadians = angleToCenter + Math.PI / 2 + timeFactor * rotationSpeed;
+                return angleRadians * (180 / Math.PI);
+            } else {
+                return calculateAngle_SmoothWaves(baseX, baseY, timeFactor * 0.5);
+            }
+        }
+        // Se elimina calculateAngle_FlowField
+        function calculateAngle_CenterPulse(baseX, baseY, timeFactor, currentTime) { const timeSinceLastPulse = currentTime - lastPulseTime; if (timeSinceLastPulse < pulseDuration) { const centerX = logicalWidth / 2; const centerY = logicalHeight / 2; const dx = baseX - centerX; const dy = baseY - centerY; const radialAngleRad = Math.atan2(dy, dx); const radialAngleDeg = radialAngleRad * (180 / Math.PI); const progress = timeSinceLastPulse / pulseDuration; const intensity = 1 - progress * progress; const baseAngleDeg = calculateAngle_SmoothWaves(baseX, baseY, timeFactor); let diff = radialAngleDeg - baseAngleDeg; while (diff <= -180) diff += 360; while (diff > 180) diff -= 360; const finalAngle = baseAngleDeg + diff * intensity; return finalAngle; } else { return calculateAngle_SmoothWaves(baseX, baseY, timeFactor); } }
+        function calculateAngle_GeometricPattern(baseX, baseY, timeFactor) { const centerX = logicalWidth / 2; const centerY = logicalHeight / 2; const dx = baseX - centerX; const dy = baseY - centerY; const angleToCenter = Math.atan2(dy, dx); let tangentialAngle = angleToCenter + Math.PI / 2; const rotationSpeed = 0.3; tangentialAngle += timeFactor * rotationSpeed; return tangentialAngle * (180 / Math.PI); }
+        function calculateAngle_Vortex(baseX, baseY, timeFactor) { const centerX = logicalWidth / 2; const centerY = logicalHeight / 2; const dx = baseX - centerX; const dy = baseY - centerY; const angleToCenter = Math.atan2(dy, dx); const tangentialAngle = angleToCenter + Math.PI / 2; const inwardFactor = vortexInwardFactor; const combinedAngle = tangentialAngle - inwardFactor * (angleToCenter + Math.PI); const rotationSpeed = 0.4; const finalAngle = combinedAngle + timeFactor * rotationSpeed; return finalAngle * (180 / Math.PI); }
+        function calculateAngle_Jitter(baseX, baseY, timeFactor) { const baseAngle = calculateAngle_SmoothWaves(baseX, baseY, timeFactor); const maxJitter = jitterIntensity; const jitterAmount = (Math.random() - 0.5) * 2 * maxJitter; return baseAngle + jitterAmount; }
+        function calculateAngle_FollowPath(baseX, baseY, timeFactor) { const pathCenterY = logicalHeight / 2; const pathAmplitude = logicalHeight * 0.2; const pathFrequency = 4 * Math.PI / logicalWidth; const pathY = pathCenterY + pathAmplitude * Math.sin(baseX * pathFrequency + timeFactor); const distanceY = Math.abs(baseY - pathY); const influenceThreshold = logicalHeight * 0.1; if (distanceY < influenceThreshold) { const slope = pathAmplitude * pathFrequency * Math.cos(baseX * pathFrequency + timeFactor); const tangentAngle = Math.atan(slope); return tangentAngle * (180 / Math.PI); } else { return calculateAngle_SmoothWaves(baseX, baseY, timeFactor); } }
+        function calculateAngle_OceanCurrents(baseX, baseY, timeFactor) { const baseAngle = calculateAngle_SmoothWaves(baseX, baseY, timeFactor * 0.2); let totalInfluenceWeight = 0; let weightedAngleSumRad = 0; const baseAngleRad = baseAngle * (Math.PI / 180); weightedAngleSumRad += baseAngleRad * 1.0; totalInfluenceWeight += 1.0; oceanEddies.forEach(eddy => { const dx = baseX - eddy.x; const dy = baseY - eddy.y; const distSq = dx * dx + dy * dy; const radiusSq = eddy.radius * eddy.radius; if (distSq < radiusSq) { const angleToCenter = Math.atan2(dy, dx); let tangentialAngle = angleToCenter + (Math.PI / 2) * eddy.direction; const rotationSpeed = 0.1 * eddy.direction; tangentialAngle += timeFactor * rotationSpeed; const distanceFactor = Math.sqrt(distSq) / eddy.radius; const weight = eddy.strength * (1 - distanceFactor); weightedAngleSumRad += tangentialAngle * weight; totalInfluenceWeight += weight; } }); let finalAngleRad; if (totalInfluenceWeight > 0) { finalAngleRad = weightedAngleSumRad / totalInfluenceWeight; } else { finalAngleRad = baseAngleRad; } return finalAngleRad * (180 / Math.PI); }
+        function calculateAngle_RippleEffect(baseX, baseY, timeFactor) { const centerX = logicalWidth / 2; const centerY = logicalHeight / 2; const dx = baseX - centerX; const dy = baseY - centerY; const dist = Math.sqrt(dx * dx + dy * dy); const waveLength = 150; const speed = rippleWaveSpeed * 100; const maxAngle = 60; const phase = (dist / waveLength - timeFactor * speed / waveLength) * Math.PI * 2; const angle = Math.sin(phase) * maxAngle; return angle; }
+        function calculateAngle_ExpandingWave(baseX, baseY, timeFactor, currentTime, layer, activationTime, currentAngle) { const timeSinceActivation = currentTime - activationTime; if (currentTime >= activationTime) { const rotationSpeedDegPerSec = animationSpeedFactor * 180; const angle = (timeSinceActivation / 1000) * rotationSpeedDegPerSec; return angle % 360; } else { return 90; } }
+        function calculateAngle_MouseInteraction(baseX, baseY, timeFactor) {
+            const interactionRadius = logicalWidth * (mouseInteractionRadiusPercent / 100);
+            const interactionRadiusSq = interactionRadius * interactionRadius;
+            if (mouseX !== null && mouseY !== null) {
+                const dx = mouseX - baseX; const dy = mouseY - baseY;
+                const distSq = dx * dx + dy * dy;
+                if (distSq < interactionRadiusSq) {
+                    const angleRadians = Math.atan2(dy, dx);
+                    return angleRadians * (180 / Math.PI);
+                } else { return calculateAngle_SmoothWaves(baseX, baseY, timeFactor); }
+            } else { return calculateAngle_SmoothWaves(baseX, baseY, timeFactor); }
+        }
+        // Se elimina calculateAngle_Breathing
+        function calculateAngle_CellularAutomata(r, c, currentAngle, timeFactor) {
+            let neighborAnglesSum = 0;
+            let validNeighbors = 0;
+            const neighbors = [ [-1, -1], [-1, 0], [-1, 1], [ 0, -1], [ 0, 1], [ 1, -1], [ 1, 0], [ 1, 1] ];
+            neighbors.forEach(([dr, dc]) => {
+                const nr = r + dr; const nc = c + dc;
+                const neighborIndex = vectorGridMap.get(`${nr}-${nc}`);
+                if (neighborIndex !== undefined && nr >= 0 && nr < gridRows && nc >= 0 && nc < calculatedGridCols) {
+                    const neighbor = svgLines[neighborIndex];
+                    if (neighbor) {
+                        let diff = neighbor.currentAngle - currentAngle;
+                        while (diff <= -180) diff += 360; while (diff > 180) diff -= 360;
+                        neighborAnglesSum += (currentAngle + diff); validNeighbors++;
+                    }
+                }
+            });
+            let avgNeighborAngle = currentAngle;
+            if (validNeighbors > 0) { avgNeighborAngle = neighborAnglesSum / validNeighbors; }
+            const baseWaveAngle = calculateAngle_SmoothWaves(svgLines[vectorGridMap.get(`${r}-${c}`)].baseX, svgLines[vectorGridMap.get(`${r}-${c}`)].baseY, timeFactor * 0.1);
+            const blendFactor = 0.8;
+            let diffBlend = avgNeighborAngle - baseWaveAngle;
+            while (diffBlend <= -180) diffBlend += 360; while (diffBlend > 180) diffBlend -= 360;
+            const finalAngle = baseWaveAngle + diffBlend * blendFactor;
+            return finalAngle;
+        }
+        function calculateAngle_Lissajous(x, y, timeFactor) {
+            const A = logicalWidth * 0.4; const B = logicalHeight * 0.4;
+            const a = 3; const b = 2; const delta = Math.PI / 2;
+            const targetX = A * Math.sin(a * timeFactor * 2 + delta);
+            const targetY = B * Math.sin(b * timeFactor * 2);
+            const relativeX = (x % (A*2)) - A; const relativeY = (y % (B*2)) - B;
+            const dx = targetX - relativeX; const dy = targetY - relativeY;
+            if (Math.hypot(dx, dy) < 1) {
+                 const currentItem = svgLines.find(item => item.baseX === x && item.baseY === y);
+                 return currentItem ? currentItem.currentAngle : 90;
+            }
+            return Math.atan2(dy, dx) * (180 / Math.PI);
+        }
+        function calculateAngle_PerlinFlow(x, y, timeFactor) {
+            const scale = perlinNoiseScale;
+            const t = timeFactor * perlinTimeSpeed;
+            const noiseValue = noise.noise2D(x * scale, y * scale + t);
+            const angle = ((noiseValue + 1) / 2) * 360;
+            return angle % 360;
+        }
+        function calculateAngle_Flocking(x, y, r, c, currentAngle, timeFactor, flockId) {
+            const radius = flockNeighborhoodRadius;
+            const radiusSq = radius * radius;
+            const separationRadius = vectorSpacing * 1.5;
+            const separationRadiusSq = separationRadius * separationRadius;
+            let alignmentSumX = 0, alignmentSumY = 0, cohesionX = 0, cohesionY = 0;
+            let separationSumX = 0, separationSumY = 0;
+            let flockNeighborCount = 0, separationCount = 0;
+            const searchRadius = Math.ceil(radius / vectorSpacing);
+            for (let nr = Math.max(0, r - searchRadius); nr < Math.min(gridRows, r + searchRadius + 1); nr++) {
+                for (let nc = Math.max(0, c - searchRadius); nc < Math.min(calculatedGridCols, c + searchRadius + 1); nc++) {
+                    if (nr === r && nc === c) continue;
+                    const neighborIndex = vectorGridMap.get(`${nr}-${nc}`);
+                    if (neighborIndex === undefined) continue;
+                    const neighbor = svgLines[neighborIndex];
+                    const dx = neighbor.baseX - x; const dy = neighbor.baseY - y;
+                    const distSq = dx * dx + dy * dy;
+                    if (distSq < separationRadiusSq && distSq > 0) {
+                        const dist = Math.sqrt(distSq);
+                        separationSumX -= dx / dist; separationSumY -= dy / dist;
+                        separationCount++;
+                    }
+                    if (distSq < radiusSq && neighbor.flockId === flockId) {
+                        const neighborAngleRad = neighbor.currentAngle * (Math.PI / 180);
+                        alignmentSumX += Math.cos(neighborAngleRad); alignmentSumY += Math.sin(neighborAngleRad);
+                        cohesionX += neighbor.baseX; cohesionY += neighbor.baseY;
+                        flockNeighborCount++;
+                    }
+                }
+            }
+            let targetAngle = currentAngle;
+            let finalVecX = 0; let finalVecY = 0; let totalWeight = 0;
+            if (flockNeighborCount > 0) {
+                const avgAlignmentX = alignmentSumX / flockNeighborCount; const avgAlignmentY = alignmentSumY / flockNeighborCount;
+                const avgCohesionX = cohesionX / flockNeighborCount; const avgCohesionY = cohesionY / flockNeighborCount;
+                finalVecX += avgAlignmentX * flockAlignmentStrength; finalVecY += avgAlignmentY * flockAlignmentStrength; totalWeight += flockAlignmentStrength;
+                finalVecX += (avgCohesionX - x) * flockCohesionStrength * 0.01; finalVecY += (avgCohesionY - y) * flockCohesionStrength * 0.01; totalWeight += flockCohesionStrength;
+            }
+            if (separationCount > 0 && flockSeparationStrength > 0) {
+                finalVecX += (separationSumX / separationCount) * flockSeparationStrength; finalVecY += (separationSumY / separationCount) * flockSeparationStrength; totalWeight += flockSeparationStrength;
+            }
+            if (flockMouseAttraction && mouseX !== null && mouseY !== null) {
+                const dxMouse = mouseX - x; const dyMouse = mouseY - y;
+                const distMouseSq = dxMouse*dxMouse + dyMouse*dyMouse;
+                if (distMouseSq < radiusSq * 4) {
+                   const distMouse = Math.sqrt(distMouseSq);
+                   finalVecX += (dxMouse / distMouse) * flockMouseAttractionStrength;
+                   finalVecY += (dyMouse / distMouse) * flockMouseAttractionStrength; totalWeight += flockMouseAttractionStrength;
+                }
+            }
+            if (totalWeight > 0 && (Math.abs(finalVecX) > 0.001 || Math.abs(finalVecY) > 0.001)) { targetAngle = Math.atan2(finalVecY, finalVecX) * (180 / Math.PI); }
+            else if (flockNeighborCount === 0 && (!flockMouseAttraction || mouseX === null)) { targetAngle = calculateAngle_SmoothWaves(x, y, timeFactor * 0.1); }
+            while (targetAngle <= -180) targetAngle += 360; while (targetAngle > 180) targetAngle -= 360;
+            return targetAngle;
+        }
+
+
+        /**
+         * Bucle principal de animación.
+         */
+        function animate(time) {
+             if (isPaused) { animationFrameId = null; return; }
+             const timeFactor = time * 0.001 * animationSpeedFactor;
+             const variabilityTimeFactor = time * 0.001;
+
+             if (currentAnimationType === 'centerPulse') { const pulseIntervalMs = pulseInterval * 1000; if (time - lastPulseTime >= pulseIntervalMs) { lastPulseTime = time; } }
+
+             // Mover centros de molinos si la animación es 'pinwheels'
+             if (currentAnimationType === 'pinwheels') {
+                 pinwheelCenters.forEach(center => {
+                     center.x += center.vx * animationSpeedFactor;
+                     center.y += center.vy * animationSpeedFactor;
+                     if (center.x < 0 || center.x > logicalWidth) center.vx *= -1;
+                     if (center.y < 0 || center.y > logicalHeight) center.vy *= -1;
+                     center.x = Math.max(0, Math.min(logicalWidth, center.x));
+                     center.y = Math.max(0, Math.min(logicalHeight, center.y));
+                     center.vx += (Math.random() - 0.5) * 0.2;
+                     center.vy += (Math.random() - 0.5) * 0.2;
+                     const speed = Math.hypot(center.vx, center.vy);
+                     if (speed > maxPinwheelSpeed) {
+                         center.vx *= maxPinwheelSpeed / speed;
+                         center.vy *= maxPinwheelSpeed / speed;
+                     }
+                 });
+             }
+
+             let previousAngles = null;
+             if (currentAnimationType === 'cellularAutomata') {
+                 previousAngles = svgLines.map(item => item.currentAngle);
+             }
+
+             svgLines.forEach((item, index) => {
+                 const { element, baseX, baseY, layer, activationTime, shape, r, c, flockId } = item;
+                 if (!element) return;
+
+                 let targetAngle = 0;
+                 // --- Cálculo del Ángulo ---
+                 switch (currentAnimationType) {
+                     case 'seaWaves': targetAngle = calculateAngle_SeaWaves(baseX, baseY, timeFactor); break;
+                     case 'pinwheels': targetAngle = calculateAngle_Pinwheels(baseX, baseY, timeFactor); break;
+                     case 'centerPulse': targetAngle = calculateAngle_CenterPulse(baseX, baseY, timeFactor, time); break;
+                     case 'geometricPattern': targetAngle = calculateAngle_GeometricPattern(baseX, baseY, timeFactor); break;
+                     case 'vortex': targetAngle = calculateAngle_Vortex(baseX, baseY, timeFactor); break;
+                     case 'jitter': targetAngle = calculateAngle_Jitter(baseX, baseY, timeFactor); break;
+                     case 'followPath': targetAngle = calculateAngle_FollowPath(baseX, baseY, timeFactor); break;
+                     case 'oceanCurrents': targetAngle = calculateAngle_OceanCurrents(baseX, baseY, timeFactor); break;
+                     case 'rippleEffect': targetAngle = calculateAngle_RippleEffect(baseX, baseY, timeFactor); break;
+                     case 'expandingWave': targetAngle = calculateAngle_ExpandingWave(baseX, baseY, timeFactor, time, layer, activationTime, item.currentAngle); break;
+                     case 'mouseInteraction': targetAngle = calculateAngle_MouseInteraction(baseX, baseY, timeFactor); break;
+                     case 'cellularAutomata': targetAngle = calculateAngle_CellularAutomata(r, c, previousAngles ? previousAngles[index] : item.currentAngle, timeFactor); break;
+                     case 'lissajous': targetAngle = calculateAngle_Lissajous(baseX, baseY, timeFactor); break;
+                     case 'perlinFlow': targetAngle = calculateAngle_PerlinFlow(baseX, baseY, timeFactor); break;
+                     case 'flocking': targetAngle = calculateAngle_Flocking(baseX, baseY, r, c, item.currentAngle, timeFactor, flockId); break;
+                     case 'smoothWaves': default: targetAngle = calculateAngle_SmoothWaves(baseX, baseY, timeFactor); break;
+                 }
+                 // --- Aplicación de Easing al Ángulo ---
+                 let newAngle;
+                 const currentEasing = (currentAnimationType === 'flocking') ? Math.min(1.0, easingFactor * 5) : easingFactor;
+
+                 if (currentAnimationType === 'expandingWave' && time >= activationTime) { newAngle = targetAngle; }
+                 else {
+                     let currentAngleForEasing = item.currentAngle;
+                     let diff = targetAngle - currentAngleForEasing;
+                     while (diff <= -180) diff += 360;
+                     while (diff > 180) diff -= 360;
+                     newAngle = currentAngleForEasing + diff * currentEasing;
+                 }
+                 item.currentAngle = newAngle;
+
+                 // --- Aplicación de Atributos ---
+                 let currentStrokeWidth = vectorStrokeWidth;
+                 let currentStrokeColor = vectorColor; // Color base
+
+                 if (isStrokeVariabilityActive) {
+                     const variationFactor = Math.sin(baseX * variabilityFrequency + variabilityTimeFactor * 5) + Math.cos(baseY * variabilityFrequency + variabilityTimeFactor * 3);
+                     const normalizedVariation = (variationFactor + 2) / 4;
+                     const strokeRange = vectorStrokeWidth * strokeWidthVariationPercent * 2;
+                     const minStroke = Math.max(0.1, vectorStrokeWidth * (1 - strokeWidthVariationPercent));
+                     currentStrokeWidth = minStroke + normalizedVariation * strokeRange;
+                     currentStrokeWidth = Math.max(0.1, currentStrokeWidth);
+                 }
+                 element.setAttribute('stroke-width', currentStrokeWidth.toFixed(2));
+
+                 // Aplicar color por bandada si es flocking y hay más de una
+                 if(currentAnimationType === 'flocking' && flockNumFlocks > 1) {
+                     currentStrokeColor = getColorByFlockId(flockId);
+                 }
+                 element.setAttribute('stroke', currentStrokeColor);
+
+
+                 // Aplicar longitud BASE siempre
+                 const currentBaseLength = vectorLength;
+                 if (shape === 'straight') {
+                    element.setAttribute('x1', -currentBaseLength / 2);
+                    element.setAttribute('x2', currentBaseLength / 2);
+                 } else if (shape === 'curved' || shape === 'semicircle') {
+                    let pathData = '';
+                    const halfLen = currentBaseLength / 2;
+                    if (shape === 'curved') {
+                        const curveHeight = currentBaseLength * 0.3;
+                        pathData = `M ${-halfLen},0 Q 0,${-curveHeight} ${halfLen},0`;
+                    } else { // semicircle
+                        const radius = halfLen;
+                        pathData = `M ${-radius},0 A ${radius},${radius} 0 0 1 ${radius},0`;
+                    }
+                    element.setAttribute('d', pathData);
+                 }
+
+                 element.setAttribute('transform', `translate(${baseX} ${baseY}) rotate(${newAngle})`);
+                 // console.log(`Animating ${item.id}: Angle=${newAngle.toFixed(1)}, StrokeW=${currentStrokeWidth.toFixed(2)}`);
+
+             });
+             if (!isPaused) { animationFrameId = requestAnimationFrame(animate); }
+        }
+
+        // --- Funciones de Exportación ---
+        function escapeHTML(str) { return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;'); }
+        function generateExportJsCode() {
+            // ... (lógica switch para angle functions - añadir 'flocking') ...
+            let calculateAngleFunctionCode = ''; let includeSmoothWaves = false;
+            let pinwheelCentersDefinition = ''; /* Se elimina flowIntensityDefinition */ let vortexIntensityDefinition = ''; let pulseIntervalDefinition = ''; let jitterIntensityDefinition = ''; let oceanEddiesDefinition = ''; let rippleSpeedDefinition = ''; let expandingWaveDefinition = ''; let mouseInteractionDefinition = ''; let flockingDefinition = ''; // Añadir flocking
+            // Añadir caso para 'cellularAutomata', 'lissajous', 'perlinFlow', 'flocking' y eliminar 'flowField' y 'breathing'
+            switch (currentAnimationType) {
+                case 'seaWaves': calculateAngleFunctionCode = calculateAngle_SeaWaves.toString(); includeSmoothWaves = true; break;
+                case 'pinwheels':
+                     // Exportar centros con velocidad inicial
+                     const initialPinwheelCenters = pinwheelCenters.map(c => ({ x: c.x, y: c.y, vx: c.vx, vy: c.vy }));
+                     pinwheelCentersDefinition = `let pinwheelCenters = ${JSON.stringify(initialPinwheelCenters)};\nconst pinwheelMoveSpeed = ${pinwheelMoveSpeed};\nconst maxPinwheelSpeed = ${maxPinwheelSpeed};`;
+                     calculateAngleFunctionCode = calculateAngle_Pinwheels.toString();
+                     includeSmoothWaves = true;
+                     break;
+                // Se elimina caso 'flowField'
+                case 'centerPulse': pulseIntervalDefinition = `const pulseInterval = ${pulseInterval};\nconst pulseDuration = ${pulseDuration};\nlet lastPulseTime = -Infinity;`; calculateAngleFunctionCode = calculateAngle_CenterPulse.toString(); includeSmoothWaves = true; break;
+                 case 'geometricPattern': calculateAngleFunctionCode = calculateAngle_GeometricPattern.toString(); break;
+                 case 'vortex': vortexIntensityDefinition = `const vortexInwardFactor = ${vortexInwardFactor};`; calculateAngleFunctionCode = calculateAngle_Vortex.toString(); break;
+                 case 'jitter': jitterIntensityDefinition = `const jitterIntensity = ${jitterIntensity};`; calculateAngleFunctionCode = calculateAngle_Jitter.toString(); includeSmoothWaves = true; break;
+                 case 'followPath': calculateAngleFunctionCode = calculateAngle_FollowPath.toString(); includeSmoothWaves = true; break;
+                 case 'oceanCurrents': oceanEddiesDefinition = `const oceanEddies = ${JSON.stringify(oceanEddies)};`; calculateAngleFunctionCode = calculateAngle_OceanCurrents.toString(); includeSmoothWaves = true; break;
+                 case 'rippleEffect': rippleSpeedDefinition = `const rippleWaveSpeed = ${rippleWaveSpeed};`; calculateAngleFunctionCode = calculateAngle_RippleEffect.toString(); break;
+                 case 'expandingWave': expandingWaveDefinition = `const expandingWaveDelay = ${expandingWaveDelay};\nlet waveStartTime = performance.now();`; calculateAngleFunctionCode = calculateAngle_ExpandingWave.toString(); break;
+                case 'mouseInteraction': mouseInteractionDefinition = `const mouseInteractionRadiusPercent = ${mouseInteractionRadiusPercent};\nlet mouseX = null;\nlet mouseY = null;`; calculateAngleFunctionCode = calculateAngle_MouseInteraction.toString(); includeSmoothWaves = true; calculateAngleFunctionCode += `\n\n${getSVGCoordinates.toString()}`; mouseInteractionDefinition += `\ndocument.getElementById('vectorSvg').addEventListener('mousemove', (event) => { const coords = getSVGCoordinates(event); mouseX = coords.x; mouseY = coords.y; });\ndocument.getElementById('vectorSvg').addEventListener('mouseleave', () => { mouseX = null; mouseY = null; });\n`; break;
+                case 'cellularAutomata': calculateAngleFunctionCode = calculateAngle_CellularAutomata.toString(); includeSmoothWaves = true; break;
+                case 'lissajous': calculateAngleFunctionCode = calculateAngle_Lissajous.toString(); break;
+                case 'perlinFlow': calculateAngleFunctionCode = calculateAngle_PerlinFlow.toString(); break;
+                case 'flocking': // NUEVO CASO EXPORT
+                    flockingDefinition = `const flockNumFlocks = ${flockNumFlocks};const flockNeighborhoodRadius = ${flockNeighborhoodRadius};const flockAlignmentStrength = ${flockAlignmentStrength};const flockCohesionStrength = ${flockCohesionStrength};const flockSeparationStrength = ${flockSeparationStrength};const flockMouseAttraction = ${flockMouseAttraction};const flockMouseAttractionStrength = ${flockMouseAttractionStrength};const vectorSpacing = ${vectorSpacing};let mouseX = null;let mouseY = null;document.getElementById('vectorSvg').addEventListener('mousemove', (event) => { const coords = getSVGCoordinates(event); mouseX = coords.x; mouseY = coords.y; });document.getElementById('vectorSvg').addEventListener('mouseleave', () => { mouseX = null; mouseY = null; });    `;
+                    calculateAngleFunctionCode = calculateAngle_Flocking.toString() + `\n\n${getSVGCoordinates.toString()}`;
+                    includeSmoothWaves = true;
+                    break;
+                // Se elimina caso 'breathing'
+                case 'smoothWaves': default: calculateAngleFunctionCode = calculateAngle_SmoothWaves.toString(); includeSmoothWaves = true; break;
+            }
+             if (includeSmoothWaves && !calculateAngleFunctionCode.includes('calculateAngle_SmoothWaves')) { calculateAngleFunctionCode += `\n\n${calculateAngle_SmoothWaves.toString()}`; }
+
+             let perlinNoiseImplementation = '';
+             if (currentAnimationType === 'perlinFlow') {
+                 perlinNoiseImplementation = `\n\n// --- Implementación Ruido Perlin ---\n${noise.toString()}\n`;
+             }
+
+
+            const fixedVectorLength = vectorLength;
+            const fixedStrokeWidth = vectorStrokeWidth;
+            const fixedVectorColor = vectorColor;
+            const variabilityDefinition = `
+const isStrokeVariabilityActive = ${isStrokeVariabilityActive};
+const baseVectorLength = ${fixedVectorLength};
+const baseStrokeWidth = ${fixedStrokeWidth};
+const vectorColor = "${fixedVectorColor}";
+const strokeWidthVariationPercent = ${strokeWidthVariationPercent};
+const variabilityFrequency = ${variabilityFrequency};
+const gridRows = ${gridRows};
+const calculatedGridCols = ${calculatedGridCols};
+${currentAnimationType === 'perlinFlow' ? `const perlinNoiseScale = ${perlinNoiseScale};\nconst perlinTimeSpeed = ${perlinTimeSpeed};` : ''}
+${currentAnimationType === 'seaWaves' ? `const seaWaveFrequency = ${seaWaveFrequency};\nconst seaWaveAmplitude = ${seaWaveAmplitude};` : ''}
+            `;
+            // Añadir r, c y flockId a los datos exportados
+            const linesData = JSON.stringify(svgLines.map(l => ({ id: l.id, baseX: l.baseX, baseY: l.baseY, currentAngle: 90, shape: l.shape, r: l.r, c: l.c, flockId: l.flockId, ...(currentAnimationType === 'expandingWave' && { layer: l.layer, activationTime: l.activationTime }) })));
+            const fixedEasingFactor = easingFactor; const fixedAnimationSpeedFactor = animationSpeedFactor; const fixedLogicalWidth = logicalWidth; const fixedLogicalHeight = logicalHeight;
+
+            // Exportación simplificada (sin variabilidad de longitud)
+            return `
+// --- Animación Vectorial Exportada ---
+// Generado el: ${new Date().toISOString()}
+// Tipo de Animación: ${currentAnimationType}
+const svgElementToAnimate = document.getElementById('vectorSvg');
+const animationSpeedFactor = ${fixedAnimationSpeedFactor};
+const logicalWidth = ${fixedLogicalWidth};
+const logicalHeight = ${fixedLogicalHeight};
+const easingFactor = ${fixedEasingFactor};
+let linesToAnimate = ${linesData};
+${pinwheelCentersDefinition} // Incluye velocidades iniciales
+${vortexIntensityDefinition}
+${pulseIntervalDefinition}
+${jitterIntensityDefinition}
+${oceanEddiesDefinition}
+${rippleSpeedDefinition}
+${expandingWaveDefinition}
+${mouseInteractionDefinition}
+${flockingDefinition}
+${variabilityDefinition}
+${perlinNoiseImplementation}
+${calculateAngleFunctionCode}
+${getColorByFlockId.toString()} // <-- Incluir función de color
+let animFrameId;
+let previousAngles = null;
+
+// Helper para encontrar índice en exportación
+function findVectorIndex(r, c) {
+    for(let i = 0; i < linesToAnimate.length; i++) {
+        if (linesToAnimate[i].r === r && linesToAnimate[i].c === c) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+// Reescribir funciones de cálculo para exportación (si es necesario)
+// ... (Reescritura de CellularAutomata, Lissajous, PerlinFlow, SeaWaves, Flocking como antes) ...
+if ("${currentAnimationType}" === 'cellularAutomata') {
+    const original_calculateAngle_CellularAutomata = calculateAngle_CellularAutomata;
+    calculateAngle_CellularAutomata = function(r, c, currentAngle, timeFactor) {
+        let neighborAnglesSum = 0; let validNeighbors = 0;
+        const neighbors = [ [-1, -1], [-1, 0], [-1, 1], [ 0, -1], [ 0, 1], [ 1, -1], [ 1, 0], [ 1, 1] ];
+        neighbors.forEach(([dr, dc]) => {
+            const nr = r + dr; const nc = c + dc;
+            if (nr >= 0 && nr < gridRows && nc >= 0 && nc < calculatedGridCols) {
+                const neighborIndex = findVectorIndex(nr, nc);
+                if (neighborIndex !== -1) {
+                    const neighbor = linesToAnimate[neighborIndex];
+                    const neighborPrevAngle = previousAngles ? previousAngles[neighborIndex] : neighbor.currentAngle;
+                    let diff = neighborPrevAngle - currentAngle;
+                    while (diff <= -180) diff += 360; while (diff > 180) diff -= 360;
+                    neighborAnglesSum += (currentAngle + diff); validNeighbors++;
+                }
+            }
+        });
+        let avgNeighborAngle = currentAngle;
+        if (validNeighbors > 0) { avgNeighborAngle = neighborAnglesSum / validNeighbors; }
+        const currentItemIndex = findVectorIndex(r,c);
+        const baseWaveAngle = currentItemIndex !== -1 ? calculateAngle_SmoothWaves(linesToAnimate[currentItemIndex].baseX, linesToAnimate[currentItemIndex].baseY, timeFactor * 0.1) : currentAngle;
+        const blendFactor = 0.8;
+        let diffBlend = avgNeighborAngle - baseWaveAngle;
+        while (diffBlend <= -180) diffBlend += 360; while (diffBlend > 180) diffBlend -= 360;
+        const finalAngle = baseWaveAngle + diffBlend * blendFactor;
+        return finalAngle;
+    }
+}
+if ("${currentAnimationType}" === 'lissajous') {
+    const original_calculateAngle_Lissajous = calculateAngle_Lissajous;
+    calculateAngle_Lissajous = function(x, y, timeFactor) {
+        const A = logicalWidth * 0.4; const B = logicalHeight * 0.4;
+        const a = 3; const b = 2; const delta = Math.PI / 2;
+        const targetX = A * Math.sin(a * timeFactor * 2 + delta);
+        const targetY = B * Math.sin(b * timeFactor * 2);
+        const relativeX = (x % (A*2)) - A; const relativeY = (y % (B*2)) - B;
+        const dx = targetX - relativeX; const dy = targetY - relativeY;
+        if (Math.hypot(dx, dy) < 1) {
+             const currentItemIndex = linesToAnimate.findIndex(item => item.baseX === x && item.baseY === y);
+             return currentItemIndex !== -1 ? linesToAnimate[currentItemIndex].currentAngle : 90;
+        }
+        return Math.atan2(dy, dx) * (180 / Math.PI);
+    }
+}
+if ("${currentAnimationType}" === 'perlinFlow') {
+    const original_calculateAngle_PerlinFlow = calculateAngle_PerlinFlow;
+     calculateAngle_PerlinFlow = function(x, y, timeFactor) {
+         const scale = perlinNoiseScale;
+         const t = timeFactor * perlinTimeSpeed;
+         const noiseValue = noise.noise2D(x * scale, y * scale + t);
+         const angle = ((noiseValue + 1) / 2) * 360;
+         return angle % 360;
+     }
+}
+if ("${currentAnimationType}" === 'seaWaves') {
+    const original_calculateAngle_SeaWaves = calculateAngle_SeaWaves;
+    calculateAngle_SeaWaves = function(baseX, baseY, timeFactor) {
+        const normX = baseX / logicalWidth;
+        const normY = baseY / logicalHeight;
+        const wave = Math.sin(normX * seaWaveFrequency + timeFactor * 2);
+        const ripple = Math.cos(normY * 5 + timeFactor * 0.5);
+        const angleOffset = (wave * 0.8 + ripple * 0.2);
+        return angleOffset * seaWaveAmplitude;
+    }
+}
+if ("${currentAnimationType}" === 'flocking') {
+    const original_calculateAngle_Flocking = calculateAngle_Flocking;
+    calculateAngle_Flocking = function(x, y, r, c, currentAngle, timeFactor, flockId) {
+        const radius = flockNeighborhoodRadius; const radiusSq = radius * radius;
+        const separationRadius = vectorSpacing * 1.5; const separationRadiusSq = separationRadius * separationRadius;
+        let alignmentSumX = 0, alignmentSumY = 0, cohesionX = 0, cohesionY = 0;
+        let separationSumX = 0, separationSumY = 0;
+        let flockNeighborCount = 0, separationCount = 0;
+        const searchRadius = Math.ceil(radius / vectorSpacing);
+        for (let nr = Math.max(0, r - searchRadius); nr < Math.min(gridRows, r + searchRadius + 1); nr++) {
+            for (let nc = Math.max(0, c - searchRadius); nc < Math.min(calculatedGridCols, c + searchRadius + 1); nc++) {
+                if (nr === r && nc === c) continue;
+                const neighborIndex = findVectorIndex(nr, nc);
+                if (neighborIndex === -1) continue;
+                const neighbor = linesToAnimate[neighborIndex];
+                const dx = neighbor.baseX - x; const dy = neighbor.baseY - y;
+                const distSq = dx * dx + dy * dy;
+                if (distSq < separationRadiusSq && distSq > 0) { const dist = Math.sqrt(distSq); separationSumX -= dx / dist; separationSumY -= dy / dist; separationCount++; }
+                if (distSq < radiusSq && neighbor.flockId === flockId) { const neighborAngleRad = neighbor.currentAngle * (Math.PI / 180); alignmentSumX += Math.cos(neighborAngleRad); alignmentSumY += Math.sin(neighborAngleRad); cohesionX += neighbor.baseX; cohesionY += neighbor.baseY; flockNeighborCount++; }
+            }
+        }
+        let targetAngle = currentAngle; let finalVecX = 0; let finalVecY = 0; let totalWeight = 0;
+        if (flockNeighborCount > 0) { const avgAlignmentX = alignmentSumX / flockNeighborCount; const avgAlignmentY = alignmentSumY / flockNeighborCount; const avgCohesionX = cohesionX / flockNeighborCount; const avgCohesionY = cohesionY / flockNeighborCount; finalVecX += avgAlignmentX * flockAlignmentStrength; finalVecY += avgAlignmentY * flockAlignmentStrength; totalWeight += flockAlignmentStrength; finalVecX += (avgCohesionX - x) * flockCohesionStrength * 0.01; finalVecY += (avgCohesionY - y) * flockCohesionStrength * 0.01; totalWeight += flockCohesionStrength; }
+        if (separationCount > 0 && flockSeparationStrength > 0) { finalVecX += (separationSumX / separationCount) * flockSeparationStrength; finalVecY += (separationSumY / separationCount) * flockSeparationStrength; totalWeight += flockSeparationStrength; }
+        if (flockMouseAttraction && mouseX !== null && mouseY !== null) { const dxMouse = mouseX - x; const dyMouse = mouseY - y; const distMouseSq = dxMouse*dxMouse + dyMouse*dyMouse; if (distMouseSq < radiusSq * 4) { const distMouse = Math.sqrt(distMouseSq); finalVecX += (dxMouse / distMouse) * flockMouseAttractionStrength; finalVecY += (dyMouse / distMouse) * flockMouseAttractionStrength; totalWeight += flockMouseAttractionStrength; } }
+        if (totalWeight > 0 && (Math.abs(finalVecX) > 0.001 || Math.abs(finalVecY) > 0.001)) { targetAngle = Math.atan2(finalVecY, finalVecX) * (180 / Math.PI); }
+        else if (flockNeighborCount === 0 && (!flockMouseAttraction || mouseX === null)) { targetAngle = calculateAngle_SmoothWaves(x, y, timeFactor * 0.1); }
+        while (targetAngle <= -180) targetAngle += 360; while (targetAngle > 180) targetAngle -= 360;
+        return targetAngle;
+    }
+}
+
+
+function animateVectors(time) {
+    const timeFactor = time * 0.001 * animationSpeedFactor;
+    const variabilityTimeFactor = time * 0.001;
+
+    if ("${currentAnimationType}" === 'centerPulse') { const pulseIntervalMs = pulseInterval * 1000; if (time - lastPulseTime >= pulseIntervalMs) { lastPulseTime = time; } }
+    if ("${currentAnimationType}" === 'expandingWave' && time < waveStartTime) { waveStartTime = time; linesToAnimate.forEach(item => { item.activationTime = waveStartTime + item.layer * expandingWaveDelay; }); }
+    if ("${currentAnimationType}" === 'cellularAutomata') { previousAngles = linesToAnimate.map(item => item.currentAngle); }
+
+     // Mover centros de molinos si la animación es 'pinwheels'
+     if ("${currentAnimationType}" === 'pinwheels') {
+         pinwheelCenters.forEach(center => {
+             center.x += center.vx * animationSpeedFactor;
+             center.y += center.vy * animationSpeedFactor;
+             if (center.x < 0 || center.x > logicalWidth) center.vx *= -1;
+             if (center.y < 0 || center.y > logicalHeight) center.vy *= -1;
+             center.x = Math.max(0, Math.min(logicalWidth, center.x));
+             center.y = Math.max(0, Math.min(logicalHeight, center.y));
+             center.vx += (Math.random() - 0.5) * 0.2;
+             center.vy += (Math.random() - 0.5) * 0.2;
+             const speed = Math.hypot(center.vx, center.vy);
+             if (speed > maxPinwheelSpeed) {
+                 center.vx *= maxPinwheelSpeed / speed;
+                 center.vy *= maxPinwheelSpeed / speed;
+             }
+         });
+     }
+
+    linesToAnimate.forEach((item, index) => {
+        const lineElement = svgElementToAnimate.getElementById(item.id);
+        if (!lineElement) return;
+        const { baseX, baseY, layer, activationTime, shape, r, c, flockId } = item; // Añadir flockId
+        let targetAngle = 0;
+        switch ("${currentAnimationType}") {
+             case 'seaWaves': targetAngle = calculateAngle_SeaWaves(baseX, baseY, timeFactor); break;
+             case 'pinwheels': targetAngle = calculateAngle_Pinwheels(baseX, baseY, timeFactor); break;
+             case 'centerPulse': targetAngle = calculateAngle_CenterPulse(baseX, baseY, timeFactor, time); break;
+             case 'geometricPattern': targetAngle = calculateAngle_GeometricPattern(baseX, baseY, timeFactor); break;
+             case 'vortex': targetAngle = calculateAngle_Vortex(baseX, baseY, timeFactor); break;
+             case 'jitter': targetAngle = calculateAngle_Jitter(baseX, baseY, timeFactor); break;
+             case 'followPath': targetAngle = calculateAngle_FollowPath(baseX, baseY, timeFactor); break;
+             case 'oceanCurrents': targetAngle = calculateAngle_OceanCurrents(baseX, baseY, timeFactor); break;
+             case 'rippleEffect': targetAngle = calculateAngle_RippleEffect(baseX, baseY, timeFactor); break;
+             case 'expandingWave': targetAngle = calculateAngle_ExpandingWave(baseX, baseY, timeFactor, time, layer, activationTime, item.currentAngle); break;
+             case 'mouseInteraction': targetAngle = calculateAngle_MouseInteraction(baseX, baseY, timeFactor); break;
+             case 'cellularAutomata': targetAngle = calculateAngle_CellularAutomata(r, c, previousAngles ? previousAngles[index] : item.currentAngle, timeFactor); break;
+             case 'lissajous': targetAngle = calculateAngle_Lissajous(baseX, baseY, timeFactor); break;
+             case 'perlinFlow': targetAngle = calculateAngle_PerlinFlow(baseX, baseY, timeFactor); break;
+             case 'flocking': targetAngle = calculateAngle_Flocking(baseX, baseY, r, c, item.currentAngle, timeFactor, flockId); break; // Pasar flockId
+             case 'smoothWaves': default: targetAngle = calculateAngle_SmoothWaves(baseX, baseY, timeFactor); break;
+        }
+        let newAngle;
+        const currentEasing = ("${currentAnimationType}" === 'flocking') ? Math.min(1.0, easingFactor * 5) : easingFactor;
+        if ("${currentAnimationType}" === 'expandingWave' && time >= item.activationTime) { newAngle = targetAngle; }
+        else if ("${currentAnimationType}" !== 'expandingWave') { let currentAngle = item.currentAngle; let diff = targetAngle - currentAngle; while (diff <= -180) diff += 360; while (diff > 180) diff -= 360; newAngle = currentAngle + diff * currentEasing; }
+        else { newAngle = item.currentAngle; }
+        item.currentAngle = newAngle;
+
+        let currentStrokeWidth = baseStrokeWidth;
+        if (isStrokeVariabilityActive) {
+            const variationFactor = Math.sin(baseX * variabilityFrequency + variabilityTimeFactor * 5) + Math.cos(baseY * variabilityFrequency + variabilityTimeFactor * 3);
+            const normalizedVariation = (variationFactor + 2) / 4;
+            const strokeRange = baseStrokeWidth * strokeWidthVariationPercent * 2;
+            const minStroke = Math.max(0.1, baseStrokeWidth * (1 - strokeWidthVariationPercent));
+            currentStrokeWidth = minStroke + normalizedVariation * strokeRange;
+            currentStrokeWidth = Math.max(0.1, currentStrokeWidth);
+        }
+        lineElement.setAttribute('stroke-width', currentStrokeWidth.toFixed(2));
+
+        // Aplicar color por bandada si es flocking y hay más de una
+        const strokeColor = ("${currentAnimationType}" === 'flocking' && flockNumFlocks > 1) ? getColorByFlockId(flockId) : vectorColor; // Usar vectorColor
+        lineElement.setAttribute('stroke', strokeColor);
+
+
+        if (shape === 'straight') {
+            lineElement.setAttribute('x1', -baseVectorLength / 2);
+            lineElement.setAttribute('x2', baseVectorLength / 2);
+        } else if (shape === 'curved') {
+             const halfLen = baseVectorLength / 2;
+             const curveHeight = baseVectorLength * 0.3;
+             const pathData = \`M \${-halfLen},0 Q 0,\${-curveHeight} \${halfLen},0\`;
+             lineElement.setAttribute('d', pathData);
+        } else if (shape === 'semicircle') {
+             const radius = baseVectorLength / 2;
+             const pathData = \`M \${-radius},0 A \${radius},\${radius} 0 0 1 \${radius},0\`;
+             lineElement.setAttribute('d', pathData);
+        }
+        lineElement.setAttribute('transform', \`translate(\${baseX} \${baseY}) rotate(\${newAngle})\`);
+    });
+    animFrameId = requestAnimationFrame(animateVectors);
+}
+if (svgElementToAnimate && typeof requestAnimationFrame === 'function') { console.log("Iniciando animación exportada..."); animateVectors(performance.now()); }
+else { if (!svgElementToAnimate) { console.error("Script exportado no pudo encontrar elemento SVG con id 'vectorSvg'."); } if (typeof requestAnimationFrame !== 'function') { console.error("Script exportado requiere soporte para requestAnimationFrame."); } }
+            `;
+        }
+
+
+        // --- Función para obtener color según ID de bandada ---
+        function getColorByFlockId(flockId) {
+            if (flockNumFlocks <= 1) return vectorColor;
+            const hueStart = 200;
+            const hueStep = 300 / (flockNumFlocks || 1);
+            const hue = (hueStart + flockId * hueStep) % 360;
+            return `hsl(${hue}, 90%, 65%)`;
+        }
+
+
+        // --- Configuración de Event Listeners ---
+        function setupNumericInput(inputElement, stateVariableSetter, needsRedraw = false, isFloat = false, step = 1, outputElement = null) {
+             let lastValidValue = isFloat ? parseFloat(inputElement.value) : parseInt(inputElement.value);
+             if (isNaN(lastValidValue)) { lastValidValue = isFloat ? parseFloat(inputElement.min) : parseInt(inputElement.min); if (isNaN(lastValidValue)) lastValidValue = isFloat ? 0.0 : 0; inputElement.value = lastValidValue; }
+             stateVariableSetter(lastValidValue);
+             if(outputElement) outputElement.textContent = lastValidValue.toFixed(step.toString().includes('.') ? step.toString().split('.')[1].length : 0); // Mostrar valor inicial
+
+             inputElement.addEventListener('input', (e) => {
+                 let value = isFloat ? parseFloat(e.target.value) : parseInt(e.target.value);
+                 if (!isNaN(value)) {
+                     stateVariableSetter(value);
+                     if(outputElement) outputElement.textContent = value.toFixed(step.toString().includes('.') ? step.toString().split('.')[1].length : 0); // Actualizar output en tiempo real
+                 }
+             });
+             inputElement.addEventListener('change', (e) => {
+                 let value = isFloat ? parseFloat(e.target.value) : parseInt(e.target.value);
+                 const min = parseFloat(inputElement.min);
+                 // CORRECCIÓN: Leer max solo si existe
+                 const maxAttr = inputElement.getAttribute('max');
+                 const max = maxAttr !== null ? parseFloat(maxAttr) : NaN;
+
+                 if (isNaN(value)) {
+                     value = lastValidValue;
+                 }
+                 // Aplicar límites min/max si son números válidos
+                 if (!isNaN(min)) value = Math.max(min, value);
+                 if (!isNaN(max)) value = Math.min(max, value);
+
+                 if (isFloat && step) { const decimals = step.toString().split('.')[1]?.length || 0; value = Math.round(value / step) * step; value = parseFloat(value.toFixed(decimals)); }
+                 inputElement.value = value; // Actualizar valor del input al validado
+                 stateVariableSetter(value);
+                 lastValidValue = value;
+                 if(outputElement) outputElement.textContent = value.toFixed(step.toString().includes('.') ? step.toString().split('.')[1].length : 0); // Actualizar output final
+                 if (needsRedraw) { setupSvgGridAndViewBox(); }
+             });
+        }
+
+        // --- Inicialización ---
+        function initializeApp() {
+            console.log("Inicializando Animador de Vectores...");
+
+            // --- Referencias a Elementos DOM ---
+            const svgElement = document.getElementById('vectorSvg');
+            const svgContainer = document.getElementById('svg-container');
+            const button11 = document.getElementById('aspect-1-1');
+            const button169 = document.getElementById('aspect-16-9');
+            const button21 = document.getElementById('aspect-2-1');
+            const gridRowsInput = document.getElementById('grid-rows-input');
+            const spacingInput = document.getElementById('spacing-input');
+            const vectorLengthInput = document.getElementById('vector-length-input');
+            const vectorShapeSelect = document.getElementById('vector-shape-select');
+            const strokeWidthInput = document.getElementById('stroke-width-input');
+            const lineCapSelect = document.getElementById('line-cap-select');
+            const vectorColorInput = document.getElementById('vector-color-input');
+            const animationSpeedInput = document.getElementById('animation-speed-input');
+            const animationTypeSelect = document.getElementById('animation-type');
+            const easingFactorInput = document.getElementById('easing-factor-input');
+            const mouseRadiusControlDiv = document.getElementById('mouse-radius-control');
+            const mouseRadiusInput = document.getElementById('mouse-radius-input');
+            const pinwheelCountControlDiv = document.getElementById('pinwheel-count-control');
+            const pinwheelCountInput = document.getElementById('pinwheel-count-input');
+            // Se elimina flowIntensityControlDiv y flowIntensityInput
+            const vortexIntensityControlDiv = document.getElementById('vortex-intensity-control');
+            const vortexIntensityInput = document.getElementById('vortex-intensity-input');
+            const pulseIntervalControlDiv = document.getElementById('pulse-interval-control');
+            const pulseIntervalInput = document.getElementById('pulse-interval-input');
+            const jitterIntensityControlDiv = document.getElementById('jitter-intensity-control');
+            const jitterIntensityInput = document.getElementById('jitter-intensity-input');
+            const rippleSpeedControlDiv = document.getElementById('ripple-speed-control');
+            const rippleSpeedInput = document.getElementById('ripple-speed-input');
+            const expandingWaveDelayControlDiv = document.getElementById('expanding-wave-delay-control');
+            const expandingWaveDelayInput = document.getElementById('expanding-wave-delay-input');
+            const perlinControlsDiv = document.getElementById('perlin-controls');
+            const perlinScaleInput = document.getElementById('perlin-scale-input');
+            const perlinScaleOutput = document.getElementById('perlin-scale-output');
+            const perlinSpeedInput = document.getElementById('perlin-speed-input');
+            const perlinSpeedOutput = document.getElementById('perlin-speed-output');
+            const seaWaveControlsDiv = document.getElementById('sea-wave-controls');
+            const seaWaveFreqInput = document.getElementById('sea-wave-freq-input');
+            const seaWaveFreqOutput = document.getElementById('sea-wave-freq-output');
+            const seaWaveAmpInput = document.getElementById('sea-wave-amp-input');
+            const seaWaveAmpOutput = document.getElementById('sea-wave-amp-output');
+            const flockControlsDiv = document.getElementById('flocking-controls');
+            const flockNumInput = document.getElementById('flock-num-input');
+            const flockRadiusInput = document.getElementById('flock-radius-input');
+            const flockAlignmentInput = document.getElementById('flock-alignment-input');
+            const flockAlignmentOutput = document.getElementById('flock-alignment-output');
+            const flockCohesionInput = document.getElementById('flock-cohesion-input');
+            const flockCohesionOutput = document.getElementById('flock-cohesion-output');
+            const flockSeparationInput = document.getElementById('flock-separation-input');
+            const flockSeparationOutput = document.getElementById('flock-separation-output');
+            const flockMouseInput = document.getElementById('flock-mouse-input');
+            const exportButton = document.getElementById('export-code-button');
+            const pauseResumeButton = document.getElementById('pause-resume-button');
+            const pauseIcon = pauseResumeButton.querySelector('.pause-icon');
+            const resumeIcon = pauseResumeButton.querySelector('.resume-icon');
+            const strokeVariabilitySelect = document.getElementById('stroke-variability-select');
+            const exportModal = document.getElementById('export-modal');
+            const closeModalButton = document.getElementById('close-modal-button');
+            const exportSvgCodeElement = document.getElementById('export-svg-code');
+            const exportJsCodeElement = document.getElementById('export-js-code');
+            const copySvgButton = document.getElementById('copy-svg-button');
+            const copyJsButton = document.getElementById('copy-js-button');
+
+
+            // 1. Configurar los inputs numéricos (esto también establece el estado inicial de las variables JS)
+            setupNumericInput(gridRowsInput, v => gridRows = v, true);
+            setupNumericInput(spacingInput, v => vectorSpacing = v, true);
+            setupNumericInput(vectorLengthInput, v => vectorLength = v, true);
+            setupNumericInput(strokeWidthInput, v => vectorStrokeWidth = v, false);
+            setupNumericInput(animationSpeedInput, v => animationSpeedFactor = v, false, true, 0.1);
+            setupNumericInput(easingFactorInput, v => easingFactor = v, false, true, 0.01);
+            setupNumericInput(mouseRadiusInput, v => mouseInteractionRadiusPercent = v);
+            setupNumericInput(pinwheelCountInput, v => pinwheelCount = v, true);
+            // Se elimina setup para flowIntensityInput
+            setupNumericInput(vortexIntensityInput, v => vortexInwardFactor = v, false, true, 0.1);
+            setupNumericInput(pulseIntervalInput, v => pulseInterval = v, false, true, 0.1);
+            setupNumericInput(jitterIntensityInput, v => jitterIntensity = v);
+            setupNumericInput(rippleSpeedInput, v => rippleWaveSpeed = v, false, true, 0.1);
+            setupNumericInput(expandingWaveDelayInput, v => expandingWaveDelay = v, true);
+            setupNumericInput(perlinScaleInput, v => perlinNoiseScale = v, false, true, 0.001, perlinScaleOutput);
+            setupNumericInput(perlinSpeedInput, v => perlinTimeSpeed = v, false, true, 0.1, perlinSpeedOutput);
+            setupNumericInput(seaWaveFreqInput, v => seaWaveFrequency = v, false, false, 1, seaWaveFreqOutput);
+            setupNumericInput(seaWaveAmpInput, v => seaWaveAmplitude = v, false, false, 1, seaWaveAmpOutput);
+            setupNumericInput(flockNumInput, v => flockNumFlocks = v, true);
+            setupNumericInput(flockRadiusInput, v => flockNeighborhoodRadius = v, false, false, 10);
+            setupNumericInput(flockAlignmentInput, v => flockAlignmentStrength = v, false, true, 0.1, flockAlignmentOutput);
+            setupNumericInput(flockCohesionInput, v => flockCohesionStrength = v, false, true, 0.1, flockCohesionOutput);
+            setupNumericInput(flockSeparationInput, v => flockSeparationStrength = v, false, true, 0.1, flockSeparationOutput);
+
+
+            // 2. Establecer valores iniciales para selects y sincronizar variables JS
+            vectorShapeSelect.value = vectorShape;
+            lineCapSelect.value = vectorLineCap;
+            vectorShape = vectorShapeSelect.value || 'curved';
+            vectorLineCap = lineCapSelect.value || 'butt';
+            vectorColorInput.value = vectorColor;
+            animationTypeSelect.value = currentAnimationType;
+            strokeVariabilitySelect.value = isStrokeVariabilityActive ? 'on' : 'off';
+            flockMouseInput.value = flockMouseAttraction ? 'on' : 'off';
+
+            // 3. Configurar listeners de eventos
+            vectorShapeSelect.addEventListener('change', (e) => { if (e.target.value) { vectorShape = e.target.value; setupSvgGridAndViewBox(); } });
+            lineCapSelect.addEventListener('change', (e) => { if (e.target.value) { vectorLineCap = e.target.value; svgLines.forEach(item => { item.element.setAttribute('stroke-linecap', vectorLineCap); }); } });
+            vectorColorInput.addEventListener('input', (e) => {
+                vectorColor = e.target.value;
+                if (!(currentAnimationType === 'flocking' && flockNumFlocks > 1)) {
+                    svgLines.forEach(item => {
+                        item.element.setAttribute('stroke', vectorColor);
+                    });
+                }
+            });
+            animationTypeSelect.addEventListener('change', (e) => {
+                currentAnimationType = e.target.value;
+                // Ocultar todos los controles específicos primero
+                [mouseRadiusControlDiv, pinwheelCountControlDiv, vortexIntensityControlDiv, pulseIntervalControlDiv, jitterIntensityControlDiv, rippleSpeedControlDiv, expandingWaveDelayControlDiv, perlinControlsDiv, seaWaveControlsDiv, flockControlsDiv].forEach(div => div.classList.add('hidden'));
+                // Mostrar los controles relevantes
+                switch (currentAnimationType) {
+                    case 'mouseInteraction': mouseRadiusControlDiv.classList.remove('hidden'); break;
+                    case 'pinwheels': pinwheelCountControlDiv.classList.remove('hidden'); break;
+                    case 'vortex': vortexIntensityControlDiv.classList.remove('hidden'); break;
+                    case 'centerPulse': pulseIntervalControlDiv.classList.remove('hidden'); break;
+                    case 'jitter': jitterIntensityControlDiv.classList.remove('hidden'); break;
+                    case 'rippleEffect': rippleSpeedControlDiv.classList.remove('hidden'); break;
+                    case 'expandingWave': expandingWaveDelayControlDiv.classList.remove('hidden'); break;
+                    case 'perlinFlow': perlinControlsDiv.classList.remove('hidden'); break;
+                    case 'seaWaves': seaWaveControlsDiv.classList.remove('hidden'); break;
+                    case 'flocking': flockControlsDiv.classList.remove('hidden'); break;
+                }
+                 if (currentAnimationType === 'expandingWave' || currentAnimationType === 'pinwheels' || currentAnimationType === 'flocking') {
+                    setupSvgGridAndViewBox();
+                 } else {
+                    restartAnimation();
+                 }
+                 // Restaurar color base si se cambia desde flocking con >1 bandada
+                 if (currentAnimationType !== 'flocking' || flockNumFlocks <= 1) {
+                    svgLines.forEach(item => item.element.setAttribute('stroke', vectorColor));
+                 }
+            });
+            button11.addEventListener('click', () => { if (currentAspectRatio !== 1 / 1) { currentAspectRatio = 1 / 1; button11.classList.add('active'); button169.classList.remove('active'); button21.classList.remove('active'); setupSvgGridAndViewBox(); } });
+            button169.addEventListener('click', () => { if (currentAspectRatio !== 16 / 9) { currentAspectRatio = 16 / 9; button11.classList.remove('active'); button169.classList.add('active'); button21.classList.remove('active'); setupSvgGridAndViewBox(); } });
+            button21.addEventListener('click', () => { if (currentAspectRatio !== 2 / 1) { currentAspectRatio = 2 / 1; button11.classList.remove('active'); button169.classList.remove('active'); button21.classList.add('active'); setupSvgGridAndViewBox(); } });
+            svgElement.addEventListener('mousemove', (event) => { const coords = getSVGCoordinates(event); mouseX = coords.x; mouseY = coords.y; });
+            svgElement.addEventListener('mouseleave', () => { mouseX = null; mouseY = null; });
+            let resizeTimeout; window.addEventListener('resize', () => { clearTimeout(resizeTimeout); resizeTimeout = setTimeout(() => { setupSvgGridAndViewBox(); }, 250); });
+            exportButton.addEventListener('click', () => { const rawSvgHTML = svgElement.outerHTML; const formattedSvgHTML = rawSvgHTML.replace(/><(line|path)/g, '>\n  <$1').replace(/<\/svg>/, '\n</svg>'); exportSvgCodeElement.textContent = formattedSvgHTML; const jsCode = generateExportJsCode(); exportJsCodeElement.textContent = jsCode.trim(); exportModal.classList.remove('hidden'); });
+            closeModalButton.addEventListener('click', () => { exportModal.classList.add('hidden'); });
+            exportModal.addEventListener('click', (event) => { if (event.target === exportModal) { exportModal.classList.add('hidden'); } });
+            copySvgButton.addEventListener('click', () => { navigator.clipboard.writeText(exportSvgCodeElement.textContent).then(() => { copySvgButton.textContent = '¡SVG Copiado!'; setTimeout(() => { copySvgButton.textContent = 'Copiar SVG'; }, 2000); }).catch(err => { console.error('Error al copiar SVG: ', err); copySvgButton.textContent = 'Error'; setTimeout(() => { copySvgButton.textContent = 'Copiar SVG'; }, 2000); }); });
+            copyJsButton.addEventListener('click', () => { navigator.clipboard.writeText(exportJsCodeElement.textContent).then(() => { copyJsButton.textContent = '¡JS Copiado!'; setTimeout(() => { copyJsButton.textContent = 'Copiar JS'; }, 2000); }).catch(err => { console.error('Error al copiar JS: ', err); copyJsButton.textContent = 'Error'; setTimeout(() => { copyJsButton.textContent = 'Copiar JS'; }, 2000); }); });
+            pauseResumeButton.addEventListener('click', () => {
+                isPaused = !isPaused;
+                if (isPaused) { if (animationFrameId) { cancelAnimationFrame(animationFrameId); animationFrameId = null; } pauseIcon.classList.add('hidden'); resumeIcon.classList.remove('hidden'); pauseResumeButton.title = "Reanudar Animación"; }
+                else { if (!animationFrameId) { animationFrameId = requestAnimationFrame(animate); } pauseIcon.classList.remove('hidden'); resumeIcon.classList.add('hidden'); pauseResumeButton.title = "Pausar Animación"; }
+            });
+             strokeVariabilitySelect.addEventListener('change', (e) => {
+                isStrokeVariabilityActive = e.target.value === 'on';
+                 if (!isStrokeVariabilityActive && !isPaused) {
+                    svgLines.forEach(item => {
+                        item.element.setAttribute('stroke-width', vectorStrokeWidth);
+                    });
+                 }
+            });
+            flockMouseInput.addEventListener('change', (e) => {
+                 flockMouseAttraction = e.target.value === 'on';
+            });
+
+
+            // 4. Mostrar controles específicos iniciales
+            animationTypeSelect.dispatchEvent(new Event('change'));
+
+            // 5. Estado inicial botones aspecto
+            if (currentAspectRatio === 1) { button11.classList.add('active'); button169.classList.remove('active'); button21.classList.remove('active');}
+            else if (currentAspectRatio === 2) { button11.classList.remove('active'); button169.classList.remove('active'); button21.classList.add('active');}
+            else { button11.classList.remove('active'); button169.classList.add('active'); button21.classList.remove('active');} // Default 16:9
+
+             // 6. Estado inicial botón pausa/reanudar
+             if (isPaused) { pauseIcon.classList.add('hidden'); resumeIcon.classList.remove('hidden'); pauseResumeButton.title = "Reanudar Animación"; }
+             else { pauseIcon.classList.remove('hidden'); resumeIcon.classList.add('hidden'); pauseResumeButton.title = "Pausar Animación"; }
+
+            // 7. Configuración inicial y arranque
+            setupSvgGridAndViewBox();
+            console.log("Inicialización completa.");
+        }
+        document.addEventListener('DOMContentLoaded', initializeApp);
+    </script>
+
+</body>
+</html>
