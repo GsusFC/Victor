@@ -2,10 +2,10 @@
 
 import React, { useState, useEffect } from 'react';
 import { ThreeColumnLayout } from '@/components/layout/ThreeColumnLayout';
-import { AnimationControls } from '@/components/columns/AnimationControls';
-import { VectorProperties } from '@/components/columns/VectorProperties';
-import { ExportDialog } from '@/components/vector/ExportDialog';
-import VectorCanvasSVG from '@/components/vector/VectorCanvasSVG';
+import { AnimationControlsUnified } from '@/components/columns/AnimationControlsUnified';
+import { VectorPropertiesUnified } from '@/components/columns/VectorPropertiesUnified';
+import ExportDialog from '@/components/vector/ExportDialog';
+import NewVectorCanvas from '@/components/vector/NewVectorCanvas';
 import { exportDialogState } from '@/hooks/vector/useExportDialog';
 
 
@@ -53,17 +53,16 @@ export default function Home() {
   
   return (
     <div className="min-h-screen bg-background text-foreground overflow-hidden">
-
-      {/* Layout de tres columnas */}
+      {/* Layout de tres columnas con controles unificados */}
       <ThreeColumnLayout
-        leftContent={<AnimationControls />}
+        leftContent={<AnimationControlsUnified />}
         centerContent={
-          <div className="w-full overflow-auto flex justify-center p-4">
-            {/* Contenedor con scroll horizontal para permitir que el canvas se muestre completo */}
-            <VectorCanvasSVG />
+          <div className="w-full h-full flex justify-center items-center">
+            {/* Contenedor sin padding para maximizar espacio disponible */}
+            <NewVectorCanvas />
           </div>
         }
-        rightContent={<VectorProperties />}
+        rightContent={<VectorPropertiesUnified />}
       />
       
       {/* Modal de exportación */}
@@ -75,9 +74,9 @@ export default function Home() {
         }} 
       />
       
-      {/* Información sobre la versión SVG */}
+      {/* Información sobre la versión */}
       <div className="fixed bottom-4 right-4 bg-black/50 text-white text-xs p-2 rounded-md">
-        <p>Usando visualización nativa SVG con Victor.js</p>
+        <p>Vector Canvas Mejorado</p>
       </div>
     </div>
   );

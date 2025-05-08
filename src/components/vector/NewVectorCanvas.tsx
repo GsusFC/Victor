@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import { useVectorStore } from '@/lib/store';
 import Victor from 'victor';
 import type { VectorSettings } from '@/components/vector/core/types';
@@ -29,14 +29,20 @@ const NewVectorCanvas: React.FC = () => {
     (state) => state.actions
   );
   
+  // Acceder a togglePause desde actions
+  const togglePause = useVectorStore((state) => state.actions.togglePause);
+  
   // Estado local (independiente de Zustand)
   const [vectorItems, setVectorItems] = useState<ExtendedVectorItem[]>([]);
   
-  // Usar hook de dimensiones para gestionar relaciones de aspecto
+  // Usando hook de dimensiones para gestionar relaciones de aspecto
   const { dimensions, getContainerClasses } = useContainerDimensions({
     containerRef,
     aspectRatio: settings.aspectRatio
   });
+  
+  // Memoizar las clases CSS del contenedor para evitar cálculos innecesarios
+  const containerClasses = useMemo(() => getContainerClasses(), [getContainerClasses]);
   
   // Actualizar referencia de settings cuando cambien
   useEffect(() => {
@@ -87,7 +93,7 @@ const NewVectorCanvas: React.FC = () => {
       const aspectRatio = settings.aspectRatio;
       
       // Resultado: número de filas y columnas y espaciado ajustado
-      const rows = gridRows;
+      let rows = gridRows;
       let cols;
       
       // Calcular número de columnas y espaciado ajustado según la relación de aspecto
@@ -135,12 +141,28 @@ const NewVectorCanvas: React.FC = () => {
           break;
         }
         default: { // Formato libre
-          // Restar margen de seguridad al ancho disponible
+          // Restar margen de seguridad al ancho y alto disponibles
           const availableWidth = dimensions.width - (securityMargin * 2);
+          const availableHeight = dimensions.height - (securityMargin * 2);
           
-          // En formato libre, determinamos por el ancho disponible
-          cols = Math.floor(availableWidth / configSpacing);
-          adjustedSpacing = configSpacing;
+          // Calcular filas y columnas basadas en las dimensiones disponibles
+          // manteniendo la proporción del espaciado original
+          cols = Math.max(2, Math.floor(availableWidth / configSpacing));
+          
+          // Ajustar el número de filas para aprovechar la altura disponible
+          // en lugar de usar un valor fijo
+          const calculatedRows = Math.max(2, Math.floor(availableHeight / configSpacing));
+          if (calculatedRows !== rows) {
+            // Actualizar filas si es diferente al valor predeterminado
+            rows = calculatedRows;
+          }
+          
+          // Ajustar el espaciado para distribuir uniformemente en el espacio disponible
+          const horizontalSpacing = availableWidth / cols;
+          const verticalSpacing = availableHeight / rows;
+          
+          // Usar el menor de los dos espaciados para mantener uniformidad
+          adjustedSpacing = Math.min(horizontalSpacing, verticalSpacing);
           break;
         }
       }
@@ -211,22 +233,52 @@ const NewVectorCanvas: React.FC = () => {
   }, [dimensions, settings, setVectorItems, setCalculatedValues, setSvgLines]);
   
   // Listener para eventos del ratón
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!containerRef.current) return;
-      
+  // Optimizado con useCallback para evitar recrear la función en cada renderizado
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    if (containerRef.current) {
       const rect = containerRef.current.getBoundingClientRect();
-      const mouseX = e.clientX - rect.left;
-      const mouseY = e.clientY - rect.top;
-      
-      mouseRef.current = { x: mouseX, y: mouseY };
-    };
-    
-    document.addEventListener('mousemove', handleMouseMove);
-    return () => document.removeEventListener('mousemove', handleMouseMove);
+      mouseRef.current = {
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top
+      };
+    }
   }, []);
   
-  // Efecto para gestionar la animación
+  // Manejar eventos de tecla para controlar la animación
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    // Pausar/reanudar con barra espaciadora
+    if (e.code === 'Space' && !e.repeat) {
+      // Solo si no se está escribiendo en inputs (ignora cuando el foco está en elementos de texto)
+      const activeElement = document.activeElement;
+      const isTextField = activeElement && 
+        (activeElement.tagName === 'INPUT' || 
+         activeElement.tagName === 'TEXTAREA' || 
+         (activeElement as HTMLElement).isContentEditable);
+      
+      if (!isTextField) {
+        e.preventDefault(); // Evitar scroll u otros comportamientos por defecto
+        // Pausar/reanudar la animación
+        togglePause();
+        console.log(`[KeyboardControl] ${settingsRef.current.isPaused ? 'Pausado' : 'Reanudado'} con barra espaciadora`);
+      }
+    }
+  }, [togglePause]);
+
+  // Efecto para añadir/quitar event listener
+  useEffect(() => {    
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('keydown', handleKeyDown); // Agregar listener de teclado
+    
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('keydown', handleKeyDown); // Quitar listener al desmontar
+    };
+  }, [handleMouseMove, handleKeyDown]); // Dependencia de la función memoizada
+  
+  // Variable para controlar la frecuencia de actualización del estado global
+  const lastUpdateTimeRef = useRef<number>(0);
+
+  // Efecto para gestionar la animación con optimizaciones de rendimiento
   useEffect(() => {
     // Función de animación
     const animate = () => {
@@ -236,12 +288,20 @@ const NewVectorCanvas: React.FC = () => {
       const timestamp = Date.now();
       
       // Usar settingsRef para acceder a settings sin causar re-renders
+      const isPaused = settingsRef.current.isPaused;
       const { 
-        animationType, easingFactor, isPaused, 
+        animationType, easingFactor,
         dynamicLengthEnabled, dynamicLengthIntensity,
         seaWaveFrequency, seaWaveAmplitude, pulseInterval, pulseDuration,
         geometricPatternComplexity, geometricPatternRotationSpeed
       } = settingsRef.current;
+      
+      // Si la animación está pausada, no actualizamos nada
+      if (isPaused) {
+        // Programar el siguiente frame aunque estemos pausados
+        animationRef.current = requestAnimationFrame(animate);
+        return;
+      }
       
       // Creamos una nueva matriz de elementos en lugar de mutar los existentes
       const updatedItems = vectorItems.map(item => ({ ...item })); // Clonamos cada objeto
@@ -502,6 +562,64 @@ const NewVectorCanvas: React.FC = () => {
             break;
           }
           
+          case 'waterfall': {
+            // Recuperar los parámetros de configuración para waterfall
+            const { 
+              waterfallTurbulence = 15, 
+              waterfallTurbulenceSpeed = 0.003, 
+              waterfallOffsetFactor = 0.2,
+              waterfallGravityCycle = 2000,
+              waterfallGravityStrength = 0.5,
+              waterfallMaxStretch = 1.5,
+              waterfallDriftStrength = 0.2
+            } = settingsRef.current;
+            
+            // Ángulo base: 90 grados - caída vertical hacia abajo
+            const baseAngle = 90;
+            
+            // Aplicar turbulencia sinusoidal horizontal
+            // - Usamos la posición X como desfase para crear un efecto ondulatorio
+            // - Utilizamos la posición Y para crear desfase en la cascada (más rápido abajo)
+            const horizontalOffset = Math.sin(
+              timestamp * waterfallTurbulenceSpeed + 
+              item.baseX * 0.05 + 
+              item.baseY * waterfallOffsetFactor
+            ) * waterfallTurbulence;
+            
+            // Efecto de gravedad pulsante - crea un efecto de aceleración periódica
+            // Esto afecta el factor de longitud para que los vectores se estiren más o menos
+            const gravityCycle = (timestamp % waterfallGravityCycle) / waterfallGravityCycle;
+            const gravityEffect = Math.sin(gravityCycle * Math.PI) * waterfallGravityStrength;
+            
+            // Deriva lateral basada en la posición - sutil efecto de corrientes laterales
+            const driftOffset = Math.sin(item.baseX * 0.01) * waterfallDriftStrength * 20;
+            
+            // Calcular ángulo final
+            targetAngle = baseAngle + horizontalOffset + driftOffset;
+            
+            // Modificar el factor de longitud para simular estiramiento por gravedad
+            // Solo modificamos la longitud si el ángulo está cerca de la vertical (90° ±30°)
+            const angleDeviation = Math.abs((targetAngle % 360) - 90);
+            if (angleDeviation < 30) {
+              // Normalizar la desviación a un valor entre 0 y 1 (0 = perfectamente vertical)
+              const normalizedDeviation = 1 - (angleDeviation / 30);
+              
+              // Calcular factor de estiramiento basado en gravedad y ciclo
+              // - Mayor gravedad = mayor estiramiento
+              // - Mayor cercanía a vertical = mayor estiramiento
+              const stretchFactor = 1 + (gravityEffect * normalizedDeviation * waterfallMaxStretch);
+              
+              // Aplicar el factor de longitud al vector
+              // Esto se usará en el renderizado para estirar el vector
+              item.lengthFactor = stretchFactor;
+            } else {
+              // Para vectores que no están cerca de la vertical, usar longitud normal
+              item.lengthFactor = 1.0;
+            }
+            
+            break;
+          }
+          
           // Otras animaciones se pueden añadir aquí
           default:
             // Si no se especifica un tipo de animación, usar mouseInteraction
@@ -525,11 +643,26 @@ const NewVectorCanvas: React.FC = () => {
         // Aplicar easing
         item.currentAngle = (item.currentAngle + angleDiff * easingFactor) % 360;
         
-        // Calcular longitud dinámica basada en velocidad angular
+        // Calcular grosor dinámico basado en velocidad angular con efecto amplificado
         if (dynamicLengthEnabled && item.previousAngle !== undefined) {
+          // Calcular velocidad angular con valor absoluto
           const angularVelocity = Math.abs(item.currentAngle - item.previousAngle);
-          item.lengthFactor = 1.0 + (angularVelocity * dynamicLengthIntensity / 10);
+          
+          // Definir un valor mínimo para garantizar que siempre haya algo de efecto visible
+          const minEffect = 0.05; 
+          
+          // Calcular el factor objetivo con amplificación (dividir por 2 en vez de 10)
+          const targetWidthFactor = 1.0 + Math.max(minEffect, angularVelocity * dynamicLengthIntensity / 2);
+          
+          // Aplicar suavizado para que los cambios no sean instantáneos
+          const prevWidthFactor = item.widthFactor || 1.0;
+          item.widthFactor = prevWidthFactor + (targetWidthFactor - prevWidthFactor) * 0.3; // Transición suave
+          
+          // Mantener longitud constante
+          item.lengthFactor = 1.0;
         } else {
+          // Reiniciar ambos factores cuando la funcionalidad está desactivada
+          item.widthFactor = 1.0;
           item.lengthFactor = 1.0;
         }
       });
@@ -537,10 +670,12 @@ const NewVectorCanvas: React.FC = () => {
       // Actualizar estado local SOLO cuando todos los cálculos estén hechos
       setVectorItems(updatedItems);
       
-      // Solo sincronizamos con el store cada 30 frames aproximadamente
-      // para evitar actualizaciones excesivas
-      if (Math.random() < 0.03) {
+      // Implementamos throttling basado en tiempo en lugar de aleatorio
+      // para mejorar la previsibilidad y el rendimiento
+      const currentTime = performance.now();
+      if (currentTime - lastUpdateTimeRef.current > 100) { // 100ms = 10 actualizaciones por segundo
         setSvgLines([...updatedItems]);
+        lastUpdateTimeRef.current = currentTime;
       }
       
       // Continuar animación si no está pausada
@@ -564,7 +699,14 @@ const NewVectorCanvas: React.FC = () => {
   
   // Renderizado
   return (
-    <div className={getContainerClasses()} ref={containerRef}>
+    <div 
+      className={containerClasses} 
+      ref={containerRef}
+      style={{ 
+        backgroundColor: settingsRef.current.backgroundColor || '#000000',
+        transition: 'background-color 0.3s ease'
+      }}
+    >
       <svg 
         ref={svgRef}
         viewBox={`-50 -50 ${(dimensions.width || 1067) + 100} ${(dimensions.height || 600) + 100}`}
@@ -577,7 +719,7 @@ const NewVectorCanvas: React.FC = () => {
           y="0" 
           width={dimensions.width || 1067} 
           height={dimensions.height || 600} 
-          fill="#000000"
+          fill={settingsRef.current.backgroundColor || '#000000'}
           data-component-name="NewVectorCanvas"
         />
         <defs>
@@ -587,7 +729,7 @@ const NewVectorCanvas: React.FC = () => {
         </defs>
         <g>
           {vectorItems.map(item => {
-            const { currentAngle, baseX, baseY, lengthFactor = 1.0 } = item;
+            const { currentAngle, baseX, baseY, lengthFactor = 1.0, widthFactor = 1.0 } = item;
             
             // Calcular extremos del vector basados en el ángulo
             // No necesitamos calcular ángulos en radianes ya que todas las rotaciones ahora se aplican via SVG
@@ -625,7 +767,7 @@ const NewVectorCanvas: React.FC = () => {
                       x2={actualLength - 5} 
                       y2={0} 
                       stroke={settingsRef.current.vectorColor}
-                      strokeWidth={settingsRef.current.vectorWidth}
+                      strokeWidth={settingsRef.current.vectorWidth * widthFactor}
                       strokeLinecap={settingsRef.current.vectorLineCap}
                     />
                     <polygon 
@@ -642,7 +784,7 @@ const NewVectorCanvas: React.FC = () => {
                     <circle
                       cx={actualLength/2}
                       cy={0}
-                      r={settingsRef.current.vectorWidth * 2}
+                      r={settingsRef.current.vectorWidth * 2 * widthFactor}
                       fill={settingsRef.current.vectorColor}
                     />
                   </g>
@@ -682,7 +824,7 @@ const NewVectorCanvas: React.FC = () => {
                       d={semicirclePath}
                       fill="none"
                       stroke={settingsRef.current.vectorColor}
-                      strokeWidth={settingsRef.current.vectorWidth}
+                      strokeWidth={settingsRef.current.vectorWidth * widthFactor}
                       strokeLinecap={settingsRef.current.vectorLineCap}
                     />
                   </g>
@@ -705,7 +847,7 @@ const NewVectorCanvas: React.FC = () => {
                       d={curvePath}
                       fill="none"
                       stroke={settingsRef.current.vectorColor}
-                      strokeWidth={settingsRef.current.vectorWidth}
+                      strokeWidth={settingsRef.current.vectorWidth * widthFactor}
                       strokeLinecap={settingsRef.current.vectorLineCap}
                     />
                   </g>
@@ -721,7 +863,7 @@ const NewVectorCanvas: React.FC = () => {
                       x2={actualLength} // Siempre horizontal, la rotación lo gira
                       y2={0}
                       stroke={settingsRef.current.vectorColor}
-                      strokeWidth={settingsRef.current.vectorWidth}
+                      strokeWidth={settingsRef.current.vectorWidth * widthFactor}
                       strokeLinecap={settingsRef.current.vectorLineCap}
                     />
                   </g>
@@ -735,4 +877,6 @@ const NewVectorCanvas: React.FC = () => {
   );
 };
 
-export default NewVectorCanvas;
+// Exportamos usando React.memo para evitar renderizados innecesarios
+// cuando las props no cambian o cuando no son significativas para este componente
+export default React.memo(NewVectorCanvas);

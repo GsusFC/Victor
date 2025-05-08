@@ -3,6 +3,7 @@
 import React from 'react';
 import { useVectorStore } from '@/lib/store';
 import { type AspectRatio } from '@/components/vector/core/types';
+import PauseResumeControl from './PauseResumeControl';
 
 // Componente para controlar la relación de aspecto del canvas
 export function AspectRatioControl() {
@@ -66,6 +67,12 @@ export function AspectRatioControl() {
           </button>
         ))}
       </div>
+      
+      {/* Separador vertical */}
+      <div className="h-full w-px bg-border dark:bg-muted mx-2"></div>
+      
+      {/* Control de pausa integrado */}
+      <PauseResumeControl />
     </div>
   );
 }

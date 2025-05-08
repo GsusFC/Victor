@@ -56,7 +56,8 @@ export function AnimationControls() {
               { value: 'vortex', label: 'Vórtice' },
               { value: 'geometricPattern', label: 'Patrón Geométrico' },
               { value: 'followPath', label: 'Seguir Camino' },
-              { value: 'lissajous', label: 'Lissajous' }
+              { value: 'lissajous', label: 'Lissajous' },
+              { value: 'waterfall', label: 'Cascada' }
             ].map(type => (
               <option key={type.value} value={type.value}>{type.label}</option>
             ))}
@@ -98,7 +99,7 @@ export function AnimationControls() {
         </CardContent>
       </Card>
 
-      {['vortex', 'geometricPattern', 'followPath', 'lissajous', 'mouseInteraction'].includes(settings.currentAnimationType) && (
+      {['vortex', 'geometricPattern', 'followPath', 'lissajous', 'waterfall', 'mouseInteraction'].includes(settings.currentAnimationType) && settings.currentAnimationType !== 'geometrico' && (
         <Card className="border-input">
           <CardHeader className="p-4 pb-2">
             <CardTitle className="text-xs">PARÁMETROS ESPECÍFICOS</CardTitle>
@@ -329,6 +330,122 @@ export function AnimationControls() {
             )}
 
             {/* Mantener el control original para otras animaciones */}
+            {settings.currentAnimationType === 'waterfall' && (
+              <>
+                <div className="space-y-2">
+                  <label className="text-xs text-muted-foreground">TURBULENCIA</label>
+                  <div className="flex items-center gap-2">
+                    <input 
+                      type="range" 
+                      min="0" 
+                      max="50" 
+                      step="1" 
+                      value={settings.waterfallTurbulence}
+                      onChange={(e) => updateSetting('waterfallTurbulence', parseFloat(e.target.value))}
+                      className="w-full h-1.5 bg-muted rounded-none appearance-none cursor-pointer [&::-webkit-slider-thumb]:bg-foreground [&::-webkit-slider-thumb]:border-input [&::-moz-range-thumb]:bg-foreground [&::-moz-range-thumb]:border-input" 
+                    />
+                    <span className="text-xs w-8 text-right">{settings.waterfallTurbulence}</span>
+                  </div>
+                </div>
+                
+                <div className="space-y-2">
+                  <label className="text-xs text-muted-foreground">VELOCIDAD DE TURBULENCIA</label>
+                  <div className="flex items-center gap-2">
+                    <input 
+                      type="range" 
+                      min="0.0001" 
+                      max="0.01" 
+                      step="0.0001" 
+                      value={settings.waterfallTurbulenceSpeed}
+                      onChange={(e) => updateSetting('waterfallTurbulenceSpeed', parseFloat(e.target.value))}
+                      className="w-full h-1.5 bg-muted rounded-none appearance-none cursor-pointer [&::-webkit-slider-thumb]:bg-foreground [&::-webkit-slider-thumb]:border-input [&::-moz-range-thumb]:bg-foreground [&::-moz-range-thumb]:border-input" 
+                    />
+                    <span className="text-xs w-8 text-right">{settings.waterfallTurbulenceSpeed.toFixed(4)}</span>
+                  </div>
+                </div>
+                
+                <div className="space-y-2">
+                  <label className="text-xs text-muted-foreground">FACTOR DE DESFASE</label>
+                  <div className="flex items-center gap-2">
+                    <input 
+                      type="range" 
+                      min="0" 
+                      max="1" 
+                      step="0.01" 
+                      value={settings.waterfallOffsetFactor}
+                      onChange={(e) => updateSetting('waterfallOffsetFactor', parseFloat(e.target.value))}
+                      className="w-full h-1.5 bg-muted rounded-none appearance-none cursor-pointer [&::-webkit-slider-thumb]:bg-foreground [&::-webkit-slider-thumb]:border-input [&::-moz-range-thumb]:bg-foreground [&::-moz-range-thumb]:border-input" 
+                    />
+                    <span className="text-xs w-8 text-right">{settings.waterfallOffsetFactor.toFixed(2)}</span>
+                  </div>
+                </div>
+                
+                <div className="space-y-2">
+                  <label className="text-xs text-muted-foreground">CICLO DE GRAVEDAD (MS)</label>
+                  <div className="flex items-center gap-2">
+                    <input 
+                      type="range" 
+                      min="500" 
+                      max="5000" 
+                      step="100" 
+                      value={settings.waterfallGravityCycle}
+                      onChange={(e) => updateSetting('waterfallGravityCycle', parseInt(e.target.value))}
+                      className="w-full h-1.5 bg-muted rounded-none appearance-none cursor-pointer [&::-webkit-slider-thumb]:bg-foreground [&::-webkit-slider-thumb]:border-input [&::-moz-range-thumb]:bg-foreground [&::-moz-range-thumb]:border-input" 
+                    />
+                    <span className="text-xs w-8 text-right">{settings.waterfallGravityCycle}</span>
+                  </div>
+                </div>
+                
+                <div className="space-y-2">
+                  <label className="text-xs text-muted-foreground">INTENSIDAD DE GRAVEDAD</label>
+                  <div className="flex items-center gap-2">
+                    <input 
+                      type="range" 
+                      min="0" 
+                      max="1" 
+                      step="0.01" 
+                      value={settings.waterfallGravityStrength}
+                      onChange={(e) => updateSetting('waterfallGravityStrength', parseFloat(e.target.value))}
+                      className="w-full h-1.5 bg-muted rounded-none appearance-none cursor-pointer [&::-webkit-slider-thumb]:bg-foreground [&::-webkit-slider-thumb]:border-input [&::-moz-range-thumb]:bg-foreground [&::-moz-range-thumb]:border-input" 
+                    />
+                    <span className="text-xs w-8 text-right">{settings.waterfallGravityStrength.toFixed(2)}</span>
+                  </div>
+                </div>
+                
+                <div className="space-y-2">
+                  <label className="text-xs text-muted-foreground">ESTIRAMIENTO MÁXIMO</label>
+                  <div className="flex items-center gap-2">
+                    <input 
+                      type="range" 
+                      min="1" 
+                      max="3" 
+                      step="0.1" 
+                      value={settings.waterfallMaxStretch}
+                      onChange={(e) => updateSetting('waterfallMaxStretch', parseFloat(e.target.value))}
+                      className="w-full h-1.5 bg-muted rounded-none appearance-none cursor-pointer [&::-webkit-slider-thumb]:bg-foreground [&::-webkit-slider-thumb]:border-input [&::-moz-range-thumb]:bg-foreground [&::-moz-range-thumb]:border-input" 
+                    />
+                    <span className="text-xs w-8 text-right">{settings.waterfallMaxStretch.toFixed(1)}</span>
+                  </div>
+                </div>
+                
+                <div className="space-y-2">
+                  <label className="text-xs text-muted-foreground">INTENSIDAD DE DERIVA</label>
+                  <div className="flex items-center gap-2">
+                    <input 
+                      type="range" 
+                      min="0" 
+                      max="1" 
+                      step="0.01" 
+                      value={settings.waterfallDriftStrength}
+                      onChange={(e) => updateSetting('waterfallDriftStrength', parseFloat(e.target.value))}
+                      className="w-full h-1.5 bg-muted rounded-none appearance-none cursor-pointer [&::-webkit-slider-thumb]:bg-foreground [&::-webkit-slider-thumb]:border-input [&::-moz-range-thumb]:bg-foreground [&::-moz-range-thumb]:border-input" 
+                    />
+                    <span className="text-xs w-8 text-right">{settings.waterfallDriftStrength.toFixed(2)}</span>
+                  </div>
+                </div>
+              </>
+            )}
+            
             {settings.currentAnimationType === 'mouseInteraction' && (
               <div className="space-y-2">
                 <label className="text-xs text-muted-foreground">RADIO DE INFLUENCIA</label>

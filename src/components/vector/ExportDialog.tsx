@@ -4,23 +4,27 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useVectorStore } from '@/lib/store';
 import { Check, Download, Clipboard, Code2, FileCode } from 'lucide-react';
+import type { ExtendedVectorItem } from '@/components/vector/core/vectorTypes';
 
 interface ExportDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
-export function ExportDialog({ open, onOpenChange }: ExportDialogProps) {
+export default function ExportDialog({ open, onOpenChange }: ExportDialogProps) {
   const [copySuccess, setCopySuccess] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'svg' | 'js' | 'framer'>('svg');
+  const [minified, setMinified] = useState<{ svg: boolean; js: boolean; framer: boolean }>({ svg: false, js: false, framer: false });
 
-  const {
-    svgLines,
-    settings,
-    calculatedGridCols,
-    logicalWidth,
-    logicalHeight,
-  } = useVectorStore();
+  // Acceder a los datos necesarios del store de forma optimizada
+  const svgLines = useVectorStore((state) => state.svgLines);
+  const settings = useVectorStore((state) => state.settings);
+  
+  // Obtener dimensiones calculadas del store
+  const calculatedValues = useVectorStore((state) => state.calculatedValues);
+  const logicalWidth = calculatedValues?.logicalWidth || 800;
+  const logicalHeight = calculatedValues?.logicalHeight || 600;
+  const gridCols = calculatedValues?.gridCols || 20;
 
   const handleCopy = useCallback(async (text: string, type: string) => {
     try {
@@ -46,321 +50,552 @@ export function ExportDialog({ open, onOpenChange }: ExportDialogProps) {
     URL.revokeObjectURL(url);
   }, []);
 
+  // Función para normalizar el aspecto basado en el string de aspect ratio
+  const getAspectRatio = (aspect: string | undefined): number => {
+    if (!aspect) return 2; // Default 2:1
+    if (aspect === '1:1') return 1;
+    if (aspect === '16:9') return 16/9;
+    return 2; // Fallback
+  };
+
   // Generar código SVG con useMemo para rendimiento
   const svgCode = useMemo(() => {
-    const svgWidth = 800;
-    const svgHeight = svgWidth / (settings.aspectRatio === '1:1' ? 1 : settings.aspectRatio === '16:9' ? 16/9 : 2);
+    if (!svgLines?.length || !settings) return '<!-- No hay datos suficientes para exportar -->';
     
-    if (!svgLines || svgLines.length === 0) return '<!-- No hay líneas SVG para exportar -->';
+    // Usar dimensiones lógicas directamente para asegurar consistencia
+    const viewBoxWidth = logicalWidth;
+    const viewBoxHeight = logicalHeight;
 
-    // Función centralizada para crear elementos SVG
-    const createSvgElement = (shape: string, id: string): string => {
-      const halfLen = settings.vectorLength / 2;
-      const stroke = `stroke="${settings.vectorColor}" stroke-width="${settings.vectorStrokeWidth}" stroke-linecap="${settings.strokeLinecap}"`;
-      const transform = `transform="translate(0 0) rotate(90)"`;
-
-      // Manejar las formas actuales (line, arrow, dot, triangle) en lugar de las anteriores
+    // Función centralizada para crear elementos SVG que captura la posición real
+    const createSvgElement = (vector: ExtendedVectorItem): string => {
+      // Extraer los datos del vector
+      const { id, shape, baseX, baseY, currentAngle, lengthFactor = 1.0 } = vector;
+      
+      // Calcular la longitud actual del vector (considerando el factor dinámico si existe)
+      const actualLength = settings.vectorLength * (lengthFactor || 1.0);
+      
+      // Propiedades de estilo comunes
+      const stroke = `stroke="${settings.vectorColor ?? '#FFFFFF'}" stroke-width="${settings.vectorStrokeWidth ?? 2}" stroke-linecap="${settings.strokeLinecap ?? 'round'}"`;
+      
+      // Para la rotación, necesitamos el punto de origen correcto
+      // Usar rotationOrigin si está disponible, de lo contrario usar 'center'
+      const rotationOrigin = settings.rotationOrigin || 'center';
+      
+      // Calcular el offset de rotación basado en el punto de origen
+      let rotationOffsetX = 0;
+      switch (rotationOrigin) {
+        case 'start':
+          rotationOffsetX = 0;
+          break;
+        case 'center':
+          rotationOffsetX = actualLength / 2;
+          break;
+        case 'end':
+          rotationOffsetX = actualLength;
+          break;
+      }
+      
+      // Transformación que incluye la posición real y el ángulo actual
+      const transform = `transform="translate(${baseX}, ${baseY}) rotate(${currentAngle}, ${rotationOffsetX}, 0)"`;
+      
+      // Manejar las diferentes formas de vectores
       switch(shape) {
         case 'line':
           // Línea simple
-          return `<line id="${id}" x1="${-halfLen}" y1="0" x2="${halfLen}" y2="0" ${stroke} ${transform} />`;
-        
+          return `<line x1="0" y1="0" x2="${actualLength}" y2="0" ${stroke} ${transform}/>`;
+          
         case 'arrow':
-          // Flecha - línea con punta de flecha
-          const arrowSize = settings.vectorLength * 0.25;
-          return `<g id="${id}" ${transform}>
-            <line x1="${-halfLen}" y1="0" x2="${halfLen}" y2="0" ${stroke} />
-            <polygon points="${halfLen},0 ${halfLen-arrowSize},-${arrowSize/2} ${halfLen-arrowSize},${arrowSize/2}" fill="${settings.vectorColor}" />
-          </g>`;
-        
+          // Flecha
+          return `<g ${transform}><line x1="0" y1="0" x2="${actualLength - 5}" y2="0" ${stroke}/><polygon points="${actualLength},0 ${actualLength - 5},-2.5 ${actualLength - 5},2.5" fill="${settings.vectorColor ?? '#FFFFFF'}" /></g>`;
+          
         case 'dot':
-          // Punto - círculo pequeño
-          const dotRadius = settings.vectorLength * 0.15;
-          return `<circle id="${id}" cx="0" cy="0" r="${dotRadius}" fill="${settings.vectorColor}" ${transform} />`;
-        
+          // Punto
+          return `<circle cx="${actualLength / 2}" cy="0" r="${(settings.vectorWidth ?? 2) * 1.5}" fill="${settings.vectorColor ?? '#FFFFFF'}" ${transform}/>`;
+          
         case 'triangle':
           // Triángulo
-          const h = settings.vectorLength * 0.4;
-          return `<polygon id="${id}" points="0,-${h} ${h/2},${h/2} -${h/2},${h/2}" fill="none" ${stroke} ${transform} />`;
-        
+          const angle1 = Math.PI * 0.8; // 144 grados
+          const angle2 = -Math.PI * 0.8; // -144 grados
+          const tipX = actualLength;
+          const p1X = actualLength * 0.4 * Math.cos(angle1);
+          const p1Y = actualLength * 0.4 * Math.sin(angle1);
+          const p2X = actualLength * 0.4 * Math.cos(angle2);
+          const p2Y = actualLength * 0.4 * Math.sin(angle2);
+          
+          return `<polygon points="${tipX},0 ${p1X},${p1Y} ${p2X},${p2Y}" fill="${settings.vectorColor ?? '#FFFFFF'}" ${transform}/>`;
+          
+        case 'semicircle':
+          // Semicírculo
+          const radius = actualLength / 2;
+          return `<path d="M 0 0 A ${radius} ${radius} 0 0 1 ${actualLength} 0" fill="none" ${stroke} ${transform}/>`;
+          
+        case 'curve':
+          // Curva
+          const curveHeight = actualLength * 0.3;
+          return `<path d="M 0 0 Q ${actualLength/2} ${-curveHeight} ${actualLength} 0" fill="none" ${stroke} ${transform}/>`;
+          
         default:
-          // Por defecto, devolver una línea simple
-          return `<line id="${id}" x1="${-halfLen}" y1="0" x2="${halfLen}" y2="0" ${stroke} ${transform} />`;
+          // Línea por defecto
+          return `<line x1="0" y1="0" x2="${actualLength}" y2="0" ${stroke} ${transform}/>`;
       }
     };
-
-    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${logicalWidth} ${logicalHeight}" width="${svgWidth}" height="${svgHeight}" id="vectorSvg">
-  ${svgLines.map(({ shape, id }) => createSvgElement(shape, id)).join('\n  ')}
+    
+    // Creamos el SVG con todos los elementos
+    return `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg width="${viewBoxWidth}" height="${viewBoxHeight}" viewBox="0 0 ${viewBoxWidth} ${viewBoxHeight}" xmlns="http://www.w3.org/2000/svg">
+  <rect width="100%" height="100%" fill="${settings.backgroundColor ?? '#000000'}"/>
+  ${svgLines.map(vector => createSvgElement(vector)).join('\n')}
 </svg>`;
-  }, [svgLines, settings, logicalWidth, logicalHeight]);
+  }, [svgLines, settings, logicalWidth, logicalHeight, gridCols]);
 
   // Generar código JavaScript con useMemo para rendimiento
   const jsCode = useMemo(() => {
-    // Crear un objeto de configuración para serializar a JSON
-    const settingsObj = {
-      gridRows: settings.gridRows,
-      calculatedGridCols,
-      vectorSpacing: settings.vectorSpacing,
-      vectorLength: settings.vectorLength,
-      vectorStrokeWidth: settings.vectorStrokeWidth,
-      vectorShape: settings.vectorShape,
-      strokeLinecap: settings.strokeLinecap,
-      vectorColor: settings.vectorColor,
-      animationSpeedFactor: settings.animationSpeedFactor,
-      easingFactor: settings.easingFactor,
-      currentAnimationType: settings.currentAnimationType,
-    };
+    // Si no hay suficientes datos, devolver código mínimo
+    if (!svgLines?.length || !settings) return '// No hay datos suficientes para exportar';
+    
+    // Obtener valores seguros con fallbacks
+    const bgColor = settings.backgroundColor ?? '#000000';
+    const vColor = settings.vectorColor ?? '#FFFFFF';
+    const vWidth = settings.vectorWidth ?? 2;
+    const vLength = settings.vectorLength ?? 30;
+    const aSpeed = settings.animationSpeed ?? 1;
+    const rows = settings.gridRows ?? 15;
+    const spacing = settings.vectorSpacing ?? 20;
+    const shape = settings.vectorShape ?? 'line';
+    
+    return `// Vector Animation JavaScript
+// Generado automáticamente
+const canvas = document.getElementById('vectorCanvas');
+const ctx = canvas.getContext('2d');
 
-    // Configuración como un objeto JSON formateado
-    const settingsJson = JSON.stringify(settingsObj, null, 2);
+// Configuración
+const config = {
+  width: ${logicalWidth},
+  height: ${logicalHeight},
+  backgroundColor: '${bgColor}',
+  vectorColor: '${vColor}',
+  vectorWidth: ${vWidth},
+  vectorLength: ${vLength},
+  animationSpeed: ${aSpeed}
+};
 
-    return `const settings = ${settingsJson};
+// Limpiar canvas
+function clearCanvas() {
+  ctx.fillStyle = config.backgroundColor;
+  ctx.fillRect(0, 0, config.width, config.height);
+}
 
-function getAngle(type, x, y, t, mx, my) {
-  switch (type) {
-    case 'smoothWaves':
-      return Math.sin(x * 0.02 + t) * Math.cos(y * 0.02 + t) * 180;
-    case 'mouseInteraction':
-      if (mx == null || my == null) return 0;
-      return Math.atan2(my - y, mx - x) * 180 / Math.PI;
+// Dibujar vector
+function drawVector(x, y, angle, shape = 'line') {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle * Math.PI / 180);
+  
+  ctx.strokeStyle = config.vectorColor;
+  ctx.lineWidth = config.vectorWidth;
+  ctx.lineCap = 'round';
+  
+  switch(shape) {
+    case 'line':
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(config.vectorLength, 0);
+      ctx.stroke();
+      break;
+      
+    case 'arrow':
+      // Línea principal
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(config.vectorLength - 5, 0);
+      ctx.stroke();
+      
+      // Punta de flecha
+      ctx.fillStyle = config.vectorColor;
+      ctx.beginPath();
+      ctx.moveTo(config.vectorLength, 0);
+      ctx.lineTo(config.vectorLength - 5, -2.5);
+      ctx.lineTo(config.vectorLength - 5, 2.5);
+      ctx.closePath();
+      ctx.fill();
+      break;
+      
+    // Otros tipos de formas...
     default:
-      return 0;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(config.vectorLength, 0);
+      ctx.stroke();
   }
+  
+  ctx.restore();
 }
 
-function animate(elements, timestamp, prevTime, mx, my) {
-  const delta = (timestamp - prevTime) / 1000;
-  const time = timestamp * 0.001 * settings.animationSpeedFactor;
+// Animación principal
+let animationFrame;
+let timestamp = 0;
 
-  elements.forEach((el, i) => {
-    const [_, row, col] = el.id.split('-');
-    const x = col * settings.vectorSpacing + settings.vectorSpacing / 2;
-    const y = row * settings.vectorSpacing + settings.vectorSpacing / 2;
-
-    const angle = getAngle(settings.currentAnimationType, x, y, time, mx, my);
-
-    const transform = el.getAttribute('transform') || '';
-    const current = parseFloat((transform.match(/rotate\\(([^)]+)\\)/) || [])[1]) || 0;
-    const diff = ((((angle - current) % 360) + 540) % 360) - 180;
-    const eased = current + diff * settings.easingFactor;
-
-    el.setAttribute('transform', \`translate(\${x} \${y}) rotate(\${eased})\`);
-  });
-
-  requestAnimationFrame((t) => animate(elements, t, timestamp, mx, my));
+function animate() {
+  clearCanvas();
+  timestamp += 0.01 * config.animationSpeed;
+  
+  // Dibujar vectores
+  // Aquí se dibujarían todos los vectores con sus ángulos calculados
+  
+  const rows = ${rows};
+  const cols = ${gridCols};
+  const spacing = ${spacing};
+  
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const x = c * spacing;
+      const y = r * spacing;
+      
+      // Ejemplo simple con ondas suaves
+      const angle = Math.sin(timestamp + x * 0.01) * 45;
+      
+      drawVector(x, y, angle, '${shape}');
+    }
+  }
+  
+  animationFrame = requestAnimationFrame(animate);
 }
 
-function setup() {
-  const svg = document.getElementById('vectorSvg');
-  const elements = Array.from(svg.querySelectorAll('line, path'));
-  let mouseX = null;
-  let mouseY = null;
+// Iniciar animación
+animate();
 
-  svg.addEventListener('mousemove', (e) => {
-    const rect = svg.getBoundingClientRect();
-    mouseX = (e.clientX - rect.left) / rect.width * svg.viewBox.baseVal.width;
-    mouseY = (e.clientY - rect.top) / rect.height * svg.viewBox.baseVal.height;
-  });
+// Función para detener la animación
+function stopAnimation() {
+  cancelAnimationFrame(animationFrame);
+}`;
+  }, [svgLines, settings, logicalWidth, logicalHeight, gridCols]);
 
-  svg.addEventListener('mouseleave', () => {
-    mouseX = null;
-    mouseY = null;
-  });
-
-  requestAnimationFrame((t) => animate(elements, t, performance.now(), mouseX, mouseY));
-}
-
-setup();`;
-  }, [settings, calculatedGridCols]);
-
+  // Generar código Framer Motion con useMemo para rendimiento
   const framerComponentCode = useMemo(() => {
-    // Crear un objeto de configuración para serializar a JSON
-    const settingsObj = {
-      gridRows: settings.gridRows,
-      calculatedGridCols,
-      vectorSpacing: settings.vectorSpacing,
-      vectorLength: settings.vectorLength,
-      vectorStrokeWidth: settings.vectorStrokeWidth,
-      vectorShape: settings.vectorShape,
-      strokeLinecap: settings.strokeLinecap,
-      vectorColor: settings.vectorColor,
-      animationSpeedFactor: settings.animationSpeedFactor,
-      easingFactor: settings.easingFactor,
-      currentAnimationType: settings.currentAnimationType,
+    if (!settings) return '// No hay datos suficientes para exportar';
+    
+    // Valores por defecto para Framer
+    const framerWaterfallProps = {
+      waterfallTurbulence: settings.waterfallTurbulence ?? 15,
+      waterfallTurbulenceSpeed: settings.waterfallTurbulenceSpeed ?? 0.003,
+      waterfallOffsetFactor: settings.waterfallOffsetFactor ?? 0.2,
+      waterfallGravityCycle: settings.waterfallGravityCycle ?? 2000,
+      waterfallGravityStrength: settings.waterfallGravityStrength ?? 0.5,
+      waterfallMaxStretch: settings.waterfallMaxStretch ?? 1.5,
+      waterfallDriftStrength: settings.waterfallDriftStrength ?? 0.2
     };
+    
+    return `// Componente Framer Motion para animación de vectores
+// Este código generado funciona mejor con la animación de waterfall
+import React, { useRef, useEffect } from 'react';
+import { motion } from 'framer-motion';
 
-    const settingsJson = JSON.stringify(settingsObj, null, 2);
-
-    // Generar JSX para todos los vectores sin transform, transform se aplicará en animación
-    // Esta sección es solo para información, no se utiliza directamente
-    /* Lógica de generación de vectores en JSX, deshabilitada por no usarse
-    svgLines.map(({ shape, id }) => {
-      const halfLen = settings.vectorLength / 2;
-      const strokeWidth = settings.vectorStrokeWidth;
-      const strokeLinecap = settings.strokeLinecap;
-      const stroke = settings.vectorColor;
-      if (shape === 'straight') {
-        return `<line id="${id}" x1={${-halfLen}} y1={0} x2={${halfLen}} y2={0} stroke="${stroke}" strokeWidth={${strokeWidth}} strokeLinecap="${strokeLinecap}" />`;
-      } else if (shape === 'curved') {
-        const curveHeight = settings.vectorLength * 0.3;
-        return `<path id="${id}" d="M ${-halfLen},0 Q 0,${-curveHeight} ${halfLen},0" fill="none" stroke="${stroke}" strokeWidth={${strokeWidth}} strokeLinecap="${strokeLinecap}" />`;
-      } else {
-        const radius = settings.vectorLength / 2;
-        return `<path id="${id}" d="M ${-radius},0 A ${radius},${radius} 0 0 1 ${radius},0" fill="none" stroke="${stroke}" strokeWidth={${strokeWidth}} strokeLinecap="${strokeLinecap}" />`;
-      }
-    }).join('\n        ');
-    */
-
-    return `import React, { useRef, useEffect } from 'react';
-
-const settings = ${settingsJson};
-
-function getAngle(type, x, y, t, mx, my) {
-  switch (type) {
-    case 'smoothWaves':
-      return Math.sin(x * 0.02 + t) * Math.cos(y * 0.02 + t) * 180;
-    case 'mouseInteraction':
-      if (mx == null || my == null) return 0;
-      return Math.atan2(my - y, mx - x) * 180 / Math.PI;
-    default:
-      return 0;
-  }
+// Define las propiedades del componente
+interface VectorFramerProps {
+  width?: number;
+  height?: number;
+  backgroundColor?: string;
+  rows?: number;
+  cols?: number;
+  spacing?: number;
+  shape?: string;
+  vectorColor?: string;
+  vectorWidth?: number;
+  animationType?: string;
+  
+  // Parámetros para waterfall
+  waterfallTurbulence?: number;
+  waterfallTurbulenceSpeed?: number;
+  waterfallOffsetFactor?: number;
+  waterfallGravityCycle?: number;
+  waterfallGravityStrength?: number;
+  waterfallMaxStretch?: number;
+  waterfallDriftStrength?: number;
 }
 
-export function VectorFramer() {
-  const svgRef = useRef(null);
-
-  useEffect(() => {
-    const svg = svgRef.current;
-    if (!svg) return;
-
-    const elements = Array.from(svg.querySelectorAll('line, path'));
-    let mouseX = null;
-    let mouseY = null;
-
-    function onMouseMove(e) {
-      const rect = svg.getBoundingClientRect();
-      mouseX = (e.clientX - rect.left) / rect.width * svg.viewBox.baseVal.width;
-      mouseY = (e.clientY - rect.top) / rect.height * svg.viewBox.baseVal.height;
-    }
-
-    function onMouseLeave() {
-      mouseX = null;
-      mouseY = null;
-    }
-
-    svg.addEventListener('mousemove', onMouseMove);
-    svg.addEventListener('mouseleave', onMouseLeave);
-
-    let prevTime = performance.now();
-
-    function animate(timestamp) {
-      const delta = (timestamp - prevTime) / 1000;
-      prevTime = timestamp;
-      const time = timestamp * 0.001 * settings.animationSpeedFactor;
-
-      elements.forEach((el) => {
-        const [_, row, col] = el.id.split('-');
-        const x = col * settings.vectorSpacing + settings.vectorSpacing / 2;
-        const y = row * settings.vectorSpacing + settings.vectorSpacing / 2;
-
-        const angle = getAngle(settings.currentAnimationType, x, y, time, mouseX, mouseY);
-
-        const transform = el.getAttribute('transform') || '';
-        const current = parseFloat((transform.match(/rotate\\(([^)]+)\\)/) || [])[1]) || 0;
-        const diff = ((((angle - current) % 360) + 540) % 360) - 180;
-        const eased = current + diff * settings.easingFactor;
-
-        el.setAttribute('transform', \`translate(\${x} \${y}) rotate(\${eased})\`);
+export const VectorFramer: React.FC<VectorFramerProps> = ({
+  width = 800,
+  height = 450,
+  backgroundColor = "#000000",
+  rows = 15,
+  cols = 25,
+  spacing = 20,
+  shape = "line",
+  vectorColor = "#FFFFFF",
+  vectorWidth = 2,
+  animationType = "waterfall",
+  
+  // Valores por defecto para waterfall
+  waterfallTurbulence = ${framerWaterfallProps.waterfallTurbulence},
+  waterfallTurbulenceSpeed = ${framerWaterfallProps.waterfallTurbulenceSpeed},
+  waterfallOffsetFactor = ${framerWaterfallProps.waterfallOffsetFactor},
+  waterfallGravityCycle = ${framerWaterfallProps.waterfallGravityCycle},
+  waterfallGravityStrength = ${framerWaterfallProps.waterfallGravityStrength},
+  waterfallMaxStretch = ${framerWaterfallProps.waterfallMaxStretch},
+  waterfallDriftStrength = ${framerWaterfallProps.waterfallDriftStrength}
+}) => {
+  // Calcular el tamaño real del viewBox
+  const svgWidth = cols * spacing;
+  const svgHeight = rows * spacing;
+  
+  // Crear array de vectores
+  const vectors = [];
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      vectors.push({
+        id: \"v-\${r}-\${c}\",
+        x: c * spacing,
+        y: r * spacing,
+        row: r,
+        col: c
       });
-
-      requestAnimationFrame(animate);
     }
-
-    requestAnimationFrame(animate);
-
-    return () => {
-      svg.removeEventListener('mousemove', onMouseMove);
-      svg.removeEventListener('mouseleave', onMouseLeave);
-    };
-  }, []);
-
+  }
+  
+  // Renderizar el componente
   return (
-    <svg
-      ref={svgRef}
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox={\`0 0 ${logicalWidth} ${logicalHeight}\`}
-      width={800}
-      height={800 / (settings.aspectRatio === '1:1' ? 1 : settings.aspectRatio === '16:9' ? 16/9 : 2)}
-      id="vectorSvg"
+    <div
+      style={{
+        width,
+        height,
+        backgroundColor,
+        position: 'relative',
+        overflow: 'hidden',
+        borderRadius: '8px'
+      }}
     >
-      {/* Aquí irían los vectores renderizados */}
-    </svg>
+      <svg width={width} height={height} viewBox={\"0 0 \${svgWidth} \${svgHeight}\"}>
+        {vectors.map((vector, index) => {
+          // Calcular delay basado en posición Y para efecto cascada
+          const cascadeDelay = 
+            animationType === "waterfall" 
+              ? (vector.y / svgHeight) * waterfallOffsetFactor * 5
+              : index * 0.05;
+          
+          // Determinar rotación según el tipo de animación
+          const rotate = 
+            animationType === "waterfall" 
+              ? [
+                  90, // Posición inicial (caída vertical)
+                  90 + waterfallTurbulence * 0.5, // Desviación derecha
+                  90 - waterfallTurbulence * 0.5, // Desviación izquierda
+                  90  // Volver a posición vertical
+                ]
+              : [0, 15, -15, 0]; // Animación default
+              
+          // Duración de la animación
+          const duration = 
+            animationType === "waterfall"
+              ? 3 * (1 / (waterfallTurbulenceSpeed * 1000))
+              : 5;
+          
+          return (
+            <motion.g
+              key={vector.id}
+              initial={{ rotate: 90 }}
+              animate={{ rotate }}
+              transition={{
+                duration,
+                repeat: Infinity,
+                repeatType: "loop",
+                ease: "easeInOut",
+                delay: cascadeDelay
+              }}
+            >
+              {/* Renderizar el vector según su forma */}
+              {shape === "line" && (
+                <line
+                  transform={\"translate(\${vector.x}, \${vector.y})\"}
+                  x1={0}
+                  y1={0}
+                  x2={spacing * 0.8}
+                  y2={0}
+                  stroke={vectorColor}
+                  strokeWidth={vectorWidth}
+                  strokeLinecap="round"
+                />
+              )}
+              
+              {shape === "arrow" && (
+                <g transform={\"translate(\${vector.x}, \${vector.y})\"}>
+                  <line
+                    x1={0}
+                    y1={0}
+                    x2={spacing * 0.7}
+                    y2={0}
+                    stroke={vectorColor}
+                    strokeWidth={vectorWidth}
+                    strokeLinecap="round"
+                  />
+                  <polygon
+                    points={\"\${spacing * 0.8},0 \${spacing * 0.7},-3 \${spacing * 0.7},3\"}
+                    fill={vectorColor}
+                  />
+                </g>
+              )}
+              
+              {/* Otros tipos de vectores pueden añadirse según necesidad */}
+            </motion.g>
+          );
+        })}
+      </svg>
+    </div>
   );
-}
-`;
-  }, [svgLines, settings, logicalWidth, logicalHeight]);
+};
 
-  // Obtener estadísticas del código
+// Ejemplo de uso:
+// <VectorFramer
+//   animationType="waterfall"
+//   waterfallTurbulence={15}
+//   waterfallTurbulenceSpeed={0.003}
+//   waterfallOffsetFactor={0.2}
+// />
+`;
+  }, [settings?.waterfallTurbulence, settings?.waterfallTurbulenceSpeed, settings?.waterfallOffsetFactor, 
+      settings?.waterfallGravityCycle, settings?.waterfallGravityStrength, settings?.waterfallMaxStretch, 
+      settings?.waterfallDriftStrength]);
+
+  // Funciones de minificación para cada tipo de código
+  const minifyCode = useCallback((code: string, type: 'svg' | 'js' | 'framer'): string => {
+    if (!code || code.trim() === '') return code;
+    
+    switch (type) {
+      case 'svg':
+        // Minificar SVG: eliminar espacios extra, unir etiquetas adyacentes
+        return code
+          .replace(/<!--[\s\S]*?-->/g, '') // Eliminar comentarios
+          .replace(/[\r\n\t]+/g, ' ') // Reemplazar saltos de línea y tabs por espacios
+          .replace(/\s+/g, ' ') // Reducir múltiples espacios a uno solo
+          .replace(/> </g, '><') // Combinar etiquetas adyacentes
+          .replace(/\s+\/>/g, '/>') // Limpiar espacios antes de cierre de etiquetas auto-cerradas
+          .replace(/ ([\w-]+)="([^"]+)"/g, ' $1="$2"') // Mantener atributos sin espacios extra
+          .trim();
+
+      case 'js':
+        // Minificar JS: preserva cierta estructura para debugging mientras reduce tamaño
+        return code
+          .replace(/\/\/[^\n]*/g, '') // Eliminar comentarios de una línea
+          .split('\n')
+          .map(line => line.trim())
+          .filter(line => line !== '') // Eliminar líneas vacías
+          .join(' ')
+          .replace(/\s*([\{\}\(\)\[\]\,\;\:\+\-\*\/\=\?\!\&\|\<\>])\s*/g, '$1') // Eliminar espacios alrededor de operadores
+          .replace(/\s{2,}/g, ' '); // Reducir múltiples espacios a uno solo
+
+      case 'framer':
+        // Minificar Framer/React: preserva imports y estructura de componentes para legibilidad
+        const lines = code.split('\n');
+        const processedLines = [];
+        
+        // Preservar imports y exports pero compactar resto
+        let inComment = false;
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i].trim();
+          
+          // Saltar líneas vacías
+          if (line === '') continue;
+          
+          // Manejar comentarios multi-línea
+          if (line.includes('/*')) inComment = true;
+          if (inComment) {
+            if (line.includes('*/')) inComment = false;
+            continue;
+          }
+          
+          // Saltar comentarios de una línea
+          if (line.startsWith('//')) continue;
+          
+          // Preservar imports y exports con salto de línea
+          if (line.startsWith('import ') || line.startsWith('export ')) {
+            processedLines.push(line);
+          } else {
+            // Para el resto del código, compactar
+            processedLines.push(line);
+          }
+        }
+        
+        // Unir todo con espacios pero preservar estructura básica
+        return processedLines
+          .join('\n')
+          .replace(/\s*([\{\}\(\)\[\]\,\;\:\+\-\*\/\=\?\!\&\|\<\>])\s*/g, '$1') // Eliminar espacios alrededor de operadores
+          .replace(/\s{2,}/g, ' ') // Reducir múltiples espacios a uno solo
+          .replace(/import/g, '\nimport') // Preservar saltos de línea en imports
+          .replace(/export const/g, '\nexport const'); // Preservar saltos de línea en exports
+
+      default:
+        return code;
+    }
+  }, []);
+  
+  // Código final según pestaña y estado de minificación
+  const finalCode = useMemo(() => {
+    const code = activeTab === 'svg' ? svgCode : activeTab === 'js' ? jsCode : framerComponentCode;
+    return minified[activeTab] ? minifyCode(code, activeTab) : code;
+  }, [activeTab, svgCode, jsCode, framerComponentCode, minified, minifyCode]);
+  
+  // Estadísticas del código generado
   const codeStats = useMemo(() => {
     return {
       svg: {
         lines: svgCode.split('\n').length,
         chars: svgCode.length,
-        paths: svgLines.length
+        paths: svgLines?.length ?? 0
       },
       js: {
         lines: jsCode.split('\n').length,
         chars: jsCode.length,
-        functions: jsCode.match(/function\s+\w+/g)?.length || 0
+        functions: (jsCode.match(/function/g) ?? []).length
       },
       framer: {
         lines: framerComponentCode.split('\n').length,
-        chars: framerComponentCode.length
+        chars: framerComponentCode.length,
       }
     };
-  }, [svgCode, jsCode, framerComponentCode, svgLines.length]);
+  }, [svgCode, jsCode, framerComponentCode, svgLines?.length]);
 
-  // Preview de las primeras líneas
   const previewLines = useMemo(() => {
     return (activeTab === 'svg' ? svgCode : activeTab === 'js' ? jsCode : framerComponentCode).split('\n').slice(0, 5).join('\n');
   }, [activeTab, svgCode, jsCode, framerComponentCode]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex flex-col w-full max-w-[90vw] md:min-w-[960px] md:max-w-[1600px] h-[90vh] bg-background text-foreground border border-input p-0 font-mono">
-        <div className="flex items-center justify-between px-4 py-2 border-b border-input bg-card">
-          <DialogHeader className="p-0 m-0">
-            <DialogTitle className="font-semibold text-xs font-mono uppercase">Exportar Vector</DialogTitle>
-          </DialogHeader>
-          {/* El botón de cerrar está en el DialogContent por defecto */}
-        </div>
-
-        <div className="border-b border-input p-3 flex items-center justify-between bg-card">
-          <div className="text-xs text-muted-foreground font-mono uppercase">Código</div>
-          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'svg' | 'js' | 'framer')}>
-            <TabsList className="rounded-none bg-muted border border-input">
-              <TabsTrigger 
-                value="svg" 
-                className="text-xs font-mono rounded-none data-[state=active]:bg-card data-[state=active]:text-card-foreground flex items-center justify-center gap-1"
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] flex flex-col overflow-hidden bg-muted p-0">
+        <DialogHeader className="px-6 py-3 flex flex-row items-center justify-between border-b border-input">
+          <DialogTitle className="text-sm font-mono uppercase text-foreground">
+            <div className="flex items-center gap-2">
+              <FileCode className="h-4 w-4" />
+              <span>Exportar Vector Art</span>
+            </div>
+          </DialogTitle>
+          
+          <Tabs
+            defaultValue="svg"
+            value={activeTab}
+            onValueChange={(value) => setActiveTab(value as 'svg' | 'js' | 'framer')}
+            className="w-auto"
+          >
+            <TabsList className="h-8 bg-background">
+              <TabsTrigger
+                value="svg"
+                className="text-xs px-2 data-[state=active]:bg-foreground data-[state=active]:text-background"
               >
                 <FileCode className="w-3 h-3" /> SVG
               </TabsTrigger>
-              <TabsTrigger 
-                value="js" 
-                className="text-xs font-mono rounded-none data-[state=active]:bg-card data-[state=active]:text-card-foreground flex items-center justify-center gap-1"
+              <TabsTrigger
+                value="js"
+                className="text-xs px-2 data-[state=active]:bg-foreground data-[state=active]:text-background"
               >
                 <Code2 className="w-3 h-3" /> JavaScript
               </TabsTrigger>
-              <TabsTrigger 
-                value="framer" 
-                className="text-xs font-mono rounded-none data-[state=active]:bg-card data-[state=active]:text-card-foreground flex items-center justify-center gap-1"
+              <TabsTrigger
+                value="framer"
+                className="text-xs px-2 data-[state=active]:bg-foreground data-[state=active]:text-background"
               >
                 <Code2 className="w-3 h-3" /> Framer
               </TabsTrigger>
             </TabsList>
           </Tabs>
-        </div>
+        </DialogHeader>
 
         <div className="flex-1 flex flex-col overflow-hidden px-4 pb-4 pt-2 bg-background">
           {/* Preview inicial */}
@@ -392,13 +627,13 @@ export function VectorFramer() {
                 {activeTab === 'svg' 
                   ? `${codeStats.svg.lines} líneas, ${codeStats.svg.paths} elementos` 
                   : activeTab === 'js'
-                    ? `${codeStats.js.lines} líneas, ${codeStats.js.functions || 0} funciones`
+                    ? `${codeStats.js.lines} líneas, ${codeStats.js.functions ?? 0} funciones`
                     : `${codeStats.framer.lines} líneas`}
               </span>
             </div>
             <div className="flex-1 overflow-auto">
               <pre className="p-4 text-sm font-mono text-muted-foreground whitespace-pre-wrap leading-relaxed bg-background">
-                {activeTab === 'svg' ? svgCode : activeTab === 'js' ? jsCode : framerComponentCode}
+                {finalCode}
               </pre>
             </div>
           </div>
@@ -407,10 +642,18 @@ export function VectorFramer() {
         <div className="flex items-center justify-between p-3 border-t border-input bg-muted">
           <div className="flex gap-2">
             <Button
-              onClick={() => handleCopy(
-                activeTab === 'svg' ? svgCode : activeTab === 'js' ? jsCode : framerComponentCode, 
-                activeTab.toUpperCase()
-              )}
+              onClick={() => setMinified(prev => ({
+                ...prev, 
+                [activeTab]: !prev[activeTab]
+              }))}
+              variant="outline" 
+              className="font-mono text-xs gap-1 mr-2"
+              aria-label="Cambiar entre versión normal y minificada"
+            >
+              {minified[activeTab] ? 'Ver normal' : 'Ver minificado'}
+            </Button>
+            <Button
+              onClick={() => handleCopy(finalCode, activeTab.toUpperCase())}
               variant="secondary"
               className="font-mono text-xs gap-1"
               aria-label="Copiar código"
@@ -423,7 +666,7 @@ export function VectorFramer() {
             </Button>
             <Button
               onClick={() => handleDownload(
-                activeTab === 'svg' ? svgCode : activeTab === 'js' ? jsCode : framerComponentCode, 
+                finalCode,
                 activeTab === 'svg' ? 'vector.svg' : activeTab === 'js' ? 'vector-animation.js' : 'VectorFramer.tsx'
               )}
               variant="outline"

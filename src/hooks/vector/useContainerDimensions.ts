@@ -50,8 +50,8 @@ export const useContainerDimensions = ({ containerRef, aspectRatio }: UseContain
         dimensionClasses = "h-[600px] w-[1067px]";
         break;
       case 'free':
-        // Formato libre redimensionable por el usuario
-        dimensionClasses = "w-full h-[600px] resize-y overflow-auto min-h-[300px] cursor-ns-resize";
+        // Formato libre que ocupa completamente el contenedor
+        dimensionClasses = "w-full h-full absolute top-0 left-0"; // Sin restricciones de tamaño
         break;
       default:
         // Por defecto usar 16:9

@@ -25,8 +25,8 @@ export const useVectorAnimation = (settings: VectorSettings) => {
   ): number => {
     const { animationType } = settings;
 
-    // Si hay interacción con el ratón y está activada la atracción, pero no para Lissajous
-    if (mousePosition && settings.mouseAttraction && animationType !== 'lissajous') {
+    // Si hay interacción con el ratón y está activada la atracción, pero no para Lissajous ni Geometrico
+    if (mousePosition && settings.mouseAttraction && animationType !== 'lissajous' && animationType !== 'geometrico') {
       const vectorPosition = new Victor(vector.baseX, vector.baseY);
       const direction = mousePosition.clone().subtract(vectorPosition);
       return direction.angle() * (180 / Math.PI);
@@ -126,6 +126,70 @@ export const useVectorAnimation = (settings: VectorSettings) => {
         const flockAngle = (vector.flockId * 72 + timestamp * 0.1) % 360;
         const individualVariation = Math.sin(timestamp * 0.002 + vector.baseX * 0.01) * 30;
         return flockAngle + individualVariation;
+      }
+
+      case 'geometricPattern': {
+        // Implementación del patrón geométrico
+        const centerX = dimensions.width / 2;
+        const centerY = dimensions.height / 2;
+        const dx = vector.baseX - centerX;
+        const dy = vector.baseY - centerY;
+        const angleToCenter = Math.atan2(dy, dx);
+        let tangentialAngle = angleToCenter + Math.PI / 2; // Perpendicular a la línea que va al centro
+        const rotationSpeed = 0.3 * settings.animationSpeedFactor;
+        tangentialAngle += timestamp * 0.001 * rotationSpeed; // Factor de tiempo normalizado
+        return tangentialAngle * (180 / Math.PI);
+      }
+      
+      case 'geometrico': {
+        // Versión simplificada basada en patrón geométrico
+        if (!dimensions || dimensions.width <= 0 || dimensions.height <= 0) {
+          return vector.currentAngle || 0;
+        }
+          
+        const centerX = dimensions.width / 2;
+        const centerY = dimensions.height / 2;
+        
+        // Cálculo directo del ángulo polar
+        const theta = Math.atan2(vector.baseY - centerY, vector.baseX - centerX);
+        
+        // Añadir 90 grados para hacerlo tangencial
+        const baseAngle = theta + Math.PI/2;
+        
+        // Factor de velocidad con valor predeterminado seguro
+        const speedFactor = settings.animationSpeedFactor || 1;
+        
+        // Componente temporal para rotación
+        const timeComponent = timestamp * 0.001 * 0.3 * speedFactor;
+        
+        // Ángulo final en grados
+        const finalAngle = (baseAngle + timeComponent) * (180 / Math.PI);
+        
+        // Verificación final por seguridad
+        return isNaN(finalAngle) ? vector.currentAngle || 0 : finalAngle;
+      }
+      
+      case 'tangenteClasica': {
+        // Implementación exacta del algoritmo original del HTML
+        if (!dimensions || dimensions.width <= 0 || dimensions.height <= 0) {
+          return vector.currentAngle || 0;
+        }
+          
+        const centerX = dimensions.width / 2;
+        const centerY = dimensions.height / 2;
+        
+        // Cálculo idéntico al algoritmo original en el HTML
+        const dx = vector.baseX - centerX;
+        const dy = vector.baseY - centerY;
+        const angleToCenter = Math.atan2(dy, dx);
+        let tangentialAngle = angleToCenter + Math.PI / 2; // Perpendicular a la línea hacia el centro
+        
+        // Velocidad de rotación fija (0.3) como en el original
+        const rotationSpeed = 0.3;
+        tangentialAngle += timestamp * 0.001 * rotationSpeed;
+        
+        // Convertir a grados tal como se hace en el algoritmo original
+        return tangentialAngle * (180 / Math.PI);
       }
 
       case 'lissajous': {
