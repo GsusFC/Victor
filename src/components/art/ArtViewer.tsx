@@ -4,7 +4,7 @@
 
 'use client';
 
-import { useRef, useMemo } from 'react';
+import { useRef, useLayoutEffect } from 'react';
 import { VectorCanvas, VectorCanvasHandle } from '@/components/canvas/VectorCanvas';
 import { useVectorStore } from '@/store/vectorStore';
 import type { ArtPiece } from '@/types/art';
@@ -18,9 +18,10 @@ export function ArtViewer({ artPiece }: ArtViewerProps) {
   const canvasHandleRef = useRef<VectorCanvasHandle>(null);
   const recordingCallbackRef = useRef<(() => Promise<void>) | null>(null);
 
-  // Aplicar la configuración SINCRÓNICAMENTE antes de cualquier render
-  // usando useMemo para ejecutarse solo cuando cambia artPiece
-  useMemo(() => {
+  // Aplicar la configuración SINCRÓNICAMENTE usando useLayoutEffect
+  // Se ejecuta después del render pero ANTES de pintar en pantalla
+  // y ANTES de que VectorCanvas se monte, garantizando el orden correcto
+  useLayoutEffect(() => {
     console.log('🎨 ArtViewer: Aplicando configuración de la obra', artPiece.id);
     console.log('🎨 Animation type:', artPiece.config.animation?.type);
     console.log('🎨 Full config:', JSON.stringify(artPiece.config, null, 2));
@@ -34,8 +35,6 @@ export function ArtViewer({ artPiece }: ArtViewerProps) {
       canvas: artPiece.config.canvas,
       gradients: artPiece.config.gradients,
     });
-
-    return true;
   }, [artPiece]);
 
   return (
