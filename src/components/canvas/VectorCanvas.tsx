@@ -11,6 +11,7 @@ import { useVectorStore, selectCanvas } from '@/store/vectorStore';
 
 export interface VectorCanvasHandle {
   canvas: HTMLCanvasElement | null;
+  captureSnapshot: () => Promise<string>;
 }
 
 interface VectorCanvasProps {
@@ -23,9 +24,16 @@ export const VectorCanvas = forwardRef<VectorCanvasHandle, VectorCanvasProps>(
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
 
-    // Exponer canvas ref al padre
+    // Exponer canvas ref al padre con método de captura
     useImperativeHandle(ref, () => ({
       canvas: canvasRef.current,
+      captureSnapshot: async () => {
+        const canvas = canvasRef.current;
+        if (!canvas) {
+          throw new Error('Canvas not available');
+        }
+        return canvas.toDataURL('image/png', 1.0);
+      },
     }));
 
     // Notificar al padre cuando el canvas esté listo

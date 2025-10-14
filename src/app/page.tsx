@@ -13,6 +13,9 @@ import { GridControls } from '@/components/controls/GridControls';
 import { VisualControls } from '@/components/controls/VisualControls';
 import { RecordingPanel } from '@/components/controls/RecordingPanel';
 import { CollapsibleCard } from '@/components/ui/collapsible-card';
+import { PublishButton } from '@/components/art/PublishButton';
+import Link from 'next/link';
+import { Palette } from 'lucide-react';
 
 export default function Home() {
   const canvasHandleRef = useRef<VectorCanvasHandle>(null);
@@ -50,6 +53,21 @@ export default function Home() {
                 recordingCallbackRef.current = callback;
               }}
             />
+          </CollapsibleCard>
+          <CollapsibleCard title="Publicar Arte" defaultExpanded={false}>
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Publica tu animación como una obra de arte inmutable con un link único para compartir.
+              </p>
+              <PublishButton canvasHandleRef={canvasHandleRef} />
+              <Link
+                href="/gallery"
+                className="flex items-center justify-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors py-2"
+              >
+                <Palette className="w-4 h-4" />
+                Ver Galería
+              </Link>
+            </div>
           </CollapsibleCard>
         </div>
       }
