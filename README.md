@@ -1,36 +1,83 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+Victor – Visualización de Vectores (SVG + React)
 
-## Getting Started
+Proyecto basado en Next.js (App Router) y TypeScript para visualizar y animar campos de vectores en SVG. Usa Zustand para estado y Victor.js para operaciones vectoriales.
 
-First, run the development server:
+Requisitos
+- Node.js 18.18+ (recomendado 20 LTS)
+- npm, pnpm o bun
 
+Instalación
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cd Victor
+npm ci           # o: pnpm i / bun install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Ejecución (desarrollo)
+```bash
+npm run dev
+```
+- App: http://localhost:3000
+- Demo directa: http://localhost:3000/demo
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Rutas
+- `/` Interfaz principal con layout de 3 columnas (controles, lienzo SVG, propiedades)
+- `/demo` Demo del lienzo SVG optimizado (`src/app/demo/page.tsx`)
+- `/webgpu-test` Suite completa de pruebas WebGPU, benchmarks y análisis de compatibilidad
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Características
+- **Múltiples motores de renderizado**: SVG nativo, WebGL acelerado, y WebGPU moderno
+- **Compute shaders**: Animaciones ejecutadas en GPU para máximo rendimiento
+- **Fallbacks inteligentes**: Selección automática del mejor motor según capacidades
+- Estado con Zustand y controles en tiempo real (forma, color, densidad, animación)
+- Hooks utilitarios (`useContainerDimensions`, `useExportDialog`)
+- Tailwind 4 + shadcn/ui para UI (incluye `Card`)
+- Sistema completo de testing y benchmarking WebGPU
 
-## Learn More
+Notas técnicas
+- `next.config.ts` está unificado y temporalmente ignora errores de TypeScript/ESLint durante build. Quitar estos flags cuando todo compile limpio.
+- El store no se borra automáticamente al cargar: la función `clearVectorStore` está disponible para debugging manual.
+- Si ajustas relaciones de aspecto, el lienzo mantiene una altura base de 600px para consistencia visual.
 
-To learn more about Next.js, take a look at the following resources:
+## 🚀 WebGPU (Nuevo)
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Victor ahora incluye soporte completo para WebGPU con:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+**Características WebGPU:**
+- Compute shaders para animaciones de alta performance
+- Sistema de easing en GPU con buffers de doble estado
+- Fallbacks inteligentes (WebGPU → WebGL → SVG)
+- Detección automática de capacidades del navegador
+- Benchmarking y análisis de rendimiento integrado
 
-## Deploy on Vercel
+**Compatibilidad:**
+- ✅ Chrome/Edge 113+ (soporte completo)
+- ⚠️ Firefox 141+ (Windows únicamente)
+- ⚠️ Safari Technology Preview (experimental)
+- ❌ Mobile (soporte limitado)
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+**Testing:**
+Visita `/webgpu-test` para acceder a la suite completa de pruebas, incluyendo:
+- Tests de compatibilidad WebGPU
+- Benchmarks de rendimiento comparativo
+- Análisis de estrategias de animación
+- Información detallada de capacidades
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Ver `WEBGPU_MIGRATION.md` para documentación técnica completa.
+
+Estructura relevante
+- `src/app/page.tsx` Pantalla principal
+- `src/app/demo/page.tsx` Página de demo
+- `src/app/webgpu-test/page.tsx` Suite de pruebas WebGPU
+- `src/components/vector/*` Lienzo y renderizadores de vectores
+- `src/components/vector/webgpu/*` Implementación WebGPU completa
+- `src/lib/store.ts` Estado global (Zustand)
+- `src/components/columns/*` Controles y propiedades
+- `WEBGPU_MIGRATION.md` Documentación técnica completa de WebGPU
+
+Despliegue
+Funciona en cualquier hosting compatible con Next.js. Asegúrate de:
+- Establecer la versión de Node soportada (20 LTS recomendado)
+- Ejecutar `npm run build && npm start`
+
+Licencia
+- Consulta el repositorio original para detalles de licencia y contribuciones.

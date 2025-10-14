@@ -1,6 +1,9 @@
 @import '@fontsource/geist-mono';
 
 :root {
+  /* Variables esperadas por Tailwind y el layout: usar Geist Mono local */
+  --font-geist-sans: 'Geist Mono', monospace;
+  --font-geist-mono: 'Geist Mono', monospace;
   --background: oklch(1.00 0 0);
   --foreground: oklch(0.14 0 0);
   --card: oklch(1.00 0 0);
@@ -48,6 +51,9 @@
 }
 
 .dark {
+  /* Variables esperadas por Tailwind y el layout: usar Geist Mono local */
+  --font-geist-sans: 'Geist Mono', monospace;
+  --font-geist-mono: 'Geist Mono', monospace;
   --background: oklch(0.14 0 0);
   --foreground: oklch(0.99 0 0);
   --card: oklch(0.21 0 0);

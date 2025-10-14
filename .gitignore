@@ -39,3 +39,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Archivos temporales de desarrollo
+prototype.html
+public/test-webgpu.html
+
+# Carpeta de archivos antiguos
+src/components/.old/
