@@ -31,10 +31,12 @@ export function PublishButton({ canvasHandleRef }: PublishButtonProps) {
   const [copied, setCopied] = useState(false);
 
   // Usar selectores individuales para evitar recrear objetos
+  const version = useVectorStore((state) => state.version);
   const visual = useVectorStore((state) => state.visual);
   const grid = useVectorStore((state) => state.grid);
   const animation = useVectorStore((state) => state.animation);
   const canvas = useVectorStore((state) => state.canvas);
+  const gradients = useVectorStore((state) => state.gradients);
 
   const handlePublish = async () => {
     if (!canvasHandleRef.current) {
@@ -48,6 +50,15 @@ export function PublishButton({ canvasHandleRef }: PublishButtonProps) {
       // Capturar snapshot del canvas
       const thumbnail = await canvasHandleRef.current.captureSnapshot();
 
+      // LOG: Ver qué configuración estamos capturando
+      console.log('📤 PublishButton: Capturando configuración para publicar');
+      console.log('📤 Version:', version);
+      console.log('📤 Visual:', JSON.stringify(visual, null, 2));
+      console.log('📤 Grid:', JSON.stringify(grid, null, 2));
+      console.log('📤 Animation:', JSON.stringify(animation, null, 2));
+      console.log('📤 Canvas:', JSON.stringify(canvas, null, 2));
+      console.log('📤 Gradients:', JSON.stringify(gradients, null, 2));
+
       // Publicar a través del API
       const response = await fetch('/api/art/publish', {
         method: 'POST',
@@ -56,10 +67,12 @@ export function PublishButton({ canvasHandleRef }: PublishButtonProps) {
         },
         body: JSON.stringify({
           config: {
+            version,
             visual,
             grid,
             animation,
             canvas,
+            gradients,
           },
           thumbnail,
         }),

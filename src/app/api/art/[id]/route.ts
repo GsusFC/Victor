@@ -28,6 +28,12 @@ export async function GET(
     const store = getStore('art');
     const artPiece = await store.get(id, { type: 'json' }) as ArtPiece | null;
 
+    // LOG: Ver qué datos se están devolviendo
+    console.log('📤 API /art/[id]: Obteniendo obra', id);
+    if (artPiece) {
+      console.log('📤 Config devuelto:', JSON.stringify(artPiece.config, null, 2));
+    }
+
     if (!artPiece) {
       return NextResponse.json(
         { error: 'Art piece not found' },

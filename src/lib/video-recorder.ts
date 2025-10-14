@@ -279,45 +279,89 @@ export class VideoRecorder {
    * Descarga el buffer como archivo
    */
   private downloadBuffer(buffer: ArrayBuffer | Uint8Array | Blob[]): void {
-    let blob: Blob;
+    try {
+      console.log('📦 Iniciando descarga del buffer...');
+      console.log('📦 Tipo de buffer:', Array.isArray(buffer) ? 'Blob[]' : buffer.constructor.name);
 
-    // Convertir el buffer a Blob según su tipo
-    if (Array.isArray(buffer)) {
-      // Si es Blob[], usar directamente
-      blob = new Blob(buffer);
-    } else if (buffer instanceof ArrayBuffer) {
-      // Si es ArrayBuffer, crear Blob
-      blob = new Blob([buffer]);
-    } else {
-      // Si es Uint8Array, crear Blob
-      blob = new Blob([buffer]);
+      let blob: Blob;
+
+      // Convertir el buffer a Blob según su tipo
+      if (Array.isArray(buffer)) {
+        // Si es Blob[], usar directamente
+        console.log('📦 Convirtiendo array de Blobs...');
+        blob = new Blob(buffer);
+      } else if (buffer instanceof ArrayBuffer) {
+        // Si es ArrayBuffer, crear Blob
+        console.log('📦 Convirtiendo ArrayBuffer...');
+        blob = new Blob([buffer]);
+      } else {
+        // Si es Uint8Array, crear Blob
+        console.log('📦 Convirtiendo Uint8Array...');
+        blob = new Blob([buffer]);
+      }
+
+      console.log('📦 Blob creado:', blob.size, 'bytes');
+
+      // Obtener el MIME type correcto
+      const mimeTypes: Record<string, string> = {
+        mp4: 'video/mp4',
+        webm: 'video/webm',
+        gif: 'image/gif',
+      };
+
+      const mimeType = mimeTypes[this.config.format] || 'application/octet-stream';
+      const finalBlob = new Blob([blob], { type: mimeType });
+
+      console.log('📦 Blob final con MIME type:', mimeType, '-', finalBlob.size, 'bytes');
+
+      // Crear URL del objeto
+      const url = URL.createObjectURL(finalBlob);
+      console.log('📦 URL creada:', url.substring(0, 50) + '...');
+
+      // Crear elemento de descarga
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${this.config.fileName}.${this.config.format}`;
+      a.style.display = 'none';
+
+      // Agregar al DOM
+      document.body.appendChild(a);
+      console.log('📦 Elemento <a> agregado al DOM');
+
+      // Intentar la descarga con múltiples métodos para mejor compatibilidad
+      try {
+        // Método 1: Click directo
+        a.click();
+        console.log('✅ Click ejecutado en elemento <a>');
+      } catch (clickError) {
+        console.warn('⚠️ Error con click(), intentando método alternativo:', clickError);
+
+        // Método 2: Disparar evento manualmente
+        const clickEvent = new MouseEvent('click', {
+          view: window,
+          bubbles: true,
+          cancelable: true,
+        });
+        a.dispatchEvent(clickEvent);
+        console.log('✅ Evento de click disparado manualmente');
+      }
+
+      // Cleanup con delay para asegurar que la descarga comience
+      setTimeout(() => {
+        try {
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+          console.log('🧹 Cleanup completado');
+        } catch (cleanupError) {
+          console.warn('⚠️ Error en cleanup:', cleanupError);
+        }
+      }, 1000); // Aumentado a 1 segundo para dar más tiempo
+
+      console.log('📥 Descarga iniciada:', a.download);
+    } catch (error) {
+      console.error('❌ Error en downloadBuffer:', error);
+      throw error;
     }
-
-    // Obtener el MIME type correcto
-    const mimeTypes: Record<string, string> = {
-      mp4: 'video/mp4',
-      webm: 'video/webm',
-      gif: 'image/gif',
-    };
-
-    const mimeType = mimeTypes[this.config.format] || 'application/octet-stream';
-    const finalBlob = new Blob([blob], { type: mimeType });
-
-    // Descargar
-    const url = URL.createObjectURL(finalBlob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${this.config.fileName}.${this.config.format}`;
-    document.body.appendChild(a);
-    a.click();
-
-    // Cleanup
-    setTimeout(() => {
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    }, 100);
-
-    console.log('📥 Archivo descargado:', a.download);
   }
 
   /**

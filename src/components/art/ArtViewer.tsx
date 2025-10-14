@@ -4,12 +4,11 @@
 
 'use client';
 
-import { useRef } from 'react';
+import { useRef, useMemo } from 'react';
 import { VectorCanvas, VectorCanvasHandle } from '@/components/canvas/VectorCanvas';
 import { useVectorStore } from '@/store/vectorStore';
 import type { ArtPiece } from '@/types/art';
 import { formatArtDate } from '@/lib/art-utils';
-import { useEffect } from 'react';
 
 interface ArtViewerProps {
   artPiece: ArtPiece;
@@ -19,14 +18,24 @@ export function ArtViewer({ artPiece }: ArtViewerProps) {
   const canvasHandleRef = useRef<VectorCanvasHandle>(null);
   const recordingCallbackRef = useRef<(() => Promise<void>) | null>(null);
 
-  useEffect(() => {
-    // Aplicar toda la configuración de la obra de una vez usando setState
+  // Aplicar la configuración SINCRÓNICAMENTE antes de cualquier render
+  // usando useMemo para ejecutarse solo cuando cambia artPiece
+  useMemo(() => {
+    console.log('🎨 ArtViewer: Aplicando configuración de la obra', artPiece.id);
+    console.log('🎨 Animation type:', artPiece.config.animation?.type);
+    console.log('🎨 Full config:', JSON.stringify(artPiece.config, null, 2));
+
+    // Aplicar el estado COMPLETO (incluyendo version y gradients)
     useVectorStore.setState({
+      version: artPiece.config.version,
       visual: artPiece.config.visual,
       grid: artPiece.config.grid,
       animation: artPiece.config.animation,
       canvas: artPiece.config.canvas,
+      gradients: artPiece.config.gradients,
     });
+
+    return true;
   }, [artPiece]);
 
   return (

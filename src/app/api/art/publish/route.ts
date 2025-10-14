@@ -16,6 +16,10 @@ export async function POST(request: NextRequest) {
     // Parse el body
     const body: PublishArtRequest = await request.json();
 
+    // LOG: Ver qué datos llegaron al API
+    console.log('📥 API /art/publish: Datos recibidos');
+    console.log('📥 Config recibido:', JSON.stringify(body.config, null, 2));
+
     if (!body.config) {
       return NextResponse.json(
         { success: false, error: 'Config is required' } as PublishArtResponse,
@@ -28,6 +32,9 @@ export async function POST(request: NextRequest) {
 
     // Generar título si no se provee
     const title = body.title || generateArtTitle(body.config.animation.type);
+
+    console.log('📥 ID generado:', id);
+    console.log('📥 Título:', title);
 
     // Crear la obra de arte
     const artPiece: ArtPiece = {
