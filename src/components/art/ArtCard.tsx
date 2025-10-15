@@ -5,6 +5,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import type { ArtPiece } from '@/types/art';
 import { formatArtDate } from '@/lib/art-utils';
 import { Card } from '@/components/ui/card';
@@ -20,10 +21,12 @@ export function ArtCard({ artPiece }: ArtCardProps) {
         {/* Thumbnail */}
         <div className="aspect-video bg-black relative overflow-hidden">
           {artPiece.thumbnail ? (
-            <img
+            <Image
               src={artPiece.thumbnail}
               alt={artPiece.title}
-              className="w-full h-full object-cover"
+              fill
+              className="object-cover"
+              unoptimized
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-zinc-900 to-zinc-950">

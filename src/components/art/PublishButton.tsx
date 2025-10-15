@@ -20,7 +20,7 @@ import type { PublishArtResponse } from '@/types/art';
 import { copyToClipboard } from '@/lib/art-utils';
 
 interface PublishButtonProps {
-  canvasHandleRef: React.RefObject<VectorCanvasHandle>;
+  canvasHandleRef: React.RefObject<VectorCanvasHandle | null>;
 }
 
 export function PublishButton({ canvasHandleRef }: PublishButtonProps) {
