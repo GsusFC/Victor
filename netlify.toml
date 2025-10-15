@@ -12,18 +12,6 @@
   NODE_VERSION = "20"
   NPM_FLAGS = "--legacy-peer-deps"
 
-# Edge Functions configuration for API routes
-[[edge_functions]]
-  path = "/api/*"
-  function = "next"
-
-# Redirect rules
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
-  conditions = {Role = ["public"]}
-
 # Headers for security and caching
 [[headers]]
   for = "/*"
