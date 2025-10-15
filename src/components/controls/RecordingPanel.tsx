@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { Video, Circle, Square, Pause, Play, AlertCircle } from 'lucide-react';
+import { Video, Circle, Square, Pause, Play, AlertCircle, Download } from 'lucide-react';
 import type { VideoFormat, VideoQuality, RecordingConfig } from '@/types/recording';
 
 interface RecordingPanelProps {
@@ -41,10 +41,12 @@ export function RecordingPanel({ canvas, onRecordingCallbackChange }: RecordingP
     state,
     stats,
     isRecording,
+    hasBuffer,
     startRecording,
     stopRecording,
     pauseRecording,
     resumeRecording,
+    downloadVideo,
     captureFrameCallback,
   } = useVideoRecorder({
     canvas,
@@ -231,12 +233,31 @@ export function RecordingPanel({ canvas, onRecordingCallbackChange }: RecordingP
         )}
       </div>
 
+      {/* Botón de descarga (solo visible cuando hay buffer) */}
+      {hasBuffer && isIdle && (
+        <div className="space-y-2 p-2 rounded bg-green-500/10 border border-green-500/20">
+          <div className="flex items-center gap-2 text-xs text-green-600 dark:text-green-400">
+            <Video className="w-3 h-3" />
+            <span className="font-medium">Video listo para descargar</span>
+          </div>
+          <Button
+            onClick={downloadVideo}
+            size="sm"
+            variant="outline"
+            className="w-full gap-2 h-8 text-xs border-green-500/30 hover:bg-green-500/10"
+          >
+            <Download className="w-3 h-3" />
+            Descargar video
+          </Button>
+        </div>
+      )}
+
       {/* Información adicional */}
-      {isIdle && (
+      {isIdle && !hasBuffer && (
         <div className="text-xs text-muted-foreground space-y-1">
           <p>• Graba animaciones a 60 FPS</p>
           <p>• Requiere Chrome/Edge con WebCodecs</p>
-          <p>• El archivo se descarga automáticamente</p>
+          <p>• Descarga manual tras detener grabación</p>
         </div>
       )}
     </div>

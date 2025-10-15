@@ -17,6 +17,7 @@ export class VideoRecorder {
   private startTime: number = 0;
   private frameCount: number = 0;
   private errorInfo: RecordingError | null = null;
+  private savedBuffer: ArrayBuffer | Uint8Array | Blob[] | null = null;
 
   constructor(canvas: HTMLCanvasElement, config?: Partial<RecordingConfig>) {
     this.canvas = canvas;
@@ -116,6 +117,7 @@ export class VideoRecorder {
       this.frameCount = 0;
       this.startTime = performance.now();
       this.errorInfo = null;
+      this.savedBuffer = null; // Limpiar buffer anterior
 
       const hasWebCodecs = this.hasWebCodecsSupport();
       const codec = this.getCodecConfig();
@@ -225,7 +227,7 @@ export class VideoRecorder {
   }
 
   /**
-   * Detiene la grabación y descarga el archivo
+   * Detiene la grabación y guarda el buffer (NO descarga automáticamente)
    */
   async stop(): Promise<void> {
     if (!this.recorder) {
@@ -254,9 +256,10 @@ export class VideoRecorder {
         size: this.formatFileSize(this.stats.estimatedSize),
       });
 
-      // Descargar el archivo manualmente
+      // GUARDAR el buffer en lugar de descargarlo automáticamente
       if (buffer) {
-        this.downloadBuffer(buffer);
+        this.savedBuffer = buffer;
+        console.log('💾 Buffer guardado, listo para descargar manualmente');
       } else {
         console.warn('⚠️ No se obtuvo buffer de la grabación');
       }
@@ -295,9 +298,11 @@ export class VideoRecorder {
         console.log('📦 Convirtiendo ArrayBuffer...');
         blob = new Blob([buffer]);
       } else {
-        // Si es Uint8Array, crear Blob
+        // Si es Uint8Array, copiar los datos a un nuevo ArrayBuffer estándar
         console.log('📦 Convirtiendo Uint8Array...');
-        blob = new Blob([buffer]);
+        // Crear una copia en un ArrayBuffer nuevo para evitar problemas con SharedArrayBuffer
+        const copy = new Uint8Array(buffer);
+        blob = new Blob([copy]);
       }
 
       console.log('📦 Blob creado:', blob.size, 'bytes');
@@ -438,6 +443,25 @@ export class VideoRecorder {
    */
   isProcessing(): boolean {
     return this.state === 'processing';
+  }
+
+  /**
+   * Verifica si hay un buffer listo para descargar
+   */
+  hasBuffer(): boolean {
+    return this.savedBuffer !== null;
+  }
+
+  /**
+   * Descarga el video guardado en el buffer
+   * @throws Error si no hay buffer disponible
+   */
+  download(): void {
+    if (!this.savedBuffer) {
+      throw new Error('No hay video disponible para descargar');
+    }
+
+    this.downloadBuffer(this.savedBuffer);
   }
 
   /**

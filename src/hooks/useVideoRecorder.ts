@@ -24,12 +24,14 @@ interface UseVideoRecorderReturn {
   isRecording: boolean;
   isPaused: boolean;
   isProcessing: boolean;
+  hasBuffer: boolean;
 
   // Acciones
   startRecording: () => Promise<void>;
   stopRecording: () => Promise<void>;
   pauseRecording: () => Promise<void>;
   resumeRecording: () => Promise<void>;
+  downloadVideo: () => void;
 
   // Callback para inyectar en el loop de render
   captureFrameCallback: (() => Promise<void>) | null;
@@ -51,6 +53,7 @@ export function useVideoRecorder({
     currentFps: 0,
   });
   const [error, setError] = useState<RecordingError | null>(null);
+  const [hasBuffer, setHasBuffer] = useState(false);
 
   // Intervalo para actualizar stats
   const statsIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -128,6 +131,7 @@ export function useVideoRecorder({
       await recorderRef.current.start();
       setState(recorderRef.current.getState());
       setError(null);
+      setHasBuffer(false); // Limpiar buffer anterior
       startStatsInterval();
       onStart?.();
     } catch (error) {
@@ -151,6 +155,7 @@ export function useVideoRecorder({
       await recorderRef.current.stop();
       setState(recorderRef.current.getState());
       setStats(recorderRef.current.getStats());
+      setHasBuffer(recorderRef.current.hasBuffer());
       stopStatsInterval();
       onStop?.();
     } catch (error) {
@@ -195,6 +200,29 @@ export function useVideoRecorder({
   }, [startStatsInterval]);
 
   /**
+   * Descarga el video grabado
+   */
+  const downloadVideo = useCallback(() => {
+    if (!recorderRef.current) {
+      console.error('Recorder no inicializado');
+      return;
+    }
+
+    try {
+      recorderRef.current.download();
+    } catch (error) {
+      console.error('Error descargando video:', error);
+      const errorInfo: RecordingError = {
+        code: 'DOWNLOAD_ERROR',
+        message: error instanceof Error ? error.message : 'Error descargando video',
+        recoverable: true,
+      };
+      setError(errorInfo);
+      onError?.(errorInfo);
+    }
+  }, [onError]);
+
+  /**
    * Callback para capturar frames (se inyecta en el loop de render)
    */
   const captureFrameCallback = useCallback(async () => {
@@ -215,10 +243,12 @@ export function useVideoRecorder({
     isRecording,
     isPaused,
     isProcessing,
+    hasBuffer,
     startRecording,
     stopRecording,
     pauseRecording,
     resumeRecording,
+    downloadVideo,
     captureFrameCallback: isRecording ? captureFrameCallback : null,
   };
 }
