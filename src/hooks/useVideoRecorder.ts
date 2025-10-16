@@ -153,9 +153,20 @@ export function useVideoRecorder({
 
     try {
       await recorderRef.current.stop();
-      setState(recorderRef.current.getState());
-      setStats(recorderRef.current.getStats());
-      setHasBuffer(recorderRef.current.hasBuffer());
+      const newState = recorderRef.current.getState();
+      const newStats = recorderRef.current.getStats();
+      const bufferAvailable = recorderRef.current.hasBuffer();
+
+      console.log('🎬 Stop recording - Estado:', {
+        state: newState,
+        hasBuffer: bufferAvailable,
+        frames: newStats.frameCount,
+        duration: newStats.duration
+      });
+
+      setState(newState);
+      setStats(newStats);
+      setHasBuffer(bufferAvailable);
       stopStatsInterval();
       onStop?.();
     } catch (error) {

@@ -8,23 +8,19 @@ import { vectorShader } from './shaders/render/vector.wgsl';
 import { ShapeLibrary, type ShapeName } from './ShapeLibrary';
 import {
   noneShader,
-  staticShader,
-  staticAngleShader,
-  randomStaticShader,
-  randomLoopShader,
   smoothWavesShader,
   seaWavesShader,
-  perlinFlowShader,
-  centerPulseShader,
-  heartbeatShader,
-  mouseInteractionShader,
+  breathingSoftShader,
+  flockingShader,
+  electricPulseShader,
+  vortexShader,
   directionalFlowShader,
+  stormShader,
+  solarFlareShader,
+  radiationShader,
   tangenteClasicaShader,
   lissajousShader,
   geometricPatternShader,
-  flockingShader,
-  vortexShader,
-  helicalCurlShader,
 } from './shaders/compute/animations.wgsl';
 
 const MAX_GRADIENT_STOPS = 6;
@@ -39,23 +35,19 @@ interface MouseUniform {
 
 export type AnimationType =
   | 'none'
-  | 'static'
-  | 'staticAngle'
-  | 'randomStatic'
-  | 'randomLoop'
+  // Naturales/Fluidas
   | 'smoothWaves'
   | 'seaWaves'
-  | 'perlinFlow'
-  | 'mouseInteraction'
-  | 'centerPulse'
-  | 'heartbeat'
+  | 'breathingSoft'
+  | 'flocking'
+  // Energéticas
+  | 'electricPulse'
+  | 'vortex'
   | 'directionalFlow'
+  // Geométricas
   | 'tangenteClasica'
   | 'lissajous'
-  | 'geometricPattern'
-  | 'flocking'
-  | 'vortex'
-  | 'helicalCurl';
+  | 'geometricPattern';
 
 export interface WebGPUEngineConfig {
   vectorCount: number;
@@ -247,23 +239,22 @@ export class WebGPUEngine {
     // Mapeo de tipos de animación a shaders
     const animationShaders: Record<AnimationType, string> = {
       none: noneShader,
-      static: staticShader,
-      staticAngle: staticAngleShader,
-      randomStatic: randomStaticShader,
-      randomLoop: randomLoopShader,
+      // Naturales/Fluidas
       smoothWaves: smoothWavesShader,
       seaWaves: seaWavesShader,
-      perlinFlow: perlinFlowShader,
-      mouseInteraction: mouseInteractionShader,
-      centerPulse: centerPulseShader,
-      heartbeat: heartbeatShader,
+      breathingSoft: breathingSoftShader,
+      flocking: flockingShader,
+      // Energéticas
+      electricPulse: electricPulseShader,
+      vortex: vortexShader,
       directionalFlow: directionalFlowShader,
+      storm: stormShader,
+      solarFlare: solarFlareShader,
+      radiation: radiationShader,
+      // Geométricas
       tangenteClasica: tangenteClasicaShader,
       lissajous: lissajousShader,
       geometricPattern: geometricPatternShader,
-      flocking: flockingShader,
-      vortex: vortexShader,
-      helicalCurl: helicalCurlShader,
     };
 
     // Layout de bind group para render (vertex shader necesita read-only)
@@ -726,40 +717,35 @@ export class WebGPUEngine {
       switch (type) {
         case 'none':
           return { frequency: 0, amplitude: 0, elasticity: 0, maxLength: 60 };
-        case 'static':
-          return { frequency: 0, amplitude: 0, elasticity: 0, maxLength: 60 };
-        case 'staticAngle':
-          return { frequency: 45, amplitude: 0, elasticity: 0, maxLength: 60 };
-        case 'randomStatic':
-          return { frequency: 0.6, amplitude: 180, elasticity: 0.3, maxLength: 80 };
-        case 'randomLoop':
-          return { frequency: 2.5, amplitude: 160, elasticity: 0.4, maxLength: 90 };
+        // Naturales/Fluidas
+        case 'smoothWaves':
+          return { frequency: 0.02, amplitude: 20, elasticity: 0.5, maxLength: 90 };
+        case 'seaWaves':
+          return { frequency: 0.02, amplitude: 35, elasticity: 0.8, maxLength: 110 };
+        case 'breathingSoft':
+          return { frequency: 1.1, amplitude: 60, elasticity: 0.4, maxLength: 150 };
+        case 'flocking':
+          return { frequency: 0.15, amplitude: 0.8, elasticity: 0.4, maxLength: 95 };
+        // Energéticas
+        case 'electricPulse':
+          return { frequency: 0.02, amplitude: 28, elasticity: 0.6, maxLength: 120 };
+        case 'vortex':
+          return { frequency: 1.2, amplitude: 0.45, elasticity: 1.2, maxLength: 130 };
         case 'directionalFlow':
           return { frequency: 45, amplitude: 25, elasticity: 0.6, maxLength: 90 };
+        case 'storm':
+          return { frequency: 1.5, amplitude: 1.0, elasticity: 1.2, maxLength: 140 };
+        case 'solarFlare':
+          return { frequency: 1.8, amplitude: 0.5, elasticity: 45, maxLength: 150 };
+        case 'radiation':
+          return { frequency: 1.0, amplitude: 4, elasticity: 0.5, maxLength: 120 };
+        // Geométricas
         case 'tangenteClasica':
           return { frequency: 0.6, amplitude: 1, elasticity: 0.5, maxLength: 110 };
         case 'lissajous':
           return { frequency: 2.0, amplitude: 3.0, elasticity: 120, maxLength: 90 };
         case 'geometricPattern':
           return { frequency: 4, amplitude: 45, elasticity: 0.5, maxLength: 80 };
-        case 'flocking':
-          return { frequency: 0.15, amplitude: 0.8, elasticity: 0.4, maxLength: 95 };
-        case 'vortex':
-          return { frequency: 1.2, amplitude: 0.45, elasticity: 1.2, maxLength: 130 };
-        case 'helicalCurl':
-          return { frequency: 1.1, amplitude: 60, elasticity: 0.4, maxLength: 150 };
-        case 'mouseInteraction':
-          return { frequency: 160, amplitude: 60, elasticity: 0.5, maxLength: 90 };
-        case 'seaWaves':
-          return { frequency: 0.02, amplitude: 35, elasticity: 0.8, maxLength: 110 };
-        case 'perlinFlow':
-          return { frequency: 0.015, amplitude: 30, elasticity: 0.45, maxLength: 100 };
-        case 'centerPulse':
-          return { frequency: 0.02, amplitude: 28, elasticity: 0.6, maxLength: 120 };
-        case 'heartbeat':
-          return { frequency: 0.015, amplitude: 40, elasticity: 0.7, maxLength: 110 };
-        case 'smoothWaves':
-          return { frequency: 0.02, amplitude: 20, elasticity: 0.5, maxLength: 90 };
         default:
           return { frequency: 0, amplitude: 0, elasticity: 0, maxLength: 60 };
       }
@@ -773,35 +759,12 @@ export class WebGPUEngine {
 
     // Ajustes específicos según animación
     switch (this.currentAnimationType) {
-      case 'mouseInteraction': {
-        // radius e intensidad en píxeles
-        param1 = Math.max(10, param1);
-        param2 = Math.max(10, param2);
-        param3 = Math.max(0, Math.min(1, param3));
-        break;
-      }
       case 'directionalFlow': {
         param3 = Math.max(0, Math.min(1, param3));
         break;
       }
       case 'tangenteClasica': {
         param2 = param2 >= 0 ? 1 : -1;
-        param3 = Math.max(0, Math.min(1, param3));
-        break;
-      }
-      case 'staticAngle': {
-        param1 = ((param1 % 360) + 360) % 360;
-        break;
-      }
-      case 'randomStatic': {
-        param1 = Math.max(0.01, param1);
-        param2 = Math.max(0, param2);
-        param3 = Math.max(0, Math.min(1, param3));
-        break;
-      }
-      case 'randomLoop': {
-        param1 = Math.max(0.1, param1);
-        param2 = Math.max(0, param2);
         param3 = Math.max(0, Math.min(1, param3));
         break;
       }
@@ -820,10 +783,28 @@ export class WebGPUEngine {
         param3 = Math.max(0.01, param3);
         break;
       }
-      case 'helicalCurl': {
+      case 'breathingSoft': {
         param1 = Math.max(0.05, param1);
         param2 = Math.max(0, Math.min(360, param2));
         param3 = Math.max(0, Math.min(1, param3));
+        break;
+      }
+      case 'storm': {
+        param1 = Math.max(0.1, Math.min(3, param1));  // chaos: 0.1-3.0
+        param2 = Math.max(0, Math.min(2, param2));    // vorticity: 0-2.0
+        param3 = Math.max(0.1, param3);               // pulseSpeed: min 0.1
+        break;
+      }
+      case 'solarFlare': {
+        param1 = Math.max(0.5, Math.min(3, param1));  // flareIntensity: 0.5-3.0
+        param2 = param2;                               // rotationSpeed: sin restricción
+        param3 = param3;                               // ejectionAngle: sin restricción
+        break;
+      }
+      case 'radiation': {
+        param1 = Math.max(0.1, param1);                // waveSpeed: min 0.1
+        param2 = Math.max(1, Math.min(8, param2));    // numSources: 1-8
+        param3 = Math.max(0, Math.min(1, param3));    // interference: 0-1
         break;
       }
       default:

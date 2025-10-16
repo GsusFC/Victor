@@ -134,10 +134,11 @@ export class VideoRecorder {
       });
 
       // Configurar recorder
+      // NOTA: Usamos download: true pero guardaremos el blob antes de que se descargue
       this.recorder = new Recorder(this.context, {
         name: this.config.fileName || 'victor-animation',
         frameRate: this.config.frameRate,
-        download: false, // NO descargar automáticamente
+        download: true, // Necesario para obtener el buffer
         extension: this.config.format,
         target: 'in-browser',
         encoderOptions: codec
@@ -227,7 +228,7 @@ export class VideoRecorder {
   }
 
   /**
-   * Detiene la grabación y guarda el buffer (NO descarga automáticamente)
+   * Detiene la grabación y guarda el buffer
    */
   async stop(): Promise<void> {
     if (!this.recorder) {
@@ -243,9 +244,69 @@ export class VideoRecorder {
       this.state = 'processing';
       console.log('🛑 Deteniendo grabación...');
 
-      // Detener la grabación y obtener el buffer
-      // canvas-record devuelve ArrayBuffer | Uint8Array | Blob[] | undefined
+      // Prevenir la descarga automática interceptando createElement('a')
+      let capturedBlob: Blob | null = null;
+      let blobPromiseResolve: ((blob: Blob) => void) | null = null;
+      const blobPromise = new Promise<Blob | null>((resolve) => {
+        blobPromiseResolve = resolve;
+        // Timeout de 5 segundos
+        setTimeout(() => resolve(null), 5000);
+      });
+
+      const originalCreateElement = document.createElement.bind(document);
+
+      document.createElement = function(tagName: string) {
+        const element = originalCreateElement(tagName);
+
+        if (tagName.toLowerCase() === 'a') {
+          // Interceptar el setter de href para capturar el blob URL
+          const originalHrefSetter = Object.getOwnPropertyDescriptor(HTMLAnchorElement.prototype, 'href')!.set!;
+          Object.defineProperty(element, 'href', {
+            set: function(value: string) {
+              if (value.startsWith('blob:')) {
+                console.log('🎣 Blob URL interceptado:', value.substring(0, 50));
+                // Obtener el blob del URL de forma sincrónica usando fetch
+                fetch(value)
+                  .then(r => r.blob())
+                  .then(blob => {
+                    capturedBlob = blob;
+                    console.log('💾 Blob capturado:', blob.size, 'bytes');
+                    if (blobPromiseResolve) {
+                      blobPromiseResolve(blob);
+                    }
+                  })
+                  .catch(err => {
+                    console.error('Error capturando blob:', err);
+                    if (blobPromiseResolve) {
+                      blobPromiseResolve(null);
+                    }
+                  });
+              }
+              originalHrefSetter.call(this, value);
+            },
+            get: function() {
+              return this.getAttribute('href') || '';
+            }
+          });
+
+          // Prevenir el click
+          element.click = function() {
+            console.log('🚫 Descarga automática bloqueada');
+            // NO llamar originalClick para prevenir la descarga
+          };
+        }
+
+        return element;
+      } as typeof document.createElement;
+
+      // Detener la grabación
       const buffer = await this.recorder.stop();
+
+      // Esperar a que se capture el blob
+      const blob = await blobPromise;
+
+      // Restaurar createElement
+      document.createElement = originalCreateElement;
 
       this.updateStats();
 
@@ -254,19 +315,27 @@ export class VideoRecorder {
         frames: this.frameCount,
         avgFps: this.stats.currentFps.toFixed(1),
         size: this.formatFileSize(this.stats.estimatedSize),
+        bufferFromStop: !!buffer,
+        blobCaptured: !!blob,
       });
 
-      // GUARDAR el buffer en lugar de descargarlo automáticamente
-      if (buffer) {
+      // Usar el blob capturado o el buffer retornado
+      if (blob) {
+        this.savedBuffer = [blob];
+        console.log('💾 Blob guardado desde interceptor, listo para descargar');
+      } else if (buffer) {
         this.savedBuffer = buffer;
-        console.log('💾 Buffer guardado, listo para descargar manualmente');
+        console.log('💾 Buffer guardado desde stop(), listo para descargar');
       } else {
-        console.warn('⚠️ No se obtuvo buffer de la grabación');
+        console.error('⚠️ No se pudo capturar el buffer');
       }
 
       this.state = 'idle';
       this.recorder = null;
     } catch (error) {
+      // Restaurar createElement en caso de error
+      document.createElement = document.createElement.bind(document);
+
       this.state = 'error';
       this.errorInfo = {
         code: 'STOP_ERROR',

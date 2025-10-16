@@ -9,25 +9,27 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 // ============= TYPES =============
 
 export type VectorShape = 'line' | 'triangle' | 'arc' | 'circle';
+
+export type AnimationCategory = 'natural' | 'energetic' | 'geometric' | 'experimental';
+
 export type AnimationType =
   | 'none'
-  | 'static'
+  // Naturales/Fluidas
   | 'smoothWaves'
   | 'seaWaves'
-  | 'perlinFlow'
-  | 'mouseInteraction'
-  | 'centerPulse'
-  | 'heartbeat'
+  | 'breathingSoft'  // Renombrado de helicalCurl
+  | 'flocking'
+  // Energéticas
+  | 'electricPulse'  // Mejorado de centerPulse
+  | 'vortex'
   | 'directionalFlow'
+  | 'storm'          // Nueva: Tormenta caótica
+  | 'solarFlare'     // Nueva: Explosión solar
+  | 'radiation'      // Nueva: Radiación desde múltiples fuentes
+  // Geométricas
   | 'tangenteClasica'
   | 'lissajous'
-  | 'geometricPattern'
-  | 'randomStatic'
-  | 'randomLoop'
-  | 'staticAngle'
-  | 'flocking'
-  | 'vortex'
-  | 'helicalCurl';
+  | 'geometricPattern';
 
 export type SpacingMode = 'fixed' | 'dynamic';
 
@@ -132,23 +134,19 @@ type AnimationParamSet = {
 
 const animationParamsDefaults: Record<AnimationType, AnimationParamSet> = {
   none: { frequency: 0, amplitude: 0, elasticity: 0, maxLength: 60 },
-  static: { frequency: 0, amplitude: 0, elasticity: 0, maxLength: 60 },
-  staticAngle: { frequency: 45, amplitude: 0, elasticity: 0, maxLength: 60 },
-  randomStatic: { frequency: 0, amplitude: 0, elasticity: 0, maxLength: 70 },
-  randomLoop: { frequency: 2, amplitude: 0, elasticity: 0, maxLength: 70 },
+  // Naturales/Fluidas
   smoothWaves: { frequency: 0.02, amplitude: 20, elasticity: 0.5, maxLength: 90 },
   seaWaves: { frequency: 0.02, amplitude: 35, elasticity: 0.8, maxLength: 110 },
-  perlinFlow: { frequency: 0.015, amplitude: 30, elasticity: 0.45, maxLength: 100 },
-  mouseInteraction: { frequency: 160, amplitude: 60, elasticity: 0.5, maxLength: 90 },
-  centerPulse: { frequency: 0.02, amplitude: 28, elasticity: 0.6, maxLength: 120 },
-  heartbeat: { frequency: 0.015, amplitude: 40, elasticity: 0.7, maxLength: 110 },
+  breathingSoft: { frequency: 1.1, amplitude: 60, elasticity: 0.4, maxLength: 150 }, // helicalCurl
+  flocking: { frequency: 0.5, amplitude: 1.5, elasticity: 0.4, maxLength: 95 },
+  // Energéticas
+  electricPulse: { frequency: 0.03, amplitude: 45, elasticity: 0.7, maxLength: 130 }, // Mejorado centerPulse
+  vortex: { frequency: 1.2, amplitude: 0.45, elasticity: 1.2, maxLength: 130 },
   directionalFlow: { frequency: 45, amplitude: 25, elasticity: 0.6, maxLength: 90 },
+  // Geométricas
   tangenteClasica: { frequency: 0.6, amplitude: 1, elasticity: 0.5, maxLength: 110 },
   lissajous: { frequency: 2.0, amplitude: 3.0, elasticity: 120, maxLength: 90 },
   geometricPattern: { frequency: 4, amplitude: 45, elasticity: 0.5, maxLength: 80 },
-  flocking: { frequency: 0.5, amplitude: 1.5, elasticity: 0.4, maxLength: 95 },
-  vortex: { frequency: 1.2, amplitude: 0.45, elasticity: 1.2, maxLength: 130 },
-  helicalCurl: { frequency: 1.1, amplitude: 60, elasticity: 0.4, maxLength: 150 },
 };
 
 const ensureGradientConfig = (input?: any): GradientConfig => {
@@ -225,6 +223,7 @@ export interface VectorState {
     type: AnimationType;
     speed: number;
     paused: boolean;
+    category?: AnimationCategory; // Categoría actual (derivada del tipo)
     // Parámetros dinámicos por tipo de animación
     params: Record<string, number>;
   };
@@ -521,29 +520,30 @@ export const useVectorStore = create<VectorStore>()(
         }
 
         // Validar animationType (migraciones de valores antiguos)
-        if (pState.animation?.type && (pState.animation.type as string) === 'tangentialFlow') {
-          pState.animation.type = 'tangenteClasica';
+        if (pState.animation?.type) {
+          const oldType = pState.animation.type as string;
+          // Migrar valores obsoletos a nuevos
+          if (oldType === 'tangentialFlow') pState.animation.type = 'tangenteClasica';
+          if (oldType === 'helicalCurl') pState.animation.type = 'breathingSoft';
+          if (oldType === 'centerPulse') pState.animation.type = 'electricPulse';
+          // Eliminar valores obsoletos
+          if (['static', 'staticAngle', 'randomStatic', 'randomLoop', 'perlinFlow', 'mouseInteraction', 'heartbeat'].includes(oldType)) {
+            pState.animation.type = 'smoothWaves';
+          }
         }
 
         const validTypes: AnimationType[] = [
           'none',
-          'static',
-          'staticAngle',
-          'randomStatic',
-          'randomLoop',
           'smoothWaves',
           'seaWaves',
-          'perlinFlow',
-          'mouseInteraction',
-          'centerPulse',
-          'heartbeat',
+          'breathingSoft',
+          'flocking',
+          'electricPulse',
+          'vortex',
           'directionalFlow',
           'tangenteClasica',
           'lissajous',
           'geometricPattern',
-          'flocking',
-          'vortex',
-          'helicalCurl',
         ];
         if (pState.animation?.type && !validTypes.includes(pState.animation.type)) {
           pState.animation.type = 'smoothWaves';
@@ -622,6 +622,55 @@ export const selectVectorConfig = (state: VectorStore) => ({
 });
 
 // ============= UTILITIES =============
+
+/**
+ * Obtiene la categoría de un tipo de animación
+ */
+export const getAnimationCategory = (type: AnimationType): AnimationCategory => {
+  const categoryMap: Record<AnimationType, AnimationCategory> = {
+    none: 'experimental',
+    // Naturales/Fluidas
+    smoothWaves: 'natural',
+    seaWaves: 'natural',
+    breathingSoft: 'natural',
+    flocking: 'natural',
+    // Energéticas
+    electricPulse: 'energetic',
+    vortex: 'energetic',
+    directionalFlow: 'energetic',
+    storm: 'energetic',
+    solarFlare: 'energetic',
+    radiation: 'energetic',
+    // Geométricas
+    tangenteClasica: 'geometric',
+    lissajous: 'geometric',
+    geometricPattern: 'geometric',
+  };
+  return categoryMap[type] || 'experimental';
+};
+
+/**
+ * Obtiene todas las animaciones de una categoría
+ */
+export const getAnimationsByCategory = (category: AnimationCategory): AnimationType[] => {
+  const allTypes: AnimationType[] = [
+    'none',
+    'smoothWaves',
+    'seaWaves',
+    'breathingSoft',
+    'flocking',
+    'electricPulse',
+    'vortex',
+    'directionalFlow',
+    'storm',
+    'solarFlare',
+    'radiation',
+    'tangenteClasica',
+    'lissajous',
+    'geometricPattern',
+  ];
+  return allTypes.filter((type) => getAnimationCategory(type) === category);
+};
 
 /**
  * Limpia el store del localStorage (útil para debugging)

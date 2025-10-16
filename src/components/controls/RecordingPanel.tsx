@@ -71,6 +71,14 @@ export function RecordingPanel({ canvas, onRecordingCallbackChange }: RecordingP
   const isProcessing = state === 'processing';
   const hasError = state === 'error';
 
+  // Debug log
+  console.log('🎥 RecordingPanel render:', {
+    state,
+    hasBuffer,
+    isIdle,
+    showDownloadButton: hasBuffer && isIdle
+  });
+
   // Formatear duración
   const formatDuration = (seconds: number): string => {
     const mins = Math.floor(seconds / 60);

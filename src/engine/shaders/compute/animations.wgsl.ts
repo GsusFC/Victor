@@ -1,6 +1,6 @@
 /**
  * Shaders de compute para diferentes animaciones
- * Sistema modular de animaciones WebGPU
+ * Sistema modular de animaciones WebGPU - LIMPIEZA Y REORGANIZACIÓN
  */
 
 // Estructura común
@@ -74,24 +74,9 @@ fn lerp_angle(current: f32, targetAngle: f32, factor: f32) -> f32 {
 }
 `;
 
-// 1. STATIC - Sin animación
-export const staticShader = /* wgsl */ `
-${COMMON_STRUCTS}
-
-@compute @workgroup_size(64)
-fn computeMain(@builtin(global_invocation_id) global_id: vec3u) {
-  let index = global_id.x;
-  var vector = vectors[index];
-
-  // Sin cambios en ángulo, pero sincronizar longitud con el control actual
-  vector.angle = 0.0;
-  vector.length = uniforms.vectorLength * uniforms.pixelToISO;
-
-  vectors[index] = vector;
-}
-`;
-
-// 1b. NONE - Mantener ángulos actuales
+// ============================================
+// NONE - Mantener ángulos actuales
+// ============================================
 export const noneShader = /* wgsl */ `
 ${COMMON_STRUCTS}
 
@@ -105,83 +90,11 @@ fn computeMain(@builtin(global_invocation_id) global_id: vec3u) {
 }
 `;
 
-// 1c. STATIC ANGLE - Ángulo fijo configurable
-export const staticAngleShader = /* wgsl */ `
-${COMMON_STRUCTS}
+// ============================================
+// NATURALES/FLUIDAS
+// ============================================
 
-@compute @workgroup_size(64)
-fn computeMain(@builtin(global_invocation_id) global_id: vec3u) {
-  let index = global_id.x;
-  var vector = vectors[index];
-
-  let angleDeg = uniforms.param1;
-  vector.angle = normalize_angle(angleDeg * PI / 180.0);
-  vector.length = uniforms.vectorLength * uniforms.pixelToISO;
-
-  vectors[index] = vector;
-}
-`;
-
-// 1d. RANDOM STATIC - Ángulo pseudoaleatorio estable
-export const randomStaticShader = /* wgsl */ `
-${COMMON_STRUCTS}
-
-fn hash_static(vec: vec2f) -> f32 {
-  return fract(sin(dot(vec, vec2f(127.1, 311.7))) * 43758.5453);
-}
-
-@compute @workgroup_size(64)
-fn computeMain(@builtin(global_invocation_id) global_id: vec3u) {
-  let index = global_id.x;
-  var vector = vectors[index];
-
-  let noiseScale = max(uniforms.param1, 0.01);
-  let spreadDeg = max(uniforms.param2, 0.0);
-  let lengthVariation = uniforms.param3;
-  let maxLengthPx = uniforms.param4;
-
-  let seed = hash_static(vec2f(vector.baseX, vector.baseY) * noiseScale);
-  let angle = (seed * 2.0 - 1.0) * spreadDeg * PI / 180.0;
-
-  vector.angle = normalize_angle(angle);
-  let lengthNoise = hash_static(vec2f(vector.baseX * 1.73, vector.baseY * 2.97));
-  let lengthMod = 1.0 + (lengthNoise - 0.5) * lengthVariation;
-  vector.length = min(uniforms.vectorLength * uniforms.pixelToISO * lengthMod, maxLengthPx * uniforms.pixelToISO);
-
-  vectors[index] = vector;
-}
-`;
-
-// 1e. RANDOM LOOP - Cambios aleatorios temporizados
-export const randomLoopShader = /* wgsl */ `
-${COMMON_STRUCTS}
-
-fn hash_loop(vec: vec2f) -> f32 {
-  return fract(sin(dot(vec, vec2f(12.9898, 78.233))) * 43758.5453);
-}
-
-@compute @workgroup_size(64)
-fn computeMain(@builtin(global_invocation_id) global_id: vec3u) {
-  let index = global_id.x;
-  var vector = vectors[index];
-
-  let interval = max(uniforms.param1, 0.2);
-  let spreadDeg = max(uniforms.param2, 0.0);
-  let smoothing = clamp(uniforms.param3, 0.0, 1.0);
-  let maxLengthPx = uniforms.param4;
-
-  let phase = floor(uniforms.time * uniforms.speed / interval);
-  let seed = hash_loop(vec2f(vector.baseX * 3.1, vector.baseY * 5.7) + vec2f(phase, phase * 0.37));
-  let targetAngle = (seed * 2.0 - 1.0) * spreadDeg * PI / 180.0;
-
-  vector.angle = lerp_angle(vector.angle, targetAngle, 0.1 + smoothing * 0.4);
-  vector.length = min(uniforms.vectorLength * uniforms.pixelToISO, maxLengthPx * uniforms.pixelToISO);
-
-  vectors[index] = vector;
-}
-`;
-
-// 2. SMOOTH WAVES - Olas suaves
+// SMOOTH WAVES - Olas suaves
 export const smoothWavesShader = /* wgsl */ `
 ${COMMON_STRUCTS}
 
@@ -223,7 +136,7 @@ fn computeMain(@builtin(global_invocation_id) global_id: vec3u) {
 }
 `;
 
-// 3. SEA WAVES - Olas de mar (más caóticas)
+// SEA WAVES - Olas de mar (más caóticas)
 export const seaWavesShader = /* wgsl */ `
 ${COMMON_STRUCTS}
 
@@ -271,327 +184,8 @@ fn computeMain(@builtin(global_invocation_id) global_id: vec3u) {
 }
 `;
 
-// 4. PERLIN FLOW - Flujo tipo Perlin noise
-export const perlinFlowShader = /* wgsl */ `
-${COMMON_STRUCTS}
-
-// Perlin noise simplificado
-fn hash(p: vec2f) -> f32 {
-  let h = dot(p, vec2f(127.1, 311.7));
-  return fract(sin(h) * 43758.5453123);
-}
-
-fn noise(p: vec2f) -> f32 {
-  let i = floor(p);
-  let f = fract(p);
-  let u = f * f * (3.0 - 2.0 * f);
-
-  return mix(
-    mix(hash(i + vec2f(0.0, 0.0)), hash(i + vec2f(1.0, 0.0)), u.x),
-    mix(hash(i + vec2f(0.0, 1.0)), hash(i + vec2f(1.0, 1.0)), u.x),
-    u.y
-  );
-}
-
-@compute @workgroup_size(64)
-fn computeMain(@builtin(global_invocation_id) global_id: vec3u) {
-  let index = global_id.x;
-  var vector = vectors[index];
-
-  let scale = uniforms.param1;      // Escala del noise (default ~0.02)
-  let intensity = uniforms.param2;  // Intensidad (default ~20)
-  let elasticity = uniforms.param3;
-  let maxLengthPx = uniforms.param4;
-
-  // Convertir tiempo a milisegundos
-  let time = uniforms.time * uniforms.speed * 1000.0;
-
-  // Escalar coordenadas ISO a píxeles reales
-  let scaleFactor = 1.0 / uniforms.pixelToISO;
-  let normX = vector.baseX * scaleFactor;
-  let normY = vector.baseY * scaleFactor;
-
-  // Fórmula original (simplificada): noiseX = sin(timestamp * 0.001 + baseX * 0.02)
-  //                                  noiseY = cos(timestamp * 0.001 + baseY * 0.02)
-  //                                  angle = atan2(noiseY, noiseX)
-
-  // Usar noise para comportamiento más orgánico
-  let noiseScale = scale * 2.0;  // Ajustar escala
-  let noisePos = vec2f(
-    normX * noiseScale * 0.01 + time * 0.001,
-    normY * noiseScale * 0.01 + time * 0.001 * 0.7
-  );
-
-  let n = noise(noisePos);
-
-  // Convertir noise a ángulo como en la fórmula original
-  vector.angle = n * TWO_PI - PI;
-  vector.angle = normalize_angle(vector.angle);
-
-  // Modular longitud
-  let lengthMod = 0.5 + n * elasticity;
-  vector.length = min(
-    uniforms.vectorLength * uniforms.pixelToISO * lengthMod,
-    maxLengthPx * uniforms.pixelToISO
-  );
-
-  vectors[index] = vector;
-}
-`;
-
-// 5. CENTER PULSE - Pulso radial con ondas viajeras desde el centro
-export const centerPulseShader = /* wgsl */ `
-${COMMON_STRUCTS}
-
-@compute @workgroup_size(64)
-fn computeMain(@builtin(global_invocation_id) global_id: vec3u) {
-  let index = global_id.x;
-  var vector = vectors[index];
-
-  let frequency = uniforms.param1;   // Velocidad de propagación del pulso (default ~0.02)
-  let intensity = uniforms.param2;   // Intensidad de la perturbación (default ~28)
-  let elasticity = uniforms.param3;  // Suavidad del pulso (default ~0.6)
-  let maxLengthPx = uniforms.param4;
-
-  // Convertir tiempo a milisegundos
-  let time = uniforms.time * uniforms.speed * 1000.0;
-
-  // Escalar coordenadas ISO a píxeles reales para distancia correcta
-  let scaleFactor = 1.0 / uniforms.pixelToISO;
-  let normX = vector.baseX * scaleFactor;
-  let normY = vector.baseY * scaleFactor;
-
-  // Distancia al centro en coordenadas escaladas
-  let dist = sqrt(normX * normX + normY * normY);
-
-  // Ángulo radial desde el centro (apuntando hacia afuera)
-  let radialAngle = atan2(vector.baseY, vector.baseX);
-
-  // Onda que viaja desde el centro hacia afuera (como ondas en agua)
-  let waveSpeed = 0.002;
-  let wavePhase = time * waveSpeed - dist * 0.1;
-
-  // Pulso sinusoidal que crea "anillos" de intensidad
-  let pulse = sin(wavePhase);
-
-  // Ángulo tangencial (perpendicular al radial)
-  let tangentialAngle = radialAngle + PI / 2.0;
-
-  // Durante el pulso, los vectores giran desde tangencial hacia radial
-  let pulseInfluence = pulse * (intensity * PI / 180.0);
-
-  vector.angle = tangentialAngle + pulseInfluence;
-  vector.angle = normalize_angle(vector.angle);
-
-  // Modular longitud con el pulso
-  let lengthMod = 1.0 + pulse * elasticity * 0.5;
-  vector.length = min(
-    uniforms.vectorLength * uniforms.pixelToISO * lengthMod,
-    maxLengthPx * uniforms.pixelToISO
-  );
-
-  vectors[index] = vector;
-}
-`;
-
-// 6. MOUSE INTERACTION - Interacción con el mouse
-export const mouseInteractionShader = /* wgsl */ `
-${COMMON_STRUCTS}
-
-@compute @workgroup_size(64)
-fn computeMain(@builtin(global_invocation_id) global_id: vec3u) {
-  let index = global_id.x;
-  var vector = vectors[index];
-
-  // param1: radio influencia en píxeles
-  // param2: intensidad del efecto
-  // param3: mezcla tangencial (0-1)
-  // param4: longitud máxima en píxeles
-
-  let influenceRadius = max(uniforms.param1 * uniforms.pixelToISO, 0.001);
-  let intensity = uniforms.param2;
-  let tangentialMix = clamp(uniforms.param3, 0.0, 1.0);
-  let maxLengthPx = uniforms.param4;
-
-  let mouseX = uniforms.mouseX;
-  let mouseY = uniforms.mouseY;
-  let mouseActive = uniforms.mouseActive > 0.5;
-
-  // Convertir tiempo a milisegundos
-  let time = uniforms.time * uniforms.speed * 1000.0;
-
-  // Calcular distancia al mouse
-  let dx = mouseX - vector.baseX;
-  let dy = mouseY - vector.baseY;
-  let distSq = dx * dx + dy * dy;
-  let radiusSq = influenceRadius * influenceRadius;
-
-  // Si está dentro del radio de influencia y el mouse es activo
-  if (mouseActive && distSq < radiusSq && distSq > 0.0001) {
-    // Ángulo apuntando hacia el mouse
-    let angleToMouse = atan2(dy, dx);
-    vector.angle = angleToMouse;
-
-    // Modular longitud basado en distancia (más cerca = más largo)
-    let dist = sqrt(distSq);
-    let distNorm = 1.0 - (dist / influenceRadius);
-    let lengthMod = 1.0 + distNorm * (intensity * 0.02);
-    vector.length = min(
-      uniforms.vectorLength * uniforms.pixelToISO * lengthMod,
-      maxLengthPx * uniforms.pixelToISO
-    );
-  } else {
-    // Fuera del radio: comportamiento SmoothWaves
-    let scaleFactor = 1.0 / uniforms.pixelToISO;
-    let normX = vector.baseX * scaleFactor;
-    let waveFreq = 0.005;
-    let angleOffset = sin(time * waveFreq + normX * 0.01) * (20.0 * PI / 180.0);
-    vector.angle = angleOffset;
-    vector.length = min(uniforms.vectorLength * uniforms.pixelToISO, maxLengthPx * uniforms.pixelToISO);
-  }
-
-  // Mezcla tangencial si está dentro del radio
-  if (mouseActive && distSq < influenceRadius * influenceRadius && distSq > 0.0001 && tangentialMix > 0.0) {
-    let angleToCenter = atan2(vector.baseY - mouseY, vector.baseX - mouseX);
-    let tangentialAngle = angleToCenter + PI / 2.0;
-    vector.angle = normalize_angle(mix(vector.angle, tangentialAngle, tangentialMix));
-  }
-
-  vector.angle = normalize_angle(vector.angle);
-
-  vectors[index] = vector;
-}
-`;
-
-
-// 7. DIRECTIONAL FLOW - Flujo direccional continuo
-export const directionalFlowShader = /* wgsl */ `
-${COMMON_STRUCTS}
-
-@compute @workgroup_size(64)
-fn computeMain(@builtin(global_invocation_id) global_id: vec3u) {
-  let index = global_id.x;
-  var vector = vectors[index];
-
-  let baseAngleDeg = uniforms.param1;
-  let turbulenceDeg = uniforms.param2;
-  let turbulenceScale = uniforms.param3;
-  let maxLengthPx = uniforms.param4;
-
-  let baseAngle = baseAngleDeg * PI / 180.0;
-  let time = uniforms.time * uniforms.speed;
-  let scaleFactor = 1.0 / uniforms.pixelToISO;
-  let normX = vector.baseX * scaleFactor * 0.01;
-  let normY = vector.baseY * scaleFactor * 0.01;
-
-  let noise = sin(normX + time * 0.4) + cos(normY * 0.8 + time * 0.35);
-  let turbulence = (turbulenceDeg * PI / 180.0) * turbulenceScale * 0.5 * noise;
-
-  vector.angle = normalize_angle(baseAngle + turbulence);
-  vector.length = min(uniforms.vectorLength * uniforms.pixelToISO, maxLengthPx * uniforms.pixelToISO);
-
-  vectors[index] = vector;
-}
-`;
-
-// 8. TANGENTE CLÁSICA - Rotación tangencial alrededor del centro
-export const tangenteClasicaShader = /* wgsl */ `
-${COMMON_STRUCTS}
-
-@compute @workgroup_size(64)
-fn computeMain(@builtin(global_invocation_id) global_id: vec3u) {
-  let index = global_id.x;
-  var vector = vectors[index];
-
-  let rotationSpeed = uniforms.param1;
-  let directionRaw = uniforms.param2;
-  let radialBlend = clamp(uniforms.param3, 0.0, 1.0);
-  let maxLengthPx = uniforms.param4;
-
-  let direction = select(-1.0, 1.0, directionRaw >= 0.0);
-
-  let angleToCenter = atan2(vector.baseY, vector.baseX);
-  let tangentialAngle = angleToCenter + direction * (PI / 2.0);
-  let rotationOffset = uniforms.time * uniforms.speed * rotationSpeed;
-
-  let baseAngle = mix(angleToCenter, tangentialAngle, radialBlend);
-  vector.angle = normalize_angle(baseAngle + rotationOffset);
-
-  let radius = sqrt(vector.baseX * vector.baseX + vector.baseY * vector.baseY);
-  let lengthMod = clamp(1.0 + radius * 0.5, 0.5, 3.0);
-  vector.length = min(uniforms.vectorLength * uniforms.pixelToISO * lengthMod, maxLengthPx * uniforms.pixelToISO);
-
-  vectors[index] = vector;
-}
-`;
-
-// 9. LISSAJOUS - Patrones armónicos en cuadrícula
-export const lissajousShader = /* wgsl */ `
-${COMMON_STRUCTS}
-
-@compute @workgroup_size(64)
-fn computeMain(@builtin(global_invocation_id) global_id: vec3u) {
-  let index = global_id.x;
-  var vector = vectors[index];
-
-  let xFreq = max(uniforms.param1, 0.1);
-  let yFreq = max(uniforms.param2, 0.1);
-  let amplitudeDeg = uniforms.param3;
-  let maxLengthPx = uniforms.param4;
-
-  let scaleFactor = 1.0 / uniforms.pixelToISO;
-  let normX = vector.baseX * scaleFactor * 0.01;
-  let normY = vector.baseY * scaleFactor * 0.01;
-  let time = uniforms.time * uniforms.speed;
-
-  let pattern = sin(normX * xFreq + time) + cos(normY * yFreq + time * 1.3);
-  let angle = pattern * amplitudeDeg * PI / 180.0;
-
-  vector.angle = normalize_angle(angle);
-  vector.length = min(uniforms.vectorLength * uniforms.pixelToISO, maxLengthPx * uniforms.pixelToISO);
-
-  vectors[index] = vector;
-}
-`;
-
-// 10. VORTEX - Remolino dinámico centrado
-export const vortexShader = /* wgsl */ `
-${COMMON_STRUCTS}
-
-@compute @workgroup_size(64)
-fn computeMain(@builtin(global_invocation_id) global_id: vec3u) {
-  let index = global_id.x;
-  var vector = vectors[index];
-
-  let strength = uniforms.param1;
-  let inward = clamp(uniforms.param2, 0.0, 1.0);
-  let falloff = max(uniforms.param3, 0.01);
-  let maxLengthPx = uniforms.param4;
-
-  let dx = vector.baseX;
-  let dy = vector.baseY;
-  let radius = sqrt(dx * dx + dy * dy);
-
-  let angleToCenter = atan2(dy, dx);
-  let tangentialAngle = angleToCenter + PI / 2.0;
-  let time = uniforms.time * uniforms.speed;
-  let swirl = tangentialAngle + strength * time;
-
-  let falloffFactor = exp(-falloff * radius * radius);
-  let blend = clamp(falloffFactor + (1.0 - inward) * 0.5, 0.0, 1.0);
-
-  let combined = mix(angleToCenter, swirl, blend);
-  vector.angle = normalize_angle(combined);
-
-  let lengthMod = 1.0 + falloffFactor * 0.6;
-  vector.length = min(uniforms.vectorLength * uniforms.pixelToISO * lengthMod, maxLengthPx * uniforms.pixelToISO);
-
-  vectors[index] = vector;
-}
-`;
-
-// 10b. HELICAL CURL - Flujo remolino con torsión helicoidal
-export const helicalCurlShader = /* wgsl */ `
+// BREATHING SOFT - Respiración suave helicoidal (renombrado de helicalCurl)
+export const breathingSoftShader = /* wgsl */ `
 ${COMMON_STRUCTS}
 
 @compute @workgroup_size(64)
@@ -645,7 +239,234 @@ fn computeMain(@builtin(global_invocation_id) global_id: vec3u) {
 }
 `;
 
-// 11. GEOMETRIC PATTERN - Patrones geométricos iterativos
+// FLOCKING - Alineación aproximada estilo boids
+export const flockingShader = /* wgsl */ `
+${COMMON_STRUCTS}
+
+fn pseudo_noise(v: vec2f) -> f32 {
+  return fract(sin(dot(v, vec2f(12.9898, 78.233))) * 43758.5453) * 2.0 - 1.0;
+}
+
+@compute @workgroup_size(64)
+fn computeMain(@builtin(global_invocation_id) global_id: vec3u) {
+  let index = global_id.x;
+  var vector = vectors[index];
+
+  let radius = max(uniforms.param1, 0.05);
+  let alignmentStrength = clamp(uniforms.param2, 0.0, 2.0);
+  let cohesionStrength = clamp(uniforms.param3, 0.0, 1.0);
+  let maxLengthPx = uniforms.param4;
+
+  let toCenter = normalize(vec2f(-vector.baseX, -vector.baseY));
+  let noiseAngle = pseudo_noise(vec2f(vector.baseX * 8.0, vector.baseY * 9.3 + uniforms.time)) * PI;
+
+  let alignmentAngle = atan2(toCenter.y, toCenter.x) * alignmentStrength;
+  let cohesionAngle = atan2(vector.baseY, vector.baseX + 0.0001) * cohesionStrength;
+
+  let combinedAngle = alignmentAngle + cohesionAngle + noiseAngle;
+  vector.angle = normalize_angle(combinedAngle);
+
+  let lengthMod = 1.0 + clamp(radius * 0.4, 0.0, 1.0);
+  vector.length = min(uniforms.vectorLength * uniforms.pixelToISO * lengthMod, maxLengthPx * uniforms.pixelToISO);
+
+  vectors[index] = vector;
+}
+`;
+
+// ============================================
+// ENERGÉTICAS
+// ============================================
+
+// ELECTRIC PULSE - Pulso eléctrico mejorado (antes centerPulse)
+export const electricPulseShader = /* wgsl */ `
+${COMMON_STRUCTS}
+
+@compute @workgroup_size(64)
+fn computeMain(@builtin(global_invocation_id) global_id: vec3u) {
+  let index = global_id.x;
+  var vector = vectors[index];
+
+  let frequency = uniforms.param1;   // Velocidad de propagación del pulso
+  let intensity = uniforms.param2;   // Intensidad de la perturbación
+  let elasticity = uniforms.param3;  // Suavidad del pulso
+  let maxLengthPx = uniforms.param4;
+
+  // Convertir tiempo a milisegundos
+  let time = uniforms.time * uniforms.speed * 1000.0;
+
+  // Escalar coordenadas ISO a píxeles reales para distancia correcta
+  let scaleFactor = 1.0 / uniforms.pixelToISO;
+  let normX = vector.baseX * scaleFactor;
+  let normY = vector.baseY * scaleFactor;
+
+  // Distancia al centro en coordenadas escaladas
+  let dist = sqrt(normX * normX + normY * normY);
+
+  // Ángulo radial desde el centro (apuntando hacia afuera)
+  let radialAngle = atan2(vector.baseY, vector.baseX);
+
+  // MEJORA: Pulsos más dramáticos y orgánicos
+  // Múltiples ondas superpuestas para efecto más eléctrico
+  let waveSpeed = 0.003;
+  let wave1 = sin(time * waveSpeed - dist * 0.08);
+  let wave2 = sin(time * waveSpeed * 1.7 - dist * 0.12) * 0.6;
+  let wave3 = sin(time * waveSpeed * 2.3 - dist * 0.15) * 0.3;
+
+  // Pulso combinado con más variación
+  let pulse = wave1 + wave2 + wave3;
+
+  // Ángulo tangencial (perpendicular al radial)
+  let tangentialAngle = radialAngle + PI / 2.0;
+
+  // Influencia no lineal del pulso para efectos más dramáticos
+  let pulseInfluence = pulse * pulse * sign(pulse) * (intensity * PI / 180.0);
+
+  vector.angle = tangentialAngle + pulseInfluence;
+  vector.angle = normalize_angle(vector.angle);
+
+  // Longitud más dramática con variación espacial
+  let lengthPulse = abs(pulse) * elasticity;
+  let lengthMod = 1.0 + lengthPulse * (1.0 + sin(dist * 0.2));
+  vector.length = min(
+    uniforms.vectorLength * uniforms.pixelToISO * lengthMod,
+    maxLengthPx * uniforms.pixelToISO
+  );
+
+  vectors[index] = vector;
+}
+`;
+
+// VORTEX - Remolino dinámico centrado
+export const vortexShader = /* wgsl */ `
+${COMMON_STRUCTS}
+
+@compute @workgroup_size(64)
+fn computeMain(@builtin(global_invocation_id) global_id: vec3u) {
+  let index = global_id.x;
+  var vector = vectors[index];
+
+  let strength = uniforms.param1;
+  let inward = clamp(uniforms.param2, 0.0, 1.0);
+  let falloff = max(uniforms.param3, 0.01);
+  let maxLengthPx = uniforms.param4;
+
+  let dx = vector.baseX;
+  let dy = vector.baseY;
+  let radius = sqrt(dx * dx + dy * dy);
+
+  let angleToCenter = atan2(dy, dx);
+  let tangentialAngle = angleToCenter + PI / 2.0;
+  let time = uniforms.time * uniforms.speed;
+  let swirl = tangentialAngle + strength * time;
+
+  let falloffFactor = exp(-falloff * radius * radius);
+  let blend = clamp(falloffFactor + (1.0 - inward) * 0.5, 0.0, 1.0);
+
+  let combined = mix(angleToCenter, swirl, blend);
+  vector.angle = normalize_angle(combined);
+
+  let lengthMod = 1.0 + falloffFactor * 0.6;
+  vector.length = min(uniforms.vectorLength * uniforms.pixelToISO * lengthMod, maxLengthPx * uniforms.pixelToISO);
+
+  vectors[index] = vector;
+}
+`;
+
+// DIRECTIONAL FLOW - Flujo direccional continuo
+export const directionalFlowShader = /* wgsl */ `
+${COMMON_STRUCTS}
+
+@compute @workgroup_size(64)
+fn computeMain(@builtin(global_invocation_id) global_id: vec3u) {
+  let index = global_id.x;
+  var vector = vectors[index];
+
+  let baseAngleDeg = uniforms.param1;
+  let turbulenceDeg = uniforms.param2;
+  let turbulenceScale = uniforms.param3;
+  let maxLengthPx = uniforms.param4;
+
+  let baseAngle = baseAngleDeg * PI / 180.0;
+  let time = uniforms.time * uniforms.speed;
+  let scaleFactor = 1.0 / uniforms.pixelToISO;
+  let normX = vector.baseX * scaleFactor * 0.01;
+  let normY = vector.baseY * scaleFactor * 0.01;
+
+  let noise = sin(normX + time * 0.4) + cos(normY * 0.8 + time * 0.35);
+  let turbulence = (turbulenceDeg * PI / 180.0) * turbulenceScale * 0.5 * noise;
+
+  vector.angle = normalize_angle(baseAngle + turbulence);
+  vector.length = min(uniforms.vectorLength * uniforms.pixelToISO, maxLengthPx * uniforms.pixelToISO);
+
+  vectors[index] = vector;
+}
+`;
+
+// ============================================
+// GEOMÉTRICAS
+// ============================================
+
+// TANGENTE CLÁSICA - Rotación tangencial alrededor del centro
+export const tangenteClasicaShader = /* wgsl */ `
+${COMMON_STRUCTS}
+
+@compute @workgroup_size(64)
+fn computeMain(@builtin(global_invocation_id) global_id: vec3u) {
+  let index = global_id.x;
+  var vector = vectors[index];
+
+  let rotationSpeed = uniforms.param1;
+  let directionRaw = uniforms.param2;
+  let radialBlend = clamp(uniforms.param3, 0.0, 1.0);
+  let maxLengthPx = uniforms.param4;
+
+  let direction = select(-1.0, 1.0, directionRaw >= 0.0);
+
+  let angleToCenter = atan2(vector.baseY, vector.baseX);
+  let tangentialAngle = angleToCenter + direction * (PI / 2.0);
+  let rotationOffset = uniforms.time * uniforms.speed * rotationSpeed;
+
+  let baseAngle = mix(angleToCenter, tangentialAngle, radialBlend);
+  vector.angle = normalize_angle(baseAngle + rotationOffset);
+
+  let radius = sqrt(vector.baseX * vector.baseX + vector.baseY * vector.baseY);
+  let lengthMod = clamp(1.0 + radius * 0.5, 0.5, 3.0);
+  vector.length = min(uniforms.vectorLength * uniforms.pixelToISO * lengthMod, maxLengthPx * uniforms.pixelToISO);
+
+  vectors[index] = vector;
+}
+`;
+
+// LISSAJOUS - Patrones armónicos en cuadrícula
+export const lissajousShader = /* wgsl */ `
+${COMMON_STRUCTS}
+
+@compute @workgroup_size(64)
+fn computeMain(@builtin(global_invocation_id) global_id: vec3u) {
+  let index = global_id.x;
+  var vector = vectors[index];
+
+  let xFreq = max(uniforms.param1, 0.1);
+  let yFreq = max(uniforms.param2, 0.1);
+  let amplitudeDeg = uniforms.param3;
+  let maxLengthPx = uniforms.param4;
+
+  let scaleFactor = 1.0 / uniforms.pixelToISO;
+  let normX = vector.baseX * scaleFactor * 0.01;
+  let normY = vector.baseY * scaleFactor * 0.01;
+  let time = uniforms.time * uniforms.speed;
+
+  let pattern = sin(normX * xFreq + time) + cos(normY * yFreq + time * 1.3);
+  let angle = pattern * amplitudeDeg * PI / 180.0;
+
+  vector.angle = normalize_angle(angle);
+  vector.length = min(uniforms.vectorLength * uniforms.pixelToISO, maxLengthPx * uniforms.pixelToISO);
+
+  vectors[index] = vector;
+}
+`;
+
+// GEOMETRIC PATTERN - Patrones geométricos iterativos
 export const geometricPatternShader = /* wgsl */ `
 ${COMMON_STRUCTS}
 
@@ -681,8 +502,12 @@ fn computeMain(@builtin(global_invocation_id) global_id: vec3u) {
 }
 `;
 
-// 12. FLOCKING - Alineación aproximada estilo boids
-export const flockingShader = /* wgsl */ `
+// ============================================
+// NUEVAS ANIMACIONES ENERGÉTICAS
+// ============================================
+
+// STORM - Tormenta caótica con estructura
+export const stormShader = /* wgsl */ `
 ${COMMON_STRUCTS}
 
 fn pseudo_noise(v: vec2f) -> f32 {
@@ -694,29 +519,138 @@ fn computeMain(@builtin(global_invocation_id) global_id: vec3u) {
   let index = global_id.x;
   var vector = vectors[index];
 
-  let radius = max(uniforms.param1, 0.05);
-  let alignmentStrength = clamp(uniforms.param2, 0.0, 2.0);
-  let cohesionStrength = clamp(uniforms.param3, 0.0, 1.0);
+  let chaos = clamp(uniforms.param1, 0.1, 3.0);        // Intensidad del caos
+  let vorticity = clamp(uniforms.param2, 0.0, 2.0);    // Fuerza de remolino
+  let pulseSpeed = max(uniforms.param3, 0.1);          // Velocidad de pulsos
   let maxLengthPx = uniforms.param4;
 
-  let toCenter = normalize(vec2f(-vector.baseX, -vector.baseY));
-  let noiseAngle = pseudo_noise(vec2f(vector.baseX * 8.0, vector.baseY * 9.3 + uniforms.time)) * PI;
+  let time = uniforms.time * uniforms.speed;
+  let scaleFactor = 1.0 / uniforms.pixelToISO;
+  let normX = vector.baseX * scaleFactor;
+  let normY = vector.baseY * scaleFactor;
 
-  let alignmentAngle = atan2(toCenter.y, toCenter.x) * alignmentStrength;
-  let cohesionAngle = atan2(vector.baseY, vector.baseX + 0.0001) * cohesionStrength;
+  // Distancia y ángulo al centro
+  let radius = sqrt(normX * normX + normY * normY);
+  let angleToCenter = atan2(normY, normX);
+  let tangentialAngle = angleToCenter + PI / 2.0;
 
-  let combinedAngle = alignmentAngle + cohesionAngle + noiseAngle;
-  vector.angle = normalize_angle(combinedAngle);
+  // Múltiples capas de ruido turbulento
+  let noise1 = pseudo_noise(vec2f(normX * 0.02 + time * 0.3, normY * 0.02 - time * 0.2));
+  let noise2 = pseudo_noise(vec2f(normX * 0.05 - time * 0.4, normY * 0.05 + time * 0.5));
+  let noise3 = pseudo_noise(vec2f(normX * 0.08 + time * 0.6, normY * 0.08));
 
-  let lengthMod = 1.0 + clamp(radius * 0.4, 0.0, 1.0);
-  vector.length = min(uniforms.vectorLength * uniforms.pixelToISO * lengthMod, maxLengthPx * uniforms.pixelToISO);
+  // Ondas de choque circulares
+  let shockwave1 = sin(radius * 0.03 - time * pulseSpeed * 2.0) * 0.5;
+  let shockwave2 = sin(radius * 0.05 - time * pulseSpeed * 1.3) * 0.3;
+
+  // Componente de vórtice
+  let vortexComponent = tangentialAngle * vorticity + sin(time * 0.8 + radius * 0.1) * vorticity * 0.5;
+
+  // Componente radial caótico (expansion/contracción)
+  let radialChaos = (shockwave1 + shockwave2) * chaos * PI * 0.3;
+
+  // Turbulencia combinada
+  let turbulence = (noise1 + noise2 * 0.6 + noise3 * 0.3) * chaos * PI * 0.4;
+
+  // Ángulo final: mezcla de vórtice, ondas radiales y caos turbulento
+  let finalAngle = vortexComponent + radialChaos + turbulence;
+  vector.angle = normalize_angle(finalAngle);
+
+  // Longitud altamente variable y violenta
+  let lengthNoise = abs(noise1) + abs(noise2) * 0.5;
+  let lengthPulse = abs(shockwave1 + shockwave2);
+  let lengthMod = 1.0 + (lengthNoise + lengthPulse) * chaos * 0.4;
+
+  vector.length = min(
+    uniforms.vectorLength * uniforms.pixelToISO * lengthMod,
+    maxLengthPx * uniforms.pixelToISO
+  );
 
   vectors[index] = vector;
 }
 `;
 
-// 18. HEARTBEAT - Latido/Respiración sincronizada (expansión/contracción)
-export const heartbeatShader = /* wgsl */ `
+// SOLAR FLARE - Explosión solar con eyecciones
+export const solarFlareShader = /* wgsl */ `
+${COMMON_STRUCTS}
+
+fn pseudo_noise(v: vec2f) -> f32 {
+  return fract(sin(dot(v, vec2f(12.9898, 78.233))) * 43758.5453) * 2.0 - 1.0;
+}
+
+@compute @workgroup_size(64)
+fn computeMain(@builtin(global_invocation_id) global_id: vec3u) {
+  let index = global_id.x;
+  var vector = vectors[index];
+
+  let flareIntensity = clamp(uniforms.param1, 0.5, 3.0);  // Intensidad de eyecciones
+  let rotationSpeed = uniforms.param2;                     // Velocidad de rotación solar
+  let ejectionAngle = uniforms.param3;                     // Ángulo de apertura (grados)
+  let maxLengthPx = uniforms.param4;
+
+  let time = uniforms.time * uniforms.speed;
+  let scaleFactor = 1.0 / uniforms.pixelToISO;
+  let normX = vector.baseX * scaleFactor;
+  let normY = vector.baseY * scaleFactor;
+
+  let radius = sqrt(normX * normX + normY * normY);
+  let angleToCenter = atan2(normY, normX);
+
+  // Rotación de la superficie solar
+  let surfaceRotation = time * rotationSpeed * 0.5;
+
+  // Pulsos de eyección que viajan hacia afuera
+  let ejectionWave1 = sin(time * 1.5 - radius * 0.08);
+  let ejectionWave2 = sin(time * 2.3 - radius * 0.12) * 0.7;
+  let ejectionWave3 = sin(time * 1.1 - radius * 0.06) * 0.5;
+
+  let combinedEjection = ejectionWave1 + ejectionWave2 + ejectionWave3;
+
+  // Filamentos magnéticos (ruido angular)
+  let magneticNoise = pseudo_noise(vec2f(
+    angleToCenter * 3.0 + time * 0.3,
+    radius * 0.1 + time * 0.2
+  ));
+
+  // Dirección radial base (hacia afuera desde el centro)
+  let radialAngle = angleToCenter;
+
+  // Perturbación angular por campos magnéticos
+  let magneticPerturbation = magneticNoise * (ejectionAngle * PI / 180.0) * flareIntensity;
+
+  // Curvatura por rotación solar (efecto Parker spiral)
+  let spiralCurvature = (radius * 0.02) * rotationSpeed * sign(ejectionWave1);
+
+  // Solo eyectar cuando hay pulso positivo fuerte
+  let ejectionStrength = max(combinedEjection, 0.0);
+  let ejectionFactor = ejectionStrength * ejectionStrength; // No lineal para más drama
+
+  // Dirección final: principalmente radial con perturbaciones
+  let finalAngle = radialAngle + magneticPerturbation + spiralCurvature + surfaceRotation;
+
+  // Suavizar transición entre estados
+  let targetAngle = finalAngle;
+  vector.angle = lerp_angle(vector.angle, targetAngle, 0.2);
+
+  // Longitud basada en intensidad de eyección
+  let baseLengthMod = 1.0 + ejectionFactor * flareIntensity * 0.8;
+
+  // Variación por filamentos magnéticos
+  let magneticVariation = 1.0 + abs(magneticNoise) * 0.3;
+
+  let finalLengthMod = baseLengthMod * magneticVariation;
+
+  vector.length = min(
+    uniforms.vectorLength * uniforms.pixelToISO * finalLengthMod,
+    maxLengthPx * uniforms.pixelToISO
+  );
+
+  vectors[index] = vector;
+}
+`;
+
+// RADIATION - Pulsos de radiación desde múltiples fuentes
+export const radiationShader = /* wgsl */ `
 ${COMMON_STRUCTS}
 
 @compute @workgroup_size(64)
@@ -724,46 +658,79 @@ fn computeMain(@builtin(global_invocation_id) global_id: vec3u) {
   let index = global_id.x;
   var vector = vectors[index];
 
-  let frequency = uniforms.param1;      // Frecuencia del latido (default ~0.015)
-  let intensity = uniforms.param2;      // NO USADO - siempre alterna dirección
-  let distanceEffect = uniforms.param3; // Cuánto afecta la distancia (default ~0.7)
+  let waveSpeed = max(uniforms.param1, 0.1);           // Velocidad de ondas
+  let numSources = clamp(uniforms.param2, 1.0, 8.0);   // Número de fuentes
+  let interference = clamp(uniforms.param3, 0.0, 1.0); // Interferencia entre ondas
   let maxLengthPx = uniforms.param4;
 
-  // Convertir tiempo a milisegundos
-  let time = uniforms.time * uniforms.speed * 1000.0;
-
-  // Escalar coordenadas ISO a píxeles reales
+  let time = uniforms.time * uniforms.speed;
   let scaleFactor = 1.0 / uniforms.pixelToISO;
   let normX = vector.baseX * scaleFactor;
   let normY = vector.baseY * scaleFactor;
 
-  // Distancia al centro
-  let dist = sqrt(normX * normX + normY * normY);
+  // Crear múltiples fuentes de radiación que orbitan el centro
+  var totalWaveX: f32 = 0.0;
+  var totalWaveY: f32 = 0.0;
+  var totalIntensity: f32 = 0.0;
 
-  // Ángulo radial desde el centro
-  let radialAngle = atan2(vector.baseY, vector.baseX);
+  let sources = i32(numSources);
+  for (var i = 0; i < sources; i = i + 1) {
+    let angle = (f32(i) / numSources) * TWO_PI + time * 0.3;
+    let orbitRadius = 200.0; // Distancia de órbita en píxeles
 
-  // Latido sincronizado SIMPLE - todo el campo junto
-  let beatPhase = time * frequency * 0.001;
-  let heartbeat = sin(beatPhase);
+    // Posición de la fuente
+    let sourceX = cos(angle) * orbitRadius;
+    let sourceY = sin(angle) * orbitRadius;
 
-  // INVERSIÓN COMPLETA DE DIRECCIÓN según el signo del latido
-  // heartbeat > 0 → EXPANSIÓN: vectores apuntan HACIA AFUERA (radial)
-  // heartbeat < 0 → CONTRACCIÓN: vectores apuntan HACIA DENTRO (radial + 180°)
-  let direction = select(
-    radialAngle + PI,  // Contracción: apuntan hacia el centro
-    radialAngle,       // Expansión: apuntan desde el centro
-    heartbeat > 0.0
-  );
+    // Distancia a esta fuente
+    let dx = normX - sourceX;
+    let dy = normY - sourceY;
+    let dist = sqrt(dx * dx + dy * dy);
 
-  vector.angle = normalize_angle(direction);
+    // Onda que se propaga desde esta fuente
+    let wave = sin(dist * 0.05 - time * waveSpeed * 2.0);
 
-  // Longitud: más largos durante picos del latido (abs para que siempre sean visibles)
-  let beatStrength = abs(heartbeat);
-  let lengthModulation = 0.7 + beatStrength * 0.8;
+    // Atenuación por distancia (ley del cuadrado inverso simplificada)
+    let attenuation = 1.0 / (1.0 + dist * 0.005);
+
+    let intensity = wave * attenuation;
+    totalIntensity = totalIntensity + abs(intensity);
+
+    // Dirección radial desde esta fuente
+    let radialX = dx / max(dist, 0.001);
+    let radialY = dy / max(dist, 0.001);
+
+    // Acumular contribución de esta fuente
+    totalWaveX = totalWaveX + radialX * intensity;
+    totalWaveY = totalWaveY + radialY * intensity;
+  }
+
+  // Normalizar el vector resultante
+  let magnitude = sqrt(totalWaveX * totalWaveX + totalWaveY * totalWaveY);
+
+  if (magnitude > 0.001) {
+    let dirX = totalWaveX / magnitude;
+    let dirY = totalWaveY / magnitude;
+
+    // Calcular ángulo de la dirección resultante
+    let resultAngle = atan2(dirY, dirX);
+
+    // Agregar interferencia (perturbación)
+    let interferenceNoise = sin(normX * 0.03 + time) * cos(normY * 0.03 - time * 0.7);
+    let perturbation = interferenceNoise * interference * PI * 0.3;
+
+    vector.angle = normalize_angle(resultAngle + perturbation);
+  } else {
+    // Sin fuerzas significativas, mantener ángulo actual
+    vector.angle = vector.angle;
+  }
+
+  // Longitud basada en intensidad total
+  let avgIntensity = totalIntensity / numSources;
+  let lengthMod = 1.0 + avgIntensity * 0.8;
 
   vector.length = min(
-    uniforms.vectorLength * uniforms.pixelToISO * lengthModulation,
+    uniforms.vectorLength * uniforms.pixelToISO * lengthMod,
     maxLengthPx * uniforms.pixelToISO
   );
 
