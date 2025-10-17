@@ -159,7 +159,7 @@ export function useVectorEngine(options: UseVectorEngineOptions | RefObject<HTML
         console.log('🎬 Primer frame renderizando...');
       }
 
-      // Actualizar uniforms con zoom, speed, parámetros, color y gradiente
+      // Actualizar uniforms con zoom, speed, parámetros, color, gradiente y seed
       const aspect = canvas.width / canvas.height;
       engine.updateUniforms(
         aspect,
@@ -169,7 +169,8 @@ export function useVectorEngine(options: UseVectorEngineOptions | RefObject<HTML
         animation.params,
         visual.color,
         visual.gradient,
-        mousePositionRef.current
+        mousePositionRef.current,
+        animation.seed
       );
 
       // Ejecutar compute shader (animación)

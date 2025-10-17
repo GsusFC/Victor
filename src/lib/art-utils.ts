@@ -18,23 +18,22 @@ export function generateArtId(): string {
 export function generateArtTitle(animationType: AnimationType): string {
   const titles: Record<AnimationType, string[]> = {
     none: ['Quietud', 'Silencio', 'Estático'],
-    static: ['Serenidad', 'Contemplación', 'Equilibrio'],
-    staticAngle: ['Dirección', 'Orientación', 'Camino'],
-    randomStatic: ['Caos Ordenado', 'Dispersión', 'Aleatorio'],
-    randomLoop: ['Ciclo Caótico', 'Variación Continua', 'Mutación'],
+    // Naturales/Fluidas
     smoothWaves: ['Olas Suaves', 'Flujo Tranquilo', 'Ondulación'],
     seaWaves: ['Mar en Movimiento', 'Olas del Océano', 'Marea'],
-    perlinFlow: ['Flujo Orgánico', 'Corriente Natural', 'Deriva'],
-    mouseInteraction: ['Interacción', 'Respuesta', 'Conexión'],
-    centerPulse: ['Pulso Central', 'Latido', 'Expansión'],
-    heartbeat: ['Corazón', 'Vida', 'Ritmo Vital'],
+    breathingSoft: ['Respiración', 'Hélice Suave', 'Torsión Orgánica'],
+    flocking: ['Bandada', 'Cohesión', 'Movimiento Colectivo'],
+    // Energéticas
+    electricPulse: ['Pulso Eléctrico', 'Energía', 'Expansión Radial'],
+    vortex: ['Vórtice', 'Remolino', 'Espiral Centrípeta'],
     directionalFlow: ['Corriente Direccional', 'Flujo Guiado', 'Vector'],
+    storm: ['Tormenta', 'Caos Controlado', 'Turbulencia'],
+    solarFlare: ['Erupción Solar', 'Llamarada', 'Eyección'],
+    radiation: ['Radiación', 'Ondas Expansivas', 'Interferencia'],
+    // Geométricas
     tangenteClasica: ['Tangente', 'Espiral', 'Rotación'],
     lissajous: ['Lissajous', 'Armonía', 'Resonancia'],
     geometricPattern: ['Patrón Geométrico', 'Estructura', 'Simetría'],
-    flocking: ['Bandada', 'Cohesión', 'Movimiento Colectivo'],
-    vortex: ['Vórtice', 'Remolino', 'Espiral Centrípeta'],
-    helicalCurl: ['Hélice', 'Espiral Tridimensional', 'Torsión'],
   };
 
   const options = titles[animationType] || ['Obra Sin Título'];

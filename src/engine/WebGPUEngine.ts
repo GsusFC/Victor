@@ -44,6 +44,9 @@ export type AnimationType =
   | 'electricPulse'
   | 'vortex'
   | 'directionalFlow'
+  | 'storm'
+  | 'solarFlare'
+  | 'radiation'
   // Geométricas
   | 'tangenteClasica'
   | 'lissajous'
@@ -103,7 +106,8 @@ export class WebGPUEngine {
   };
 
   // Buffer preallocado para uniforms (optimización de memoria)
-  private uniformDataBuffer: Float32Array = new Float32Array(28 + MAX_GRADIENT_STOPS * 4); // 27 uniforms + 1 padding + 24 gradient stops
+  // 27 uniforms base + seed + 2 padding + 24 gradient stops = 30 + 24 = 54 floats
+  private uniformDataBuffer: Float32Array = new Float32Array(30 + MAX_GRADIENT_STOPS * 4);
 
   // Cache para cálculos de gradiente de campo
   private gradientFieldCache = {
@@ -435,11 +439,11 @@ export class WebGPUEngine {
   private createUniformBuffer(): GPUBuffer | null {
     if (!this.device) return null;
 
-    // Uniforms: 27 floats base + 1 padding + MAX_GRADIENT_STOPS * 4 (vec4 por stop) = 52 floats = 208 bytes
+    // Uniforms: 27 floats base + seed + 2 padding + MAX_GRADIENT_STOPS * 4 (vec4 por stop) = 54 floats = 216 bytes
     // WebGPU requiere buffers uniformes alineados a 16 bytes
-    const uniformFloats = 28 + MAX_GRADIENT_STOPS * 4; // 52 floats
-    const uniformBytes = uniformFloats * Float32Array.BYTES_PER_ELEMENT; // 208 bytes
-    const paddedSize = Math.ceil(uniformBytes / 16) * 16; // Redondear a múltiplo de 16 = 208 bytes
+    const uniformFloats = 30 + MAX_GRADIENT_STOPS * 4; // 54 floats
+    const uniformBytes = uniformFloats * Float32Array.BYTES_PER_ELEMENT; // 216 bytes
+    const paddedSize = Math.ceil(uniformBytes / 16) * 16; // Redondear a múltiplo de 16 = 224 bytes
 
     return this.device.createBuffer({
       size: paddedSize,
@@ -708,7 +712,8 @@ export class WebGPUEngine {
       type?: 'linear' | 'radial';
       angle?: number;
     },
-    mousePosition?: MouseUniform
+    mousePosition?: MouseUniform,
+    seed: number = 12345
   ): void {
     if (!this.device || !this.uniformBuffer) return;
 
@@ -844,7 +849,8 @@ export class WebGPUEngine {
     const canvasHeight = this.canvas?.height ?? 0;
     const pixelToISO = canvasHeight > 0 ? 2 / canvasHeight : 0.001;
 
-    const maxLengthPx = Math.max(param4, this.config.vectorLength);
+    // Usar param4 directamente sin forzar máximo (permite acortar vectores)
+    const maxLengthPx = param4;
 
     const gradientScope = gradient?.scope ?? 'vector';
     const gradientMode = gradientScope === 'field' ? 1 : 0;
@@ -942,9 +948,11 @@ export class WebGPUEngine {
     uniformData[24] = linearMin;
     uniformData[25] = linearMax;
     uniformData[26] = radialMax;
-    uniformData[27] = 0.0; // Padding para alinear gradientStops a 16 bytes
+    uniformData[27] = seed; // Seed para PRNG
+    uniformData[28] = 0.0; // Padding 1
+    uniformData[29] = 0.0; // Padding 2 (para alinear gradientStops a 16 bytes)
 
-    uniformData.set(gradientStopData, 28);
+    uniformData.set(gradientStopData, 30);
 
     this.device.queue.writeBuffer(this.uniformBuffer, 0, uniformData);
   }

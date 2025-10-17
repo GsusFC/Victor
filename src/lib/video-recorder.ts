@@ -245,8 +245,7 @@ export class VideoRecorder {
       console.log('🛑 Deteniendo grabación...');
 
       // Prevenir la descarga automática interceptando createElement('a')
-      let capturedBlob: Blob | null = null;
-      let blobPromiseResolve: ((blob: Blob) => void) | null = null;
+      let blobPromiseResolve: ((blob: Blob | null) => void) | null = null;
       const blobPromise = new Promise<Blob | null>((resolve) => {
         blobPromiseResolve = resolve;
         // Timeout de 5 segundos
@@ -269,7 +268,6 @@ export class VideoRecorder {
                 fetch(value)
                   .then(r => r.blob())
                   .then(blob => {
-                    capturedBlob = blob;
                     console.log('💾 Blob capturado:', blob.size, 'bytes');
                     if (blobPromiseResolve) {
                       blobPromiseResolve(blob);

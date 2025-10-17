@@ -9,7 +9,9 @@ import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import { Play, Pause } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Play, Pause, Shuffle, Copy, Check } from 'lucide-react';
+import { useState } from 'react';
 
 // Categorías de animaciones
 const categoryLabels: Record<AnimationCategory, string> = {
@@ -90,6 +92,7 @@ function ParamSlider({
 export function AnimationPanel() {
   const animation = useVectorStore(selectAnimation);
   const actions = useVectorStore(selectActions);
+  const [copiedSeed, setCopiedSeed] = useState(false);
 
   const currentCategory = getAnimationCategory(animation.type);
   const availableAnimations = animationsByCategory[currentCategory] || [];
@@ -104,6 +107,16 @@ export function AnimationPanel() {
 
   const handleParamChange = (param: 'frequency' | 'amplitude' | 'elasticity' | 'maxLength', value: number) => {
     actions.setAnimationParam(param, value);
+  };
+
+  const handleCopySeed = async () => {
+    try {
+      await navigator.clipboard.writeText(animation.seed.toString());
+      setCopiedSeed(true);
+      setTimeout(() => setCopiedSeed(false), 2000);
+    } catch (err) {
+      console.error('Error copying seed:', err);
+    }
   };
 
   return (
@@ -173,6 +186,62 @@ export function AnimationPanel() {
           value={[animation.speed]}
           onValueChange={([value]) => actions.setAnimation({ speed: value })}
         />
+      </div>
+
+      {/* Control de Seed */}
+      <div className="space-y-2 pt-2 border-t">
+        <div className="flex items-center justify-between">
+          <Label htmlFor="animation-seed" className="text-xs font-mono">
+            Seed (Reproducibilidad)
+          </Label>
+          <div className="flex items-center gap-1">
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={handleCopySeed}
+              className="h-6 w-6 p-0"
+              title="Copiar seed"
+            >
+              {copiedSeed ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => actions.generateNewSeed()}
+              className="h-6 w-6 p-0"
+              title="Generar nueva seed"
+            >
+              <Shuffle className="w-3 h-3" />
+            </Button>
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <Input
+            id="animation-seed"
+            type="number"
+            value={animation.seed}
+            onChange={(e) => {
+              const value = parseInt(e.target.value, 10);
+              if (!isNaN(value)) {
+                actions.setSeed(value);
+              }
+            }}
+            className="font-mono text-xs h-8"
+            placeholder="123456"
+          />
+        </div>
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <input
+            type="checkbox"
+            id="auto-seed"
+            checked={animation.autoSeed}
+            onChange={() => actions.toggleAutoSeed()}
+            className="w-3 h-3 cursor-pointer"
+          />
+          <label htmlFor="auto-seed" className="cursor-pointer font-mono">
+            Auto-seed (nueva al cambiar animación)
+          </label>
+        </div>
       </div>
 
       {/* Controles específicos por animación */}

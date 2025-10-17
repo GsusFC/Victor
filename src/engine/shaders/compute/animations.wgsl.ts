@@ -35,6 +35,8 @@ struct Uniforms {
   gradientLinearMin: f32,
   gradientLinearMax: f32,
   gradientRadialMax: f32,
+  seed: f32,  // Seed para generación pseudo-aleatoria reproducible
+  padding1: f32,  // Padding para alineación
   gradientStops: array<vec4f, MAX_GRADIENT_STOPS>,
 }
 
@@ -71,6 +73,47 @@ fn lerp_angle(current: f32, targetAngle: f32, factor: f32) -> f32 {
 
   // Interpolar
   return normalize_angle(a + diff * factor);
+}
+
+// ============================================
+// PRNG (Pseudo-Random Number Generator)
+// Usando PCG Hash - muy eficiente en GPU
+// ============================================
+
+// PCG Hash: hash un u32 a otro u32
+fn pcg_hash(input: u32) -> u32 {
+  var state = input * 747796405u + 2891336453u;
+  let word = ((state >> ((state >> 28u) + 4u)) ^ state) * 277803737u;
+  return (word >> 22u) ^ word;
+}
+
+// Convierte u32 a f32 en rango [0, 1)
+fn u32_to_f32(x: u32) -> f32 {
+  return f32(x) / 4294967296.0; // 2^32
+}
+
+// Genera número pseudo-aleatorio en [0, 1) basado en seed y posición
+fn rand(seed: f32, x: f32, y: f32) -> f32 {
+  let s = u32(seed);
+  let ix = u32(x * 1000.0);
+  let iy = u32(y * 1000.0);
+  let hash_input = s ^ (ix * 374761393u) ^ (iy * 668265263u);
+  return u32_to_f32(pcg_hash(hash_input));
+}
+
+// Genera número pseudo-aleatorio en [0, 1) basado en seed, posición y tiempo
+fn rand_time(seed: f32, x: f32, y: f32, t: f32) -> f32 {
+  let s = u32(seed);
+  let ix = u32(x * 1000.0);
+  let iy = u32(y * 1000.0);
+  let it = u32(t * 100.0);
+  let hash_input = s ^ (ix * 374761393u) ^ (iy * 668265263u) ^ (it * 1103515245u);
+  return u32_to_f32(pcg_hash(hash_input));
+}
+
+// Genera número pseudo-aleatorio en rango [min, max)
+fn rand_range(seed: f32, x: f32, y: f32, min: f32, max: f32) -> f32 {
+  return min + rand(seed, x, y) * (max - min);
 }
 `;
 
@@ -239,13 +282,9 @@ fn computeMain(@builtin(global_invocation_id) global_id: vec3u) {
 }
 `;
 
-// FLOCKING - Alineación aproximada estilo boids
+// FLOCKING - Alineación aproximada estilo boids (AHORA CON SEED!)
 export const flockingShader = /* wgsl */ `
 ${COMMON_STRUCTS}
-
-fn pseudo_noise(v: vec2f) -> f32 {
-  return fract(sin(dot(v, vec2f(12.9898, 78.233))) * 43758.5453) * 2.0 - 1.0;
-}
 
 @compute @workgroup_size(64)
 fn computeMain(@builtin(global_invocation_id) global_id: vec3u) {
@@ -258,7 +297,11 @@ fn computeMain(@builtin(global_invocation_id) global_id: vec3u) {
   let maxLengthPx = uniforms.param4;
 
   let toCenter = normalize(vec2f(-vector.baseX, -vector.baseY));
-  let noiseAngle = pseudo_noise(vec2f(vector.baseX * 8.0, vector.baseY * 9.3 + uniforms.time)) * PI;
+
+  // 🎲 USAR SEED para ruido reproducible!
+  // Ahora con la misma seed, obtienes el mismo patrón de ruido
+  let noiseValue = rand_time(uniforms.seed, vector.baseX * 8.0, vector.baseY * 9.3, uniforms.time * 0.1);
+  let noiseAngle = (noiseValue * 2.0 - 1.0) * PI;
 
   let alignmentAngle = atan2(toCenter.y, toCenter.x) * alignmentStrength;
   let cohesionAngle = atan2(vector.baseY, vector.baseX + 0.0001) * cohesionStrength;
@@ -506,13 +549,9 @@ fn computeMain(@builtin(global_invocation_id) global_id: vec3u) {
 // NUEVAS ANIMACIONES ENERGÉTICAS
 // ============================================
 
-// STORM - Tormenta caótica con estructura
+// STORM - Tormenta caótica con estructura (AHORA CON SEED!)
 export const stormShader = /* wgsl */ `
 ${COMMON_STRUCTS}
-
-fn pseudo_noise(v: vec2f) -> f32 {
-  return fract(sin(dot(v, vec2f(12.9898, 78.233))) * 43758.5453) * 2.0 - 1.0;
-}
 
 @compute @workgroup_size(64)
 fn computeMain(@builtin(global_invocation_id) global_id: vec3u) {
@@ -534,10 +573,10 @@ fn computeMain(@builtin(global_invocation_id) global_id: vec3u) {
   let angleToCenter = atan2(normY, normX);
   let tangentialAngle = angleToCenter + PI / 2.0;
 
-  // Múltiples capas de ruido turbulento
-  let noise1 = pseudo_noise(vec2f(normX * 0.02 + time * 0.3, normY * 0.02 - time * 0.2));
-  let noise2 = pseudo_noise(vec2f(normX * 0.05 - time * 0.4, normY * 0.05 + time * 0.5));
-  let noise3 = pseudo_noise(vec2f(normX * 0.08 + time * 0.6, normY * 0.08));
+  // 🎲 Múltiples capas de ruido turbulento CON SEED
+  let noise1 = rand_time(uniforms.seed, normX * 0.02, normY * 0.02, time * 0.3) * 2.0 - 1.0;
+  let noise2 = rand_time(uniforms.seed + 1.0, normX * 0.05, normY * 0.05, time * 0.4) * 2.0 - 1.0;
+  let noise3 = rand_time(uniforms.seed + 2.0, normX * 0.08, normY * 0.08, time * 0.6) * 2.0 - 1.0;
 
   // Ondas de choque circulares
   let shockwave1 = sin(radius * 0.03 - time * pulseSpeed * 2.0) * 0.5;

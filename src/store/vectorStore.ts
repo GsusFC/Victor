@@ -143,6 +143,9 @@ const animationParamsDefaults: Record<AnimationType, AnimationParamSet> = {
   electricPulse: { frequency: 0.03, amplitude: 45, elasticity: 0.7, maxLength: 130 }, // Mejorado centerPulse
   vortex: { frequency: 1.2, amplitude: 0.45, elasticity: 1.2, maxLength: 130 },
   directionalFlow: { frequency: 45, amplitude: 25, elasticity: 0.6, maxLength: 90 },
+  storm: { frequency: 1.5, amplitude: 1.0, elasticity: 1.2, maxLength: 140 },
+  solarFlare: { frequency: 1.8, amplitude: 0.5, elasticity: 45, maxLength: 150 },
+  radiation: { frequency: 1.0, amplitude: 4, elasticity: 0.5, maxLength: 120 },
   // Geométricas
   tangenteClasica: { frequency: 0.6, amplitude: 1, elasticity: 0.5, maxLength: 110 },
   lissajous: { frequency: 2.0, amplitude: 3.0, elasticity: 120, maxLength: 90 },
@@ -226,6 +229,9 @@ export interface VectorState {
     category?: AnimationCategory; // Categoría actual (derivada del tipo)
     // Parámetros dinámicos por tipo de animación
     params: Record<string, number>;
+    // Sistema de seeds para reproducibilidad
+    seed: number;
+    autoSeed: boolean; // Si true, genera nueva seed al cambiar animación
   };
 
   // Configuración del canvas
@@ -261,6 +267,9 @@ export interface VectorActions {
   setAnimationType: (type: AnimationType) => void;
   togglePause: () => void;
   setAnimationParam: (key: string, value: number) => void;
+  setSeed: (seed: number) => void;
+  generateNewSeed: () => void;
+  toggleAutoSeed: () => void;
 
   // Canvas
   setCanvas: (config: Partial<VectorState['canvas']>) => void;
@@ -298,6 +307,8 @@ const defaultState: VectorState = {
     speed: 1,
     paused: false,
     params: { ...animationParamsDefaults.smoothWaves },
+    seed: Math.floor(Math.random() * 1000000),
+    autoSeed: false,
   },
 
   canvas: {
@@ -458,13 +469,20 @@ export const useVectorStore = create<VectorStore>()(
           })),
 
         setAnimationType: (type) =>
-          set((state) => ({
-            animation: {
-              ...state.animation,
-              type,
-              params: { ...animationParamsDefaults[type] },
-            },
-          })),
+          set((state) => {
+            const newSeed = state.animation.autoSeed
+              ? Math.floor(Math.random() * 1000000)
+              : state.animation.seed;
+
+            return {
+              animation: {
+                ...state.animation,
+                type,
+                params: { ...animationParamsDefaults[type] },
+                seed: newSeed,
+              },
+            };
+          }),
 
         togglePause: () =>
           set((state) => ({
@@ -476,6 +494,27 @@ export const useVectorStore = create<VectorStore>()(
             animation: {
               ...state.animation,
               params: { ...state.animation.params, [key]: value },
+            },
+          })),
+
+        setSeed: (seed) =>
+          set((state) => ({
+            animation: { ...state.animation, seed },
+          })),
+
+        generateNewSeed: () =>
+          set((state) => ({
+            animation: {
+              ...state.animation,
+              seed: Math.floor(Math.random() * 1000000),
+            },
+          })),
+
+        toggleAutoSeed: () =>
+          set((state) => ({
+            animation: {
+              ...state.animation,
+              autoSeed: !state.animation.autoSeed,
             },
           })),
 
