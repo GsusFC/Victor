@@ -211,6 +211,13 @@ export interface VectorState {
     shape: VectorShape;
     color: string;
     gradient?: GradientConfig;
+    // Sistema de trails (estelas)
+    trails: {
+      enabled: boolean;
+      length: number;      // Número de posiciones en el historial (2-20)
+      opacity: number;     // Opacidad máxima (0-1)
+      fadeMode: 'linear' | 'exponential';
+    };
   };
 
   // Configuración del grid
@@ -251,6 +258,7 @@ export interface VectorState {
 export interface VectorActions {
   // Visual
   setVisual: <K extends keyof VectorState['visual']>(key: K, value: VectorState['visual'][K]) => void;
+  setTrails: (trails: Partial<VectorState['visual']['trails']>) => void;
   setGradient: (gradient: Partial<GradientConfig>) => void;
   setGradientStops: (stops: GradientStop[]) => void;
   applyGradientPreset: (preset: GradientPreset, options?: { remember?: boolean }) => void;
@@ -293,6 +301,12 @@ const defaultState: VectorState = {
     shape: 'line',
     color: '#FFFFFF',
     gradient: defaultGradient,
+    trails: {
+      enabled: false,
+      length: 8,
+      opacity: 0.6,
+      fadeMode: 'exponential',
+    },
   },
 
   grid: {
@@ -333,6 +347,14 @@ export const useVectorStore = create<VectorStore>()(
         setVisual: (key, value) =>
           set((state) => ({
             visual: { ...state.visual, [key]: value },
+          })),
+
+        setTrails: (trails) =>
+          set((state) => ({
+            visual: {
+              ...state.visual,
+              trails: { ...state.visual.trails, ...trails },
+            },
           })),
 
         setGradient: (gradient) =>

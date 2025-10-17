@@ -96,6 +96,8 @@ export class WebGPUEngine {
   private isInitialized = false;
   private isInitializing = false;
   private currentAnimationType: AnimationType = 'smoothWaves';
+  private trailsEnabled = false;
+  private trailsClearAlpha = 1.0; // 1.0 = sin trails, menor = más trails
   private config: WebGPUEngineConfig = {
     vectorCount: 100,
     vectorLength: 20,
@@ -395,6 +397,17 @@ export class WebGPUEngine {
     } else {
       console.warn(`⚠️ Animación ${type} no encontrada`);
     }
+  }
+
+  /**
+   * Actualiza configuración de trails
+   */
+  setTrails(enabled: boolean, opacity: number = 0.6): void {
+    this.trailsEnabled = enabled;
+    // Convertir opacidad de trails a alpha de clear
+    // opacity 1.0 -> clearAlpha 0.05 (trails muy largos)
+    // opacity 0.1 -> clearAlpha 0.5 (trails cortos)
+    this.trailsClearAlpha = enabled ? (1 - opacity) * 0.45 + 0.05 : 1.0;
   }
 
   /**
@@ -990,12 +1003,13 @@ export class WebGPUEngine {
     const textureView = this.context.getCurrentTexture().createView();
 
     // Render pass con MSAA
+    // Si trails están activados, usamos alpha bajo para dejar rastros
     const renderPass = commandEncoder.beginRenderPass({
       colorAttachments: [
         {
           view: this.msaaTextureView, // Renderizar a texture MSAA
           resolveTarget: textureView,  // Resolver a texture del canvas
-          clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
+          clearValue: { r: 0.0, g: 0.0, b: 0.0, a: this.trailsClearAlpha },
           loadOp: 'clear',
           storeOp: 'store',
         },

@@ -96,6 +96,77 @@ export function VisualControls() {
             />
           </div>
         </div>
+
+        {/* Trails (Estelas) */}
+        <div className="space-y-3 pt-3 border-t">
+          <div className="flex items-center justify-between">
+            <Label className="text-xs font-mono">Trails (Estelas)</Label>
+            <input
+              type="checkbox"
+              checked={visual.trails.enabled}
+              onChange={(e) => actions.setTrails({ enabled: e.target.checked })}
+              className="w-4 h-4 cursor-pointer"
+            />
+          </div>
+
+          {visual.trails.enabled && (
+            <>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="trail-length" className="text-xs font-mono">
+                    Longitud
+                  </Label>
+                  <span className="text-xs font-mono text-muted-foreground">{visual.trails.length}</span>
+                </div>
+                <Slider
+                  id="trail-length"
+                  min={2}
+                  max={20}
+                  step={1}
+                  value={[visual.trails.length]}
+                  onValueChange={([value]) => actions.setTrails({ length: value })}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="trail-opacity" className="text-xs font-mono">
+                    Opacidad
+                  </Label>
+                  <span className="text-xs font-mono text-muted-foreground">
+                    {Math.round(visual.trails.opacity * 100)}%
+                  </span>
+                </div>
+                <Slider
+                  id="trail-opacity"
+                  min={0.1}
+                  max={1}
+                  step={0.05}
+                  value={[visual.trails.opacity]}
+                  onValueChange={([value]) => actions.setTrails({ opacity: value })}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="trail-fade" className="text-xs font-mono">
+                  Modo de desvanecimiento
+                </Label>
+                <Select
+                  value={visual.trails.fadeMode}
+                  onValueChange={(value: 'linear' | 'exponential') => actions.setTrails({ fadeMode: value })}
+                >
+                  <SelectTrigger id="trail-fade">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="linear">Lineal</SelectItem>
+                    <SelectItem value="exponential">Exponencial</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </>
+          )}
+        </div>
       </section>
 
       <GradientControls />

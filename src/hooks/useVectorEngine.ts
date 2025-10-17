@@ -68,6 +68,9 @@ export function useVectorEngine(options: UseVectorEngineOptions | RefObject<HTML
           vectorShape: visual.shape as VectorShape,
         });
 
+        // Configurar trails
+        engine.setTrails(visual.trails.enabled, visual.trails.opacity);
+
         // Generar grid inicial
         generateAndUpdateGrid(engine, canvas);
       } else {
@@ -120,6 +123,14 @@ export function useVectorEngine(options: UseVectorEngineOptions | RefObject<HTML
       generateAndUpdateGrid(engine, canvas);
     }
   }, [grid.rows, grid.cols, grid.spacing, grid.mode, visual.vectorLength, visual.vectorWidth, visual.shape, canvasRef]);
+
+  // Actualizar trails cuando cambia la configuración
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine || !engine.initialized) return;
+
+    engine.setTrails(visual.trails.enabled, visual.trails.opacity);
+  }, [visual.trails.enabled, visual.trails.opacity]);
 
   // Tracking de mouse en coordenadas ISO
   useEffect(() => {
