@@ -36,7 +36,9 @@ struct Uniforms {
   gradientLinearMin: f32,
   gradientLinearMax: f32,
   gradientRadialMax: f32,
-  _padding: f32,  // Padding para alinear gradientStops a 16 bytes
+  seed: f32,  // Seed para PRNG
+  _padding1: f32,  // Padding 1
+  _padding2: f32,  // Padding 2 para alinear gradientStops a 16 bytes
   gradientStops: array<vec4f, MAX_GRADIENT_STOPS>,
 }
 
@@ -147,8 +149,28 @@ fn vertexMain(
   // Posición final en espacio ISO
   let worldPos = vec2f(vector.baseX, vector.baseY) + localPos;
 
-  // Calcular gradientT basado en la coordenada X de la forma (0 a 1)
-  let gradientT = clamp(shapeVertex.x, 0.0, 1.0);
+  // Calcular gradientT basado en el modo
+  var gradientT: f32;
+
+  if (uniforms.gradientMode > 0.5) {
+    // FIELD MODE: calcular t basado en la posición en el campo
+    if (uniforms.gradientType > 0.5) {
+      // Radial gradient
+      let distance = length(worldPos);
+      gradientT = distance / uniforms.gradientRadialMax;
+    } else {
+      // Linear gradient
+      let gradientDir = vec2f(uniforms.gradientLinearX, uniforms.gradientLinearY);
+      let projection = dot(worldPos, gradientDir);
+      let range = uniforms.gradientLinearMax - uniforms.gradientLinearMin;
+      gradientT = (projection - uniforms.gradientLinearMin) / range;
+    }
+  } else {
+    // VECTOR MODE: gradientT basado en la posición X del vértice (0-1 a lo largo del vector)
+    gradientT = clamp(shapeVertex.x, 0.0, 1.0);
+  }
+
+  gradientT = clamp(gradientT, 0.0, 1.0);
 
   // Convertir de ISO a clip space con zoom
   let clipX = (worldPos.x / uniforms.aspect) * uniforms.zoom;
