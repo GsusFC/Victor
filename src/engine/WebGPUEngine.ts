@@ -499,9 +499,11 @@ export class WebGPUEngine {
   setTrails(enabled: boolean, opacity: number = 0.6): void {
     this.trailsEnabled = enabled;
     // Convertir opacidad de trails a decay factor
-    // opacity 1.0 -> decay 0.98 (trails muy largos, fade del 2%)
-    // opacity 0.1 -> decay 0.70 (trails cortos, fade del 30%)
-    this.trailsDecay = enabled ? 0.70 + opacity * 0.28 : 1.0;
+    // opacity es inverso a longitud de trails:
+    // opacity 1.0 (UI) -> fade rápido -> decay 0.80 (fade del 20% por frame) -> trails cortos
+    // opacity 0.1 (UI) -> fade lento -> decay 0.98 (fade del 2% por frame) -> trails largos
+    // Fórmula: a mayor opacity en UI, mayor fade (menor decay)
+    this.trailsDecay = enabled ? 0.98 - opacity * 0.18 : 1.0;
 
     // Actualizar uniform buffer si ya existe
     if (this.fadeUniformBuffer && this.device) {
@@ -1114,7 +1116,7 @@ export class WebGPUEngine {
         colorAttachments: [
           {
             view: this.msaaTextureView,
-            resolveTarget: textureView,
+            // No resolveTarget aquí - solo en el último pass
             loadOp: 'load', // Cargar contenido anterior
             storeOp: 'store',
           },
