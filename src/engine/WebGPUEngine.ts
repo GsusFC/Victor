@@ -5,6 +5,7 @@
 
 import { normalizeAngle } from '@/lib/math-utils';
 import { vectorShader } from './shaders/render/vector.wgsl';
+import { fadeShader } from './shaders/render/fade.wgsl';
 import { ShapeLibrary, type ShapeName } from './ShapeLibrary';
 import {
   noneShader,
@@ -92,12 +93,17 @@ export class WebGPUEngine {
   private shapeLibrary: ShapeLibrary = new ShapeLibrary();
   private currentShapeVertexCount: number = 6; // Por defecto 'line' tiene 6 vértices
 
+  // Trails/Fade system
+  private fadePipeline: GPURenderPipeline | null = null;
+  private fadeBindGroup: GPUBindGroup | null = null;
+  private fadeUniformBuffer: GPUBuffer | null = null;
+
   // Estado
   private isInitialized = false;
   private isInitializing = false;
   private currentAnimationType: AnimationType = 'smoothWaves';
   private trailsEnabled = false;
-  private trailsClearAlpha = 1.0; // 1.0 = sin trails, menor = más trails
+  private trailsDecay = 0.95; // Factor de decay para trails
   private config: WebGPUEngineConfig = {
     vectorCount: 100,
     vectorLength: 20,
@@ -108,8 +114,8 @@ export class WebGPUEngine {
   };
 
   // Buffer preallocado para uniforms (optimización de memoria)
-  // 27 uniforms base + seed + 2 padding + 24 gradient stops = 30 + 24 = 54 floats
-  private uniformDataBuffer: Float32Array = new Float32Array(30 + MAX_GRADIENT_STOPS * 4);
+  // 27 uniforms base + seed + 4 padding (para alinear a 16 bytes) + 24 gradient stops = 32 + 24 = 56 floats
+  private uniformDataBuffer: Float32Array = new Float32Array(32 + MAX_GRADIENT_STOPS * 4);
 
   // Cache para cálculos de gradiente de campo
   private gradientFieldCache = {
@@ -121,6 +127,8 @@ export class WebGPUEngine {
     linearMin: -1,
     linearMax: 1,
     radialMax: Math.SQRT2,
+    hasLoggedOnce: false,
+    lastLoggedHash: '',
   };
 
   // Cache inteligente para gradient stops - evita procesamiento en cada frame
@@ -382,7 +390,93 @@ export class WebGPUEngine {
     // Setear el pipeline activo inicial
     this.computePipeline = this.computePipelines.get('smoothWaves') || null;
 
-    console.log(`✅ Pipelines creadas (render + ${this.computePipelines.size} compute)`);
+    // Crear fade pipeline para trails
+    const fadeShaderModule = this.device.createShaderModule({
+      label: 'Fade Shader',
+      code: fadeShader,
+    });
+
+    // Crear uniform buffer para fade (solo 1 float: decay)
+    this.fadeUniformBuffer = this.device.createBuffer({
+      label: 'Fade Uniform Buffer',
+      size: 16, // 1 float + padding a 16 bytes
+      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+    });
+
+    // Inicializar con decay por defecto
+    this.device.queue.writeBuffer(
+      this.fadeUniformBuffer,
+      0,
+      new Float32Array([this.trailsDecay])
+    );
+
+    // Crear bind group layout para fade
+    const fadeBindGroupLayout = this.device.createBindGroupLayout({
+      label: 'Fade Bind Group Layout',
+      entries: [
+        {
+          binding: 0,
+          visibility: GPUShaderStage.FRAGMENT,
+          buffer: { type: 'uniform' },
+        },
+      ],
+    });
+
+    // Crear bind group para fade
+    this.fadeBindGroup = this.device.createBindGroup({
+      label: 'Fade Bind Group',
+      layout: fadeBindGroupLayout,
+      entries: [
+        {
+          binding: 0,
+          resource: { buffer: this.fadeUniformBuffer },
+        },
+      ],
+    });
+
+    // Crear fade pipeline
+    const fadePipelineLayout = this.device.createPipelineLayout({
+      label: 'Fade Pipeline Layout',
+      bindGroupLayouts: [fadeBindGroupLayout],
+    });
+
+    this.fadePipeline = this.device.createRenderPipeline({
+      label: 'Fade Render Pipeline',
+      layout: fadePipelineLayout,
+      vertex: {
+        module: fadeShaderModule,
+        entryPoint: 'vertexMain',
+      },
+      fragment: {
+        module: fadeShaderModule,
+        entryPoint: 'fragmentMain',
+        targets: [
+          {
+            format: canvasFormat,
+            blend: {
+              color: {
+                srcFactor: 'src-alpha',
+                dstFactor: 'one-minus-src-alpha',
+                operation: 'add',
+              },
+              alpha: {
+                srcFactor: 'one',
+                dstFactor: 'one-minus-src-alpha',
+                operation: 'add',
+              },
+            },
+          },
+        ],
+      },
+      primitive: {
+        topology: 'triangle-list',
+      },
+      multisample: {
+        count: this.sampleCount, // Debe coincidir con MSAA del render principal
+      },
+    });
+
+    console.log(`✅ Pipelines creadas (render + fade + ${this.computePipelines.size} compute)`);
   }
 
   /**
@@ -404,10 +498,19 @@ export class WebGPUEngine {
    */
   setTrails(enabled: boolean, opacity: number = 0.6): void {
     this.trailsEnabled = enabled;
-    // Convertir opacidad de trails a alpha de clear
-    // opacity 1.0 -> clearAlpha 0.05 (trails muy largos)
-    // opacity 0.1 -> clearAlpha 0.5 (trails cortos)
-    this.trailsClearAlpha = enabled ? (1 - opacity) * 0.45 + 0.05 : 1.0;
+    // Convertir opacidad de trails a decay factor
+    // opacity 1.0 -> decay 0.98 (trails muy largos, fade del 2%)
+    // opacity 0.1 -> decay 0.70 (trails cortos, fade del 30%)
+    this.trailsDecay = enabled ? 0.70 + opacity * 0.28 : 1.0;
+
+    // Actualizar uniform buffer si ya existe
+    if (this.fadeUniformBuffer && this.device) {
+      this.device.queue.writeBuffer(
+        this.fadeUniformBuffer,
+        0,
+        new Float32Array([this.trailsDecay])
+      );
+    }
   }
 
   /**
@@ -452,11 +555,11 @@ export class WebGPUEngine {
   private createUniformBuffer(): GPUBuffer | null {
     if (!this.device) return null;
 
-    // Uniforms: 27 floats base + seed + 2 padding + MAX_GRADIENT_STOPS * 4 (vec4 por stop) = 54 floats = 216 bytes
-    // WebGPU requiere buffers uniformes alineados a 16 bytes
-    const uniformFloats = 30 + MAX_GRADIENT_STOPS * 4; // 54 floats
-    const uniformBytes = uniformFloats * Float32Array.BYTES_PER_ELEMENT; // 216 bytes
-    const paddedSize = Math.ceil(uniformBytes / 16) * 16; // Redondear a múltiplo de 16 = 224 bytes
+    // Uniforms: 27 floats base + seed + 4 padding + MAX_GRADIENT_STOPS * 4 (vec4 por stop) = 56 floats = 224 bytes
+    // WebGPU requiere arrays alineados a 16 bytes, por eso usamos 4 floats de padding (32 floats totales antes del array)
+    const uniformFloats = 32 + MAX_GRADIENT_STOPS * 4; // 56 floats
+    const uniformBytes = uniformFloats * Float32Array.BYTES_PER_ELEMENT; // 224 bytes
+    const paddedSize = Math.ceil(uniformBytes / 16) * 16; // Ya está alineado = 224 bytes
 
     return this.device.createBuffer({
       size: paddedSize,
@@ -869,6 +972,7 @@ export class WebGPUEngine {
     const gradientMode = gradientScope === 'field' ? 1 : 0;
     const gradientTypeValue = gradient?.type === 'radial' ? 1 : 0;
 
+
     const currentAngle = normalizeAngle(gradient?.angle ?? 0);
     const currentType = gradient?.type ?? 'linear';
 
@@ -963,9 +1067,11 @@ export class WebGPUEngine {
     uniformData[26] = radialMax;
     uniformData[27] = seed; // Seed para PRNG
     uniformData[28] = 0.0; // Padding 1
-    uniformData[29] = 0.0; // Padding 2 (para alinear gradientStops a 16 bytes)
+    uniformData[29] = 0.0; // Padding 2
+    uniformData[30] = 0.0; // Padding 3 (alinear array a 128 bytes = múltiplo de 16)
+    uniformData[31] = 0.0; // Padding 4
 
-    uniformData.set(gradientStopData, 30);
+    uniformData.set(gradientStopData, 32);
 
     this.device.queue.writeBuffer(this.uniformBuffer, 0, uniformData);
   }
@@ -1002,15 +1108,33 @@ export class WebGPUEngine {
     const commandEncoder = this.device.createCommandEncoder();
     const textureView = this.context.getCurrentTexture().createView();
 
+    // Si trails están activados, primero aplicar fade
+    if (this.trailsEnabled && this.fadePipeline && this.fadeBindGroup) {
+      const fadePass = commandEncoder.beginRenderPass({
+        colorAttachments: [
+          {
+            view: this.msaaTextureView,
+            resolveTarget: textureView,
+            loadOp: 'load', // Cargar contenido anterior
+            storeOp: 'store',
+          },
+        ],
+      });
+
+      fadePass.setPipeline(this.fadePipeline);
+      fadePass.setBindGroup(0, this.fadeBindGroup);
+      fadePass.draw(3, 1, 0, 0); // Dibujar fullscreen quad (3 vértices)
+      fadePass.end();
+    }
+
     // Render pass con MSAA
-    // Si trails están activados, usamos alpha bajo para dejar rastros
     const renderPass = commandEncoder.beginRenderPass({
       colorAttachments: [
         {
           view: this.msaaTextureView, // Renderizar a texture MSAA
           resolveTarget: textureView,  // Resolver a texture del canvas
-          clearValue: { r: 0.0, g: 0.0, b: 0.0, a: this.trailsClearAlpha },
-          loadOp: 'clear',
+          clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
+          loadOp: this.trailsEnabled ? 'load' : 'clear',
           storeOp: 'store',
         },
       ],

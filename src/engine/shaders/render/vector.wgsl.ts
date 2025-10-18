@@ -38,7 +38,9 @@ struct Uniforms {
   gradientRadialMax: f32,
   seed: f32,  // Seed para PRNG
   _padding1: f32,  // Padding 1
-  _padding2: f32,  // Padding 2 para alinear gradientStops a 16 bytes
+  _padding2: f32,  // Padding 2
+  _padding3: f32,  // Padding 3
+  _padding4: f32,  // Padding 4 (total 32 floats = 128 bytes para alinear array a 16 bytes)
   gradientStops: array<vec4f, MAX_GRADIENT_STOPS>,
 }
 
@@ -157,13 +159,23 @@ fn vertexMain(
     if (uniforms.gradientType > 0.5) {
       // Radial gradient
       let distance = length(worldPos);
-      gradientT = distance / uniforms.gradientRadialMax;
+      // Proteger contra división por cero
+      if (uniforms.gradientRadialMax > 0.0001) {
+        gradientT = distance / uniforms.gradientRadialMax;
+      } else {
+        gradientT = 0.5;
+      }
     } else {
       // Linear gradient
       let gradientDir = vec2f(uniforms.gradientLinearX, uniforms.gradientLinearY);
       let projection = dot(worldPos, gradientDir);
       let range = uniforms.gradientLinearMax - uniforms.gradientLinearMin;
-      gradientT = (projection - uniforms.gradientLinearMin) / range;
+      // Proteger contra división por cero
+      if (abs(range) > 0.0001) {
+        gradientT = (projection - uniforms.gradientLinearMin) / range;
+      } else {
+        gradientT = 0.5;
+      }
     }
   } else {
     // VECTOR MODE: gradientT basado en la posición X del vértice (0-1 a lo largo del vector)
