@@ -12,17 +12,29 @@ import { useVectorStore, selectCanvas } from '@/store/vectorStore';
 export interface VectorCanvasHandle {
   canvas: HTMLCanvasElement | null;
   captureSnapshot: () => Promise<string>;
+  getCurrentTime: () => number;
+  getVectorData: () => Float32Array | null;
 }
 
 interface VectorCanvasProps {
   recordingCallbackRef?: MutableRefObject<(() => Promise<void>) | null>;
   onCanvasReady?: (canvas: HTMLCanvasElement | null) => void;
+  initialTimeOffset?: number;
+  vectorData?: number[];
 }
 
 export const VectorCanvas = forwardRef<VectorCanvasHandle, VectorCanvasProps>(
-  ({ recordingCallbackRef, onCanvasReady }, ref) => {
+  ({ recordingCallbackRef, onCanvasReady, initialTimeOffset = 0, vectorData }, ref) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
+
+    // Hook del engine - ANTES de useImperativeHandle para tener getCurrentTime disponible
+    const { engine, initialized, getCurrentTime: getTime } = useVectorEngine({
+      canvasRef,
+      recordingCallbackRef,
+      initialTimeOffset,
+      vectorData,
+    });
 
     // Exponer canvas ref al padre con método de captura
     useImperativeHandle(ref, () => ({
@@ -34,7 +46,9 @@ export const VectorCanvas = forwardRef<VectorCanvasHandle, VectorCanvasProps>(
         }
         return canvas.toDataURL('image/png', 1.0);
       },
-    }));
+      getCurrentTime: () => getTime(),
+      getVectorData: () => engine?.getVectorData() ?? null,
+    }), [getTime, engine]);
 
     // Notificar al padre cuando el canvas esté listo
     useEffect(() => {
@@ -92,12 +106,6 @@ export const VectorCanvas = forwardRef<VectorCanvasHandle, VectorCanvasProps>(
         container.removeEventListener('wheel', handleWheel);
       };
     }, [canvasConfig.zoom, setCanvas]);
-
-    // Hook del engine - DESPUÉS de que se establezcan las dimensiones
-    const { engine, initialized } = useVectorEngine({
-      canvasRef,
-      recordingCallbackRef,
-    });
 
     // Actualizar MSAA texture cuando cambien las dimensiones
     useEffect(() => {

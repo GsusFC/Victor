@@ -23,6 +23,8 @@ export function generateArtTitle(animationType: AnimationType): string {
     seaWaves: ['Mar en Movimiento', 'Olas del Océano', 'Marea'],
     breathingSoft: ['Respiración', 'Hélice Suave', 'Torsión Orgánica'],
     flocking: ['Bandada', 'Cohesión', 'Movimiento Colectivo'],
+    flowField: ['Campo de Flujo', 'Corrientes Perlin', 'Deriva'],
+    organicGrowth: ['Crecimiento Orgánico', 'Reacción-Difusión', 'Patrón Vivo'],
     // Energéticas
     electricPulse: ['Pulso Eléctrico', 'Energía', 'Expansión Radial'],
     vortex: ['Vórtice', 'Remolino', 'Espiral Centrípeta'],
@@ -30,10 +32,17 @@ export function generateArtTitle(animationType: AnimationType): string {
     storm: ['Tormenta', 'Caos Controlado', 'Turbulencia'],
     solarFlare: ['Erupción Solar', 'Llamarada', 'Eyección'],
     radiation: ['Radiación', 'Ondas Expansivas', 'Interferencia'],
+    magneticField: ['Campo Magnético', 'Polos', 'Líneas de Fuerza'],
+    chaosAttractor: ['Atractor Caótico', 'Clifford', 'Flujo Extraño'],
     // Geométricas
     tangenteClasica: ['Tangente', 'Espiral', 'Rotación'],
     lissajous: ['Lissajous', 'Armonía', 'Resonancia'],
     geometricPattern: ['Patrón Geométrico', 'Estructura', 'Simetría'],
+    harmonicOscillator: ['Oscilador Armónico', 'Resonancia 2D', 'Interferencia'],
+    spirograph: ['Espirógrafo', 'Epitrocoide', 'Curvas Cíclicas'],
+    // Experimentales
+    springMesh: ['Malla Elástica', 'Red de Resortes', 'Tejido Dinámico'],
+    particleLife: ['Vida Artificial', 'Emergencia', 'Auto-Organización'],
   };
 
   const options = titles[animationType] || ['Obra Sin Título'];

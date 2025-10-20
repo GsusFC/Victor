@@ -6,14 +6,36 @@
 'use client';
 
 import { ReactNode } from 'react';
+import { useVectorStore, selectAnimation, selectActions } from '@/store/vectorStore';
+import { Button } from '@/components/ui/button';
+import { Play, Pause } from 'lucide-react';
+import { ConfigMenu } from '@/components/controls/ConfigMenu';
 
 interface ResponsiveLayoutProps {
   leftSidebar: ReactNode;
   canvas: ReactNode;
   rightSidebar: ReactNode;
+  readOnly?: boolean;
+  title?: string;
+  headerActions?: ReactNode;
+  recordingControls?: ReactNode;
 }
 
-export function ResponsiveLayout({ leftSidebar, canvas, rightSidebar }: ResponsiveLayoutProps) {
+export function ResponsiveLayout({
+  leftSidebar,
+  canvas,
+  rightSidebar,
+  readOnly = false,
+  title,
+  headerActions,
+  recordingControls,
+}: ResponsiveLayoutProps) {
+  const animation = useVectorStore(selectAnimation);
+  const actions = useVectorStore(selectActions);
+
+  const headerTitle = title || 'Victor - Vectores WebGPU';
+  const headerBgClass = readOnly ? 'bg-muted/50' : 'bg-card';
+
   return (
     <div
       className="
@@ -25,13 +47,45 @@ export function ResponsiveLayout({ leftSidebar, canvas, rightSidebar }: Responsi
       "
     >
       {/* Header */}
-      <header className="col-span-full border-b bg-card px-4 py-3 flex items-center justify-between">
-        <h1 className="text-lg font-semibold">Victor - Vectores WebGPU</h1>
-        <div className="flex items-center gap-2">
-          <span className="hidden md:inline text-sm text-muted-foreground font-mono">
-            GPU Powered
-          </span>
-          <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+      <header className={`col-span-full border-b ${headerBgClass} px-4 py-3 flex items-center justify-between`}>
+        <h1 className="text-lg font-semibold">{headerTitle}</h1>
+        <div className="flex items-center gap-3">
+          {readOnly ? (
+            // Modo solo lectura: mostrar actions personalizados
+            headerActions
+          ) : (
+            // Modo edición: mostrar play/pause, grabación y status
+            <>
+              {/* Config Menu */}
+              <ConfigMenu />
+
+              {/* Separador */}
+              <div className="h-4 w-px bg-border" />
+
+              {/* Controles de grabación */}
+              {recordingControls}
+
+              {/* Separador */}
+              {recordingControls && <div className="h-4 w-px bg-border" />}
+
+              {/* Play/Pause */}
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => actions.togglePause()}
+                className="h-8 w-8 p-0"
+                title={animation.paused ? 'Reproducir' : 'Pausar'}
+              >
+                {animation.paused ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
+              </Button>
+
+              {/* Status */}
+              <span className="hidden md:inline text-sm text-muted-foreground font-mono">
+                GPU Powered
+              </span>
+              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+            </>
+          )}
         </div>
       </header>
 

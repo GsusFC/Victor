@@ -19,6 +19,8 @@ export async function POST(request: NextRequest) {
     // LOG: Ver qué datos llegaron al API
     console.log('📥 API /art/publish: Datos recibidos');
     console.log('📥 Config recibido:', JSON.stringify(body.config, null, 2));
+    console.log('📥 Capture time recibido:', body.captureTime);
+    console.log('📥 Vector data recibido (primeros 20):', body.vectorData?.slice(0, 20));
 
     if (!body.config) {
       return NextResponse.json(
@@ -43,6 +45,8 @@ export async function POST(request: NextRequest) {
       createdAt: Date.now(),
       config: body.config,
       thumbnail: body.thumbnail,
+      captureTime: body.captureTime,
+      vectorData: body.vectorData,
     };
 
     // Guardar en Netlify Blobs

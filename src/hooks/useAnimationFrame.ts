@@ -6,11 +6,13 @@ import { useEffect, useRef } from 'react';
 
 export function useAnimationFrame(
   callback: (deltaTime: number, totalTime: number) => void,
-  paused = false
+  paused = false,
+  initialTimeOffset = 0
 ) {
   const requestRef = useRef<number>(0);
   const previousTimeRef = useRef<number | undefined>(undefined);
   const startTimeRef = useRef<number | undefined>(undefined);
+  const timeOffsetRef = useRef<number>(initialTimeOffset);
 
   useEffect(() => {
     if (paused) {
@@ -30,8 +32,8 @@ export function useAnimationFrame(
       // Calcular delta time en segundos
       const deltaTime = (time - previousTimeRef.current) / 1000;
 
-      // Calcular tiempo total desde el inicio
-      const totalTime = (time - (startTimeRef.current || 0)) / 1000;
+      // Calcular tiempo total desde el inicio + offset inicial
+      const totalTime = (time - (startTimeRef.current || 0)) / 1000 + timeOffsetRef.current;
 
       // Llamar al callback
       callback(deltaTime, totalTime);
@@ -53,4 +55,9 @@ export function useAnimationFrame(
       }
     };
   }, [callback, paused]);
+
+  // Actualizar offset si cambia
+  useEffect(() => {
+    timeOffsetRef.current = initialTimeOffset;
+  }, [initialTimeOffset]);
 }

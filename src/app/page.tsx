@@ -11,11 +11,11 @@ import { ResponsiveLayout } from '@/components/layout/ResponsiveLayout';
 import { AnimationPanel } from '@/components/controls/AnimationPanel';
 import { GridControls } from '@/components/controls/GridControls';
 import { VisualControls } from '@/components/controls/VisualControls';
-import { RecordingPanel } from '@/components/controls/RecordingPanel';
+import { HeaderRecordingControls } from '@/components/controls/HeaderRecordingControls';
 import { CollapsibleCard } from '@/components/ui/collapsible-card';
-import { PublishButton } from '@/components/art/PublishButton';
-import Link from 'next/link';
-import { Palette } from 'lucide-react';
+// import { PublishButton } from '@/components/art/PublishButton';
+// import Link from 'next/link';
+// import { Palette } from 'lucide-react';
 
 export default function Home() {
   const canvasHandleRef = useRef<VectorCanvasHandle>(null);
@@ -46,30 +46,17 @@ export default function Home() {
           <CollapsibleCard title="Visual" defaultExpanded={true}>
             <VisualControls />
           </CollapsibleCard>
-          <CollapsibleCard title="Grabación" defaultExpanded={false}>
-            <RecordingPanel
-              canvas={canvasElement}
-              onRecordingCallbackChange={(callback) => {
-                recordingCallbackRef.current = callback;
-              }}
-            />
-          </CollapsibleCard>
-          <CollapsibleCard title="Publicar Arte" defaultExpanded={false}>
-            <div className="space-y-3">
-              <p className="text-sm text-muted-foreground">
-                Publica tu animación como una obra de arte inmutable con un link único para compartir.
-              </p>
-              <PublishButton canvasHandleRef={canvasHandleRef} />
-              <Link
-                href="/gallery"
-                className="flex items-center justify-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors py-2"
-              >
-                <Palette className="w-4 h-4" />
-                Ver Galería
-              </Link>
-            </div>
-          </CollapsibleCard>
+          {/* Sistema de grabación movido al header */}
+          {/* Sistema de publicación deprecado temporalmente */}
         </div>
+      }
+      recordingControls={
+        <HeaderRecordingControls
+          canvas={canvasElement}
+          onRecordingCallbackChange={(callback) => {
+            recordingCallbackRef.current = callback;
+          }}
+        />
       }
     />
   );

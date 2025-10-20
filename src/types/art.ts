@@ -10,6 +10,8 @@ export interface ArtPiece {
   createdAt: number;       // timestamp
   config: VectorState;     // Configuración completa del vector
   thumbnail?: string;      // Base64 del snapshot (opcional)
+  captureTime?: number;    // Tiempo de animación cuando se capturó (para reproducibilidad exacta)
+  vectorData?: number[];   // Posiciones exactas de los vectores [baseX, baseY, angle, length] (NEW)
 }
 
 export interface ArtIndex {
@@ -21,6 +23,8 @@ export interface PublishArtRequest {
   title?: string;          // Título opcional (se genera si no se provee)
   config: VectorState;     // Configuración a publicar
   thumbnail?: string;      // Snapshot opcional
+  captureTime?: number;    // Tiempo de animación al capturar
+  vectorData?: number[];   // Posiciones exactas de los vectores (NEW)
 }
 
 export interface PublishArtResponse {

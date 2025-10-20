@@ -47,8 +47,11 @@ export function PublishButton({ canvasHandleRef }: PublishButtonProps) {
     setIsPublishing(true);
 
     try {
-      // Capturar snapshot del canvas
+      // Capturar snapshot del canvas, tiempo de animación y posiciones exactas
       const thumbnail = await canvasHandleRef.current.captureSnapshot();
+      const captureTime = canvasHandleRef.current.getCurrentTime();
+      const vectorDataRaw = canvasHandleRef.current.getVectorData();
+      const vectorData = vectorDataRaw ? Array.from(vectorDataRaw) : undefined;
 
       // LOG: Ver qué configuración estamos capturando
       console.log('📤 PublishButton: Capturando configuración para publicar');
@@ -58,6 +61,8 @@ export function PublishButton({ canvasHandleRef }: PublishButtonProps) {
       console.log('📤 Animation:', JSON.stringify(animation, null, 2));
       console.log('📤 Canvas:', JSON.stringify(canvas, null, 2));
       console.log('📤 Gradients:', JSON.stringify(gradients, null, 2));
+      console.log('📤 Capture Time:', captureTime);
+      console.log('📤 Vector Data (primeros 20):', vectorData?.slice(0, 20));
 
       // Publicar a través del API
       const response = await fetch('/api/art/publish', {
@@ -75,6 +80,8 @@ export function PublishButton({ canvasHandleRef }: PublishButtonProps) {
             gradients,
           },
           thumbnail,
+          captureTime,
+          vectorData,
         }),
       });
 

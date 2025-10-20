@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
-import { GradientControls } from './GradientControls';
+import { GradientGrid } from './GradientGrid';
 
 export function VisualControls() {
   const visual = useVectorStore(selectVisual);
@@ -18,7 +18,21 @@ export function VisualControls() {
   return (
     <div className="space-y-4">
       <section className="space-y-4">
-        <h3 className="font-semibold text-sm">Visual</h3>
+        {/* Modo de renderizado */}
+        <div className="space-y-2">
+          <Label htmlFor="render-mode" className="text-xs font-mono">
+            Modo
+          </Label>
+          <Select value={visual.renderMode} onValueChange={(value) => actions.setVisual('renderMode', value as any)}>
+            <SelectTrigger id="render-mode">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="vector">Vectores</SelectItem>
+              <SelectItem value="particle">Partículas</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
 
         {/* Forma del vector */}
         <div className="space-y-2">
@@ -97,6 +111,12 @@ export function VisualControls() {
           </div>
         </div>
 
+        {/* Gradientes */}
+        <div className="space-y-3 pt-3 border-t">
+          <Label className="text-xs font-mono">Gradientes</Label>
+          <GradientGrid />
+        </div>
+
         {/* Trails (Estelas) */}
         <div className="space-y-3 pt-3 border-t">
           <div className="flex items-center justify-between">
@@ -168,8 +188,6 @@ export function VisualControls() {
           )}
         </div>
       </section>
-
-      <GradientControls />
     </div>
   );
 }

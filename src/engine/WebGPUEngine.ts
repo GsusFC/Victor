@@ -5,6 +5,7 @@
 
 import { normalizeAngle } from '@/lib/math-utils';
 import { vectorShader } from './shaders/render/vector.wgsl';
+import { particleShader } from './shaders/render/particle.wgsl';
 import { fadeShader } from './shaders/render/fade.wgsl';
 import { ShapeLibrary, type ShapeName } from './ShapeLibrary';
 import {
@@ -13,15 +14,23 @@ import {
   seaWavesShader,
   breathingSoftShader,
   flockingShader,
+  flowFieldShader,
+  organicGrowthShader,
   electricPulseShader,
   vortexShader,
   directionalFlowShader,
   stormShader,
   solarFlareShader,
   radiationShader,
+  magneticFieldShader,
+  chaosAttractorShader,
   tangenteClasicaShader,
   lissajousShader,
   geometricPatternShader,
+  harmonicOscillatorShader,
+  spirographShader,
+  springMeshShader,
+  particleLifeShader,
 } from './shaders/compute/animations.wgsl';
 
 const MAX_GRADIENT_STOPS = 6;
@@ -41,6 +50,8 @@ export type AnimationType =
   | 'seaWaves'
   | 'breathingSoft'
   | 'flocking'
+  | 'flowField'
+  | 'organicGrowth'
   // Energéticas
   | 'electricPulse'
   | 'vortex'
@@ -48,10 +59,17 @@ export type AnimationType =
   | 'storm'
   | 'solarFlare'
   | 'radiation'
+  | 'magneticField'
+  | 'chaosAttractor'
   // Geométricas
   | 'tangenteClasica'
   | 'lissajous'
-  | 'geometricPattern';
+  | 'geometricPattern'
+  | 'harmonicOscillator'
+  | 'spirograph'
+  // Experimentales
+  | 'springMesh'
+  | 'particleLife';
 
 export interface WebGPUEngineConfig {
   vectorCount: number;
@@ -60,6 +78,7 @@ export interface WebGPUEngineConfig {
   gridRows: number;
   gridCols: number;
   vectorShape: VectorShape;
+  renderMode?: 'vector' | 'particle';  // Modo de renderizado
 }
 
 export class WebGPUEngine {
@@ -71,6 +90,7 @@ export class WebGPUEngine {
   private canvas: HTMLCanvasElement | null = null;
 
   private renderPipeline: GPURenderPipeline | null = null;
+  private particleRenderPipeline: GPURenderPipeline | null = null;  // Pipeline para modo partículas
   private computePipeline: GPUComputePipeline | null = null;
   private computePipelines: Map<AnimationType, GPUComputePipeline> = new Map();
 
@@ -78,6 +98,9 @@ export class WebGPUEngine {
   private vectorBuffer: GPUBuffer | null = null;
   private uniformBuffer: GPUBuffer | null = null;
   private shapeBuffer: GPUBuffer | null = null; // Nuevo: geometría de la forma actual
+
+  // Vector data cache (para exportación)
+  private currentVectorData: Float32Array | null = null;
 
   // MSAA
   private msaaTexture: GPUTexture | null = null;
@@ -258,6 +281,8 @@ export class WebGPUEngine {
       seaWaves: seaWavesShader,
       breathingSoft: breathingSoftShader,
       flocking: flockingShader,
+      flowField: flowFieldShader,
+      organicGrowth: organicGrowthShader,
       // Energéticas
       electricPulse: electricPulseShader,
       vortex: vortexShader,
@@ -265,10 +290,17 @@ export class WebGPUEngine {
       storm: stormShader,
       solarFlare: solarFlareShader,
       radiation: radiationShader,
+      magneticField: magneticFieldShader,
+      chaosAttractor: chaosAttractorShader,
       // Geométricas
       tangenteClasica: tangenteClasicaShader,
       lissajous: lissajousShader,
       geometricPattern: geometricPatternShader,
+      harmonicOscillator: harmonicOscillatorShader,
+      spirograph: spirographShader,
+      // Experimentales
+      springMesh: springMeshShader,
+      particleLife: particleLifeShader,
     };
 
     // Layout de bind group para render (vertex shader necesita read-only)
@@ -365,6 +397,63 @@ export class WebGPUEngine {
       },
       multisample: {
         count: this.sampleCount, // 4x MSAA para bordes suaves
+      },
+    });
+
+    // Crear shader module de particle render
+    const particleShaderModule = this.device.createShaderModule({
+      label: 'Particle Render Shader',
+      code: particleShader,
+    });
+
+    // Particle render pipeline (más simple, sin rotación)
+    this.particleRenderPipeline = this.device.createRenderPipeline({
+      label: 'Particle Render Pipeline',
+      layout: renderPipelineLayout,  // Mismo layout que vectores
+      vertex: {
+        module: particleShaderModule,
+        entryPoint: 'vertexMain',
+        buffers: [
+          {
+            // Shape vertex buffer (binding 0)
+            arrayStride: 2 * Float32Array.BYTES_PER_ELEMENT,
+            stepMode: 'vertex',
+            attributes: [
+              {
+                shaderLocation: 0,
+                offset: 0,
+                format: 'float32x2',
+              },
+            ],
+          },
+        ],
+      },
+      fragment: {
+        module: particleShaderModule,
+        entryPoint: 'fragmentMain',
+        targets: [
+          {
+            format: canvasFormat,
+            blend: {
+              color: {
+                srcFactor: 'src-alpha',
+                dstFactor: 'one-minus-src-alpha',
+                operation: 'add',
+              },
+              alpha: {
+                srcFactor: 'one',
+                dstFactor: 'one-minus-src-alpha',
+                operation: 'add',
+              },
+            },
+          },
+        ],
+      },
+      primitive: {
+        topology: 'triangle-list',
+      },
+      multisample: {
+        count: this.sampleCount,
       },
     });
 
@@ -719,6 +808,21 @@ export class WebGPUEngine {
 
     const vectorCount = data.length / 4;
 
+    // Verificar si el buffer tiene el tamaño correcto
+    const requiredSize = data.byteLength;
+    const currentSize = this.vectorBuffer.size;
+
+    if (requiredSize > currentSize) {
+      console.warn(`⚠️ Buffer demasiado pequeño (${currentSize} bytes, necesita ${requiredSize} bytes). Recreando...`);
+      this.config.vectorCount = vectorCount;
+      this.recreateBuffers();
+      this.createBindGroups();
+      if (!this.vectorBuffer) {
+        console.error('❌ No se pudo recrear el buffer');
+        return;
+      }
+    }
+
     // Crear array de índices con sus posiciones Y para ordenar
     const vectorIndices = new Array(vectorCount);
     for (let i = 0; i < vectorCount; i++) {
@@ -744,6 +848,9 @@ export class WebGPUEngine {
 
     console.log(`📝 Actualizando vector buffer con ${vectorCount} vectores (ordenados por profundidad)`);
     this.device.queue.writeBuffer(this.vectorBuffer, 0, sortedData);
+
+    // Guardar copia para exportación (datos ANTES de ordenar, para mantener posiciones originales)
+    this.currentVectorData = new Float32Array(data);
   }
 
   /**
@@ -1142,7 +1249,18 @@ export class WebGPUEngine {
       ],
     });
 
-    renderPass.setPipeline(this.renderPipeline);
+    // Seleccionar pipeline según modo de renderizado
+    const pipeline = this.config.renderMode === 'particle'
+      ? this.particleRenderPipeline
+      : this.renderPipeline;
+
+    if (!pipeline) {
+      console.warn('⚠️ Pipeline no disponible para renderMode:', this.config.renderMode);
+      renderPass.end();
+      return;
+    }
+
+    renderPass.setPipeline(pipeline);
     renderPass.setBindGroup(0, this.renderBindGroup);
 
     // Establecer shape buffer como vertex buffer
@@ -1150,7 +1268,7 @@ export class WebGPUEngine {
       renderPass.setVertexBuffer(0, this.shapeBuffer);
     }
 
-    // Dibujar vectores con geometry instancing
+    // Dibujar vectores/partículas con geometry instancing
     renderPass.draw(this.currentShapeVertexCount, this.config.vectorCount, 0, 0);
 
     renderPass.end();
@@ -1167,6 +1285,7 @@ export class WebGPUEngine {
     this.vectorBuffer = null;
     this.uniformBuffer = null;
     this.renderPipeline = null;
+    this.particleRenderPipeline = null;
     this.computePipeline = null;
     this.device = null;
     this.adapter = null;
@@ -1186,5 +1305,13 @@ export class WebGPUEngine {
 
   get deviceInfo(): string | null {
     return this.adapter?.info ? JSON.stringify(this.adapter.info) : null;
+  }
+
+  /**
+   * Obtiene el vector data actual (para exportación/publicación)
+   * @returns Float32Array con formato [baseX, baseY, angle, length] por cada vector, o null
+   */
+  getVectorData(): Float32Array | null {
+    return this.currentVectorData;
   }
 }

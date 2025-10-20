@@ -19,6 +19,8 @@ export type AnimationType =
   | 'seaWaves'
   | 'breathingSoft'  // Renombrado de helicalCurl
   | 'flocking'
+  | 'flowField'      // NUEVA: Campo de flujo Perlin
+  | 'organicGrowth'  // NUEVA: Crecimiento orgánico
   // Energéticas
   | 'electricPulse'  // Mejorado de centerPulse
   | 'vortex'
@@ -26,10 +28,17 @@ export type AnimationType =
   | 'storm'          // Nueva: Tormenta caótica
   | 'solarFlare'     // Nueva: Explosión solar
   | 'radiation'      // Nueva: Radiación desde múltiples fuentes
+  | 'magneticField'  // NUEVA: Campo magnético
+  | 'chaosAttractor' // NUEVA: Atractor caótico
   // Geométricas
   | 'tangenteClasica'
   | 'lissajous'
-  | 'geometricPattern';
+  | 'geometricPattern'
+  | 'harmonicOscillator' // NUEVA: Oscilador armónico
+  | 'spirograph'         // NUEVA: Espirógrafo
+  // Experimentales
+  | 'springMesh'     // NUEVA: Malla de resortes
+  | 'particleLife';  // NUEVA: Vida artificial
 
 export type SpacingMode = 'fixed' | 'dynamic';
 
@@ -139,6 +148,8 @@ const animationParamsDefaults: Record<AnimationType, AnimationParamSet> = {
   seaWaves: { frequency: 0.02, amplitude: 35, elasticity: 0.8, maxLength: 110 },
   breathingSoft: { frequency: 1.1, amplitude: 60, elasticity: 0.4, maxLength: 150 }, // helicalCurl
   flocking: { frequency: 0.5, amplitude: 1.5, elasticity: 0.4, maxLength: 95 },
+  flowField: { frequency: 0.04, amplitude: 1.2, elasticity: 0.5, maxLength: 100 },  // NUEVA: noiseScale, flowIntensity, evolution
+  organicGrowth: { frequency: 0.15, amplitude: 0.5, elasticity: 0.5, maxLength: 100 },  // NUEVA: influenceRadius, threshold, growthSpeed
   // Energéticas
   electricPulse: { frequency: 0.03, amplitude: 45, elasticity: 0.7, maxLength: 130 }, // Mejorado centerPulse
   vortex: { frequency: 1.2, amplitude: 0.45, elasticity: 1.2, maxLength: 130 },
@@ -146,10 +157,17 @@ const animationParamsDefaults: Record<AnimationType, AnimationParamSet> = {
   storm: { frequency: 1.5, amplitude: 1.0, elasticity: 1.2, maxLength: 140 },
   solarFlare: { frequency: 1.8, amplitude: 0.5, elasticity: 45, maxLength: 150 },
   radiation: { frequency: 1.0, amplitude: 4, elasticity: 0.5, maxLength: 120 },
+  magneticField: { frequency: 4, amplitude: 1.5, elasticity: 0.8, maxLength: 125 },  // NUEVA: numPoles, intensity, orbitalSpeed
+  chaosAttractor: { frequency: 0, amplitude: 0, elasticity: 0, maxLength: 110 },  // NUEVA: a, b, c (param1-3 se mapean directamente)
   // Geométricas
   tangenteClasica: { frequency: 0.6, amplitude: 1, elasticity: 0.5, maxLength: 110 },
   lissajous: { frequency: 2.0, amplitude: 3.0, elasticity: 120, maxLength: 90 },
   geometricPattern: { frequency: 4, amplitude: 45, elasticity: 0.5, maxLength: 80 },
+  harmonicOscillator: { frequency: 2.0, amplitude: 1.0, elasticity: 0.4, maxLength: 90 },  // NUEVA: baseFreq, spatialPhase, damping
+  spirograph: { frequency: 0.6, amplitude: 1.5, elasticity: 0.8, maxLength: 100 },  // NUEVA: radiusRatio, innerSpeed, outerSpeed
+  // Experimentales
+  springMesh: { frequency: 1.0, amplitude: 0.8, elasticity: 0.6, maxLength: 100 },  // NUEVA: stiffness, damping, perturbFreq
+  particleLife: { frequency: 3, amplitude: 0.3, elasticity: 1.2, maxLength: 110 },  // NUEVA: numTypes, interactionRadius, forceIntensity
 };
 
 const ensureGradientConfig = (input?: any): GradientConfig => {
@@ -206,6 +224,7 @@ export interface VectorState {
 
   // Configuración visual
   visual: {
+    renderMode: 'vector' | 'particle';  // Modo de renderizado
     vectorLength: number;
     vectorWidth: number;
     shape: VectorShape;
@@ -282,6 +301,9 @@ export interface VectorActions {
   // Canvas
   setCanvas: (config: Partial<VectorState['canvas']>) => void;
 
+  // Import/Export
+  importConfig: (config: Pick<VectorState, 'animation' | 'grid' | 'visual' | 'gradients'>) => void;
+
   // Reset
   reset: () => void;
 }
@@ -296,6 +318,7 @@ const defaultState: VectorState = {
   version: 1,
 
   visual: {
+    renderMode: 'vector',  // Empezar en modo vector por defecto
     vectorLength: 30,
     vectorWidth: 2,
     shape: 'line',
@@ -546,6 +569,19 @@ export const useVectorStore = create<VectorStore>()(
             canvas: { ...state.canvas, ...config },
           })),
 
+        // Import/Export actions
+        importConfig: (config) =>
+          set((state) => ({
+            animation: { ...state.animation, ...config.animation, paused: false },
+            grid: { ...state.grid, ...config.grid },
+            visual: {
+              ...state.visual,
+              ...config.visual,
+              gradient: ensureGradientConfig(config.visual?.gradient),
+            },
+            gradients: { ...state.gradients, ...config.gradients },
+          })),
+
         // Reset
         reset: () => set(defaultState),
       },
@@ -554,8 +590,9 @@ export const useVectorStore = create<VectorStore>()(
       name: 'victor-vector-store-v2',
       storage: createJSONStorage(() => localStorage),
 
-      // Solo persistir visual, grid y animation (no canvas ni version)
+      // Persistir visual, grid, animation, version y gradients (no canvas)
       partialize: (state) => ({
+        version: state.version,
         visual: state.visual,
         grid: state.grid,
         animation: {
@@ -595,16 +632,31 @@ export const useVectorStore = create<VectorStore>()(
 
         const validTypes: AnimationType[] = [
           'none',
+          // Naturales/Fluidas
           'smoothWaves',
           'seaWaves',
           'breathingSoft',
           'flocking',
+          'flowField',
+          'organicGrowth',
+          // Energéticas
           'electricPulse',
           'vortex',
           'directionalFlow',
+          'storm',
+          'solarFlare',
+          'radiation',
+          'magneticField',
+          'chaosAttractor',
+          // Geométricas
           'tangenteClasica',
           'lissajous',
           'geometricPattern',
+          'harmonicOscillator',
+          'spirograph',
+          // Experimentales
+          'springMesh',
+          'particleLife',
         ];
         if (pState.animation?.type && !validTypes.includes(pState.animation.type)) {
           pState.animation.type = 'smoothWaves';
@@ -695,6 +747,8 @@ export const getAnimationCategory = (type: AnimationType): AnimationCategory => 
     seaWaves: 'natural',
     breathingSoft: 'natural',
     flocking: 'natural',
+    flowField: 'natural',
+    organicGrowth: 'natural',
     // Energéticas
     electricPulse: 'energetic',
     vortex: 'energetic',
@@ -702,10 +756,17 @@ export const getAnimationCategory = (type: AnimationType): AnimationCategory => 
     storm: 'energetic',
     solarFlare: 'energetic',
     radiation: 'energetic',
+    magneticField: 'energetic',
+    chaosAttractor: 'energetic',
     // Geométricas
     tangenteClasica: 'geometric',
     lissajous: 'geometric',
     geometricPattern: 'geometric',
+    harmonicOscillator: 'geometric',
+    spirograph: 'geometric',
+    // Experimentales
+    springMesh: 'experimental',
+    particleLife: 'experimental',
   };
   return categoryMap[type] || 'experimental';
 };

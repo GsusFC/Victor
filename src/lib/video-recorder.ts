@@ -10,6 +10,7 @@ import type { RecordingConfig, RecordingState, RecordingStats, RecordingError, V
 export class VideoRecorder {
   private recorder: Recorder | null = null;
   private context: GPUCanvasContext | null = null;
+  private device: GPUDevice | null = null;
   private canvas: HTMLCanvasElement | null = null;
   private config: RecordingConfig;
   private stats: RecordingStats;
@@ -18,6 +19,8 @@ export class VideoRecorder {
   private frameCount: number = 0;
   private errorInfo: RecordingError | null = null;
   private savedBuffer: ArrayBuffer | Uint8Array | Blob[] | null = null;
+  private warmupFramesSkipped: number = 0;
+  private readonly WARMUP_FRAMES = 90; // Skip primeros 90 frames (~1.5 segundos para estabilidad GPU)
 
   constructor(canvas: HTMLCanvasElement, config?: Partial<RecordingConfig>) {
     this.canvas = canvas;
@@ -42,6 +45,10 @@ export class VideoRecorder {
     if (!this.context) {
       throw new Error('Canvas no tiene contexto WebGPU');
     }
+
+    // Obtener device del contexto configurado
+    const contextConfig = this.context.getConfiguration();
+    this.device = contextConfig?.device || null;
   }
 
   /**
@@ -113,46 +120,16 @@ export class VideoRecorder {
     }
 
     try {
-      this.state = 'processing';
       this.frameCount = 0;
       this.startTime = performance.now();
       this.errorInfo = null;
       this.savedBuffer = null; // Limpiar buffer anterior
+      this.warmupFramesSkipped = 0; // Reset contador de warmup
 
-      const hasWebCodecs = this.hasWebCodecsSupport();
-      const codec = this.getCodecConfig();
-      const bitrate = this.getBitrate();
+      // Entrar en estado "warmup" - NO iniciar el recorder todavía
+      this.state = 'recording'; // Necesario para que captureFrame() se ejecute
 
-      console.log('🎥 Iniciando grabación:', {
-        format: this.config.format,
-        quality: this.config.quality,
-        fps: this.config.frameRate,
-        codec: codec || 'WASM fallback',
-        bitrate: `${(bitrate / 1_000_000).toFixed(1)} Mbps`,
-        size: `${canvasWidth}x${canvasHeight}`,
-        webCodecs: hasWebCodecs,
-      });
-
-      // Configurar recorder
-      // NOTA: Usamos download: true pero guardaremos el blob antes de que se descargue
-      this.recorder = new Recorder(this.context, {
-        name: this.config.fileName || 'victor-animation',
-        frameRate: this.config.frameRate,
-        download: true, // Necesario para obtener el buffer
-        extension: this.config.format,
-        target: 'in-browser',
-        encoderOptions: codec
-          ? {
-              codec,
-              videoBitsPerSecond: bitrate,
-            }
-          : undefined,
-      });
-
-      await this.recorder.start();
-
-      this.state = 'recording';
-      console.log('✅ Grabación iniciada exitosamente');
+      console.log(`🎬 Iniciando warmup: esperando ${this.WARMUP_FRAMES} frames antes de grabar`);
     } catch (error) {
       this.state = 'error';
       this.errorInfo = {
@@ -178,7 +155,32 @@ export class VideoRecorder {
    * Debe llamarse en cada ciclo de renderizado
    */
   async captureFrame(): Promise<void> {
-    if (this.state !== 'recording' || !this.recorder) {
+    if (this.state !== 'recording') {
+      return;
+    }
+
+    // Fase de warmup: esperar frames antes de iniciar el recorder
+    if (this.warmupFramesSkipped < this.WARMUP_FRAMES) {
+      this.warmupFramesSkipped++;
+
+      // Iniciar el recorder DESPUÉS del warmup
+      if (this.warmupFramesSkipped === this.WARMUP_FRAMES) {
+        console.log('✅ Warmup completado, esperando flush GPU...');
+
+        // Esperar a que GPU termine trabajos pendientes antes de iniciar recorder
+        if (this.device) {
+          await this.device.queue.onSubmittedWorkDone();
+        }
+
+        console.log('✅ GPU lista, iniciando recorder...');
+        await this.initializeRecorder();
+      }
+      return;
+    }
+
+    // Ya pasó el warmup, capturar frames normalmente
+    if (!this.recorder) {
+      console.error('❌ Recorder no inicializado después del warmup');
       return;
     }
 
@@ -198,6 +200,59 @@ export class VideoRecorder {
         message: 'Error capturando frame',
         recoverable: true,
       };
+    }
+  }
+
+  /**
+   * Inicializa el recorder después del warmup
+   */
+  private async initializeRecorder(): Promise<void> {
+    if (!this.context || !this.canvas) {
+      throw new Error('Canvas o contexto no disponible');
+    }
+
+    const canvasWidth = this.canvas.width;
+    const canvasHeight = this.canvas.height;
+    const hasWebCodecs = this.hasWebCodecsSupport();
+    const codec = this.getCodecConfig();
+    const bitrate = this.getBitrate();
+
+    console.log('🎥 Iniciando recorder:', {
+      format: this.config.format,
+      quality: this.config.quality,
+      fps: this.config.frameRate,
+      codec: codec || 'WASM fallback',
+      bitrate: `${(bitrate / 1_000_000).toFixed(1)} Mbps`,
+      size: `${canvasWidth}x${canvasHeight}`,
+      webCodecs: hasWebCodecs,
+    });
+
+    try {
+      this.recorder = new Recorder(this.context, {
+        name: this.config.fileName || 'victor-animation',
+        frameRate: this.config.frameRate,
+        download: false, // No descargar automáticamente - el usuario controla la descarga
+        extension: this.config.format,
+        target: 'in-browser',
+        encoderOptions: codec
+          ? {
+              codec,
+              videoBitsPerSecond: bitrate,
+            }
+          : undefined,
+      });
+
+      await this.recorder.start();
+      console.log('✅ Recorder iniciado, comenzando captura');
+    } catch (error) {
+      this.state = 'error';
+      this.errorInfo = {
+        code: 'START_ERROR',
+        message: 'Error iniciando recorder después del warmup',
+        recoverable: false,
+      };
+      console.error('❌ Error iniciando recorder:', error);
+      throw error;
     }
   }
 
@@ -244,67 +299,8 @@ export class VideoRecorder {
       this.state = 'processing';
       console.log('🛑 Deteniendo grabación...');
 
-      // Prevenir la descarga automática interceptando createElement('a')
-      let blobPromiseResolve: ((blob: Blob | null) => void) | null = null;
-      const blobPromise = new Promise<Blob | null>((resolve) => {
-        blobPromiseResolve = resolve;
-        // Timeout de 5 segundos
-        setTimeout(() => resolve(null), 5000);
-      });
-
-      const originalCreateElement = document.createElement.bind(document);
-
-      document.createElement = function(tagName: string) {
-        const element = originalCreateElement(tagName);
-
-        if (tagName.toLowerCase() === 'a') {
-          // Interceptar el setter de href para capturar el blob URL
-          const originalHrefSetter = Object.getOwnPropertyDescriptor(HTMLAnchorElement.prototype, 'href')!.set!;
-          Object.defineProperty(element, 'href', {
-            set: function(value: string) {
-              if (value.startsWith('blob:')) {
-                console.log('🎣 Blob URL interceptado:', value.substring(0, 50));
-                // Obtener el blob del URL de forma sincrónica usando fetch
-                fetch(value)
-                  .then(r => r.blob())
-                  .then(blob => {
-                    console.log('💾 Blob capturado:', blob.size, 'bytes');
-                    if (blobPromiseResolve) {
-                      blobPromiseResolve(blob);
-                    }
-                  })
-                  .catch(err => {
-                    console.error('Error capturando blob:', err);
-                    if (blobPromiseResolve) {
-                      blobPromiseResolve(null);
-                    }
-                  });
-              }
-              originalHrefSetter.call(this, value);
-            },
-            get: function() {
-              return this.getAttribute('href') || '';
-            }
-          });
-
-          // Prevenir el click
-          element.click = function() {
-            console.log('🚫 Descarga automática bloqueada');
-            // NO llamar originalClick para prevenir la descarga
-          };
-        }
-
-        return element;
-      } as typeof document.createElement;
-
-      // Detener la grabación
+      // Detener la grabación y obtener el buffer
       const buffer = await this.recorder.stop();
-
-      // Esperar a que se capture el blob
-      const blob = await blobPromise;
-
-      // Restaurar createElement
-      document.createElement = originalCreateElement;
 
       this.updateStats();
 
@@ -313,17 +309,13 @@ export class VideoRecorder {
         frames: this.frameCount,
         avgFps: this.stats.currentFps.toFixed(1),
         size: this.formatFileSize(this.stats.estimatedSize),
-        bufferFromStop: !!buffer,
-        blobCaptured: !!blob,
+        hasBuffer: !!buffer,
       });
 
-      // Usar el blob capturado o el buffer retornado
-      if (blob) {
-        this.savedBuffer = [blob];
-        console.log('💾 Blob guardado desde interceptor, listo para descargar');
-      } else if (buffer) {
+      // Guardar buffer para descarga manual
+      if (buffer) {
         this.savedBuffer = buffer;
-        console.log('💾 Buffer guardado desde stop(), listo para descargar');
+        console.log('💾 Buffer guardado, listo para descargar manualmente');
       } else {
         console.error('⚠️ No se pudo capturar el buffer');
       }
@@ -331,9 +323,6 @@ export class VideoRecorder {
       this.state = 'idle';
       this.recorder = null;
     } catch (error) {
-      // Restaurar createElement en caso de error
-      document.createElement = document.createElement.bind(document);
-
       this.state = 'error';
       this.errorInfo = {
         code: 'STOP_ERROR',

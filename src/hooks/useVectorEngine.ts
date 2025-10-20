@@ -12,12 +12,16 @@ import { useAnimationFrame } from './useAnimationFrame';
 interface UseVectorEngineOptions {
   canvasRef: RefObject<HTMLCanvasElement | null>;
   recordingCallbackRef?: MutableRefObject<(() => Promise<void>) | null>;
+  initialTimeOffset?: number;
+  vectorData?: number[]; // Posiciones exactas del grid guardadas (opcional)
 }
 
 export function useVectorEngine(options: UseVectorEngineOptions | RefObject<HTMLCanvasElement | null>) {
   // Mantener compatibilidad con API anterior (canvasRef directo)
   const canvasRef = 'current' in options ? options : options.canvasRef;
   const recordingCallbackRef = 'current' in options ? undefined : options.recordingCallbackRef;
+  const initialTimeOffset = 'current' in options ? 0 : (options.initialTimeOffset || 0);
+  const savedVectorData = 'current' in options ? undefined : options.vectorData;
   const engineRef = useRef<WebGPUEngine | null>(null);
   const initializedRef = useRef(false);
   const mousePositionRef = useRef<{ x: number; y: number; active: boolean }>({ x: 0, y: 0, active: false });
@@ -66,13 +70,14 @@ export function useVectorEngine(options: UseVectorEngineOptions | RefObject<HTML
           gridRows: grid.rows,
           gridCols: grid.cols,
           vectorShape: visual.shape as VectorShape,
+          renderMode: visual.renderMode,
         });
 
         // Configurar trails
         engine.setTrails(visual.trails.enabled, visual.trails.opacity);
 
-        // Generar grid inicial
-        generateAndUpdateGrid(engine, canvas);
+        // Generar grid inicial (usar posiciones guardadas si están disponibles)
+        generateAndUpdateGrid(engine, canvas, savedVectorData);
       } else {
         console.error('❌ useVectorEngine: Falló la inicialización');
       }
@@ -100,6 +105,14 @@ export function useVectorEngine(options: UseVectorEngineOptions | RefObject<HTML
     engine.setAnimationType(animation.type as any);
   }, [animation.type]);
 
+  // Cambiar forma automáticamente a círculo cuando se activa modo partículas
+  useEffect(() => {
+    if (visual.renderMode === 'particle' && visual.shape !== 'circle') {
+      const actions = useVectorStore.getState().actions;
+      actions.setVisual('shape', 'circle');
+    }
+  }, [visual.renderMode]); // Solo depender de renderMode, no de shape
+
   // Actualizar configuración cuando cambia el grid o visual
   useEffect(() => {
     const engine = engineRef.current;
@@ -112,17 +125,21 @@ export function useVectorEngine(options: UseVectorEngineOptions | RefObject<HTML
       gridRows: grid.rows,
       gridCols: grid.cols,
       vectorShape: visual.shape as VectorShape,
+      renderMode: visual.renderMode,
     });
 
     // Actualizar forma si cambió
     engine.setShape(visual.shape as VectorShape);
 
-    // Regenerar grid si cambió la configuración
-    const canvas = canvasRef.current;
-    if (canvas) {
-      generateAndUpdateGrid(engine, canvas);
+    // Regenerar grid SOLO si NO hay datos guardados
+    // (Si hay datos guardados, queremos mantener las posiciones exactas)
+    if (!savedVectorData) {
+      const canvas = canvasRef.current;
+      if (canvas) {
+        generateAndUpdateGrid(engine, canvas);
+      }
     }
-  }, [grid.rows, grid.cols, grid.spacing, grid.mode, visual.vectorLength, visual.vectorWidth, visual.shape, canvasRef]);
+  }, [grid.rows, grid.cols, grid.spacing, grid.mode, visual.vectorLength, visual.vectorWidth, visual.shape, visual.renderMode, canvasRef, savedVectorData]);
 
   // Actualizar trails cuando cambia la configuración
   useEffect(() => {
@@ -157,6 +174,8 @@ export function useVectorEngine(options: UseVectorEngineOptions | RefObject<HTML
 
   // Loop de animación
   const frameCountRef = useRef(0);
+  const currentTimeRef = useRef(0);
+
   useAnimationFrame(
     (deltaTime, totalTime) => {
       const engine = engineRef.current;
@@ -164,6 +183,9 @@ export function useVectorEngine(options: UseVectorEngineOptions | RefObject<HTML
 
       const canvas = canvasRef.current;
       if (!canvas) return;
+
+      // Guardar tiempo actual para exposición externa
+      currentTimeRef.current = totalTime;
 
       // Log del primer frame
       if (frameCountRef.current === 0) {
@@ -204,24 +226,41 @@ export function useVectorEngine(options: UseVectorEngineOptions | RefObject<HTML
         console.log(`🎞️ Frame ${frameCountRef.current} renderizado (${totalTime.toFixed(2)}s)`);
       }
     },
-    animation.paused
+    animation.paused,
+    initialTimeOffset
   );
 
   return {
     engine: engineRef.current,
     initialized: initializedRef.current,
+    getCurrentTime: () => currentTimeRef.current,
   };
 }
 
 /**
  * Genera grid de vectores y actualiza el buffer del engine
+ * @param savedData - Posiciones exactas guardadas (opcional). Si se provee, se usa directamente
  */
-function generateAndUpdateGrid(engine: WebGPUEngine, canvas: HTMLCanvasElement) {
+function generateAndUpdateGrid(
+  engine: WebGPUEngine,
+  canvas: HTMLCanvasElement,
+  savedData?: number[]
+) {
   const grid = useVectorStore.getState().grid;
   const visual = useVectorStore.getState().visual;
 
-  const aspect = canvas.width / canvas.height;
   const vectorCount = grid.rows * grid.cols;
+
+  // Si hay datos guardados, usarlos directamente
+  if (savedData && savedData.length === vectorCount * 4) {
+    console.log('📍 Usando posiciones EXACTAS guardadas del grid');
+    const vectorData = new Float32Array(savedData);
+    engine.updateVectorBuffer(vectorData);
+    return;
+  }
+
+  // Si no hay datos guardados, generar el grid normalmente
+  const aspect = canvas.width / canvas.height;
   const pixelToISO = canvas.height > 0 ? 2 / canvas.height : 0.001;
 
   // Generar posiciones del grid

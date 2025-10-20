@@ -8,10 +8,10 @@ import { useVectorStore, selectAnimation, selectActions, getAnimationCategory, t
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Play, Pause, Shuffle, Copy, Check } from 'lucide-react';
-import { useState } from 'react';
+// import { Button } from '@/components/ui/button';
+// import { Input } from '@/components/ui/input';
+// import { Shuffle, Copy, Check } from 'lucide-react';
+// import { useState } from 'react';
 
 // Categorías de animaciones
 const categoryLabels: Record<AnimationCategory, string> = {
@@ -25,12 +25,16 @@ const categoryLabels: Record<AnimationCategory, string> = {
 const animationsByCategory: Record<AnimationCategory, Array<{ value: string; label: string }>> = {
   experimental: [
     { value: 'none', label: 'Sin animación' },
+    { value: 'springMesh', label: 'Malla de resortes' },
+    { value: 'particleLife', label: 'Vida artificial' },
   ],
   natural: [
     { value: 'smoothWaves', label: 'Olas suaves' },
     { value: 'seaWaves', label: 'Olas de mar' },
     { value: 'breathingSoft', label: 'Respiración suave' },
     { value: 'flocking', label: 'Flocking' },
+    { value: 'flowField', label: 'Campo de flujo' },
+    { value: 'organicGrowth', label: 'Crecimiento orgánico' },
   ],
   energetic: [
     { value: 'electricPulse', label: 'Pulso eléctrico' },
@@ -39,11 +43,15 @@ const animationsByCategory: Record<AnimationCategory, Array<{ value: string; lab
     { value: 'storm', label: 'Tormenta' },
     { value: 'solarFlare', label: 'Explosión solar' },
     { value: 'radiation', label: 'Radiación' },
+    { value: 'magneticField', label: 'Campo magnético' },
+    { value: 'chaosAttractor', label: 'Atractor caótico' },
   ],
   geometric: [
     { value: 'tangenteClasica', label: 'Tangente clásica' },
     { value: 'lissajous', label: 'Lissajous' },
     { value: 'geometricPattern', label: 'Patrón geométrico' },
+    { value: 'harmonicOscillator', label: 'Oscilador armónico' },
+    { value: 'spirograph', label: 'Espirógrafo' },
   ],
 };
 
@@ -92,7 +100,7 @@ function ParamSlider({
 export function AnimationPanel() {
   const animation = useVectorStore(selectAnimation);
   const actions = useVectorStore(selectActions);
-  const [copiedSeed, setCopiedSeed] = useState(false);
+  // const [copiedSeed, setCopiedSeed] = useState(false); // Deprecado
 
   const currentCategory = getAnimationCategory(animation.type);
   const availableAnimations = animationsByCategory[currentCategory] || [];
@@ -109,30 +117,19 @@ export function AnimationPanel() {
     actions.setAnimationParam(param, value);
   };
 
-  const handleCopySeed = async () => {
-    try {
-      await navigator.clipboard.writeText(animation.seed.toString());
-      setCopiedSeed(true);
-      setTimeout(() => setCopiedSeed(false), 2000);
-    } catch (err) {
-      console.error('Error copying seed:', err);
-    }
-  };
+  // Deprecado temporalmente
+  // const handleCopySeed = async () => {
+  //   try {
+  //     await navigator.clipboard.writeText(animation.seed.toString());
+  //     setCopiedSeed(true);
+  //     setTimeout(() => setCopiedSeed(false), 2000);
+  //   } catch (err) {
+  //     console.error('Error copying seed:', err);
+  //   }
+  // };
 
   return (
     <section className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="font-semibold text-sm">Animación</h3>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => actions.togglePause()}
-          className="h-8 w-8 p-0"
-        >
-          {animation.paused ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
-        </Button>
-      </div>
-
       {/* Selector de categoría */}
       <div className="space-y-2">
         <Label htmlFor="animation-category" className="text-xs font-mono">
@@ -188,8 +185,8 @@ export function AnimationPanel() {
         />
       </div>
 
-      {/* Control de Seed */}
-      <div className="space-y-2 pt-2 border-t">
+      {/* Control de Seed - DEPRECADO TEMPORALMENTE */}
+      {/* <div className="space-y-2 pt-2 border-t">
         <div className="flex items-center justify-between">
           <Label htmlFor="animation-seed" className="text-xs font-mono">
             Seed (Reproducibilidad)
@@ -242,7 +239,7 @@ export function AnimationPanel() {
             Auto-seed (nueva al cambiar animación)
           </label>
         </div>
-      </div>
+      </div> */}
 
       {/* Controles específicos por animación */}
       {animation.type === 'smoothWaves' && (
@@ -263,7 +260,7 @@ export function AnimationPanel() {
             onChange={handleParamChange}
           />
           <ParamSlider
-            config={{ label: 'Longitud máx.', param: 'maxLength', min: 20, max: 220, step: 5, suffix: ' px', formatter: (v) => v.toFixed(0) }}
+            config={{ label: 'Longitud máx.', param: 'maxLength', min: 50, max: 1920, step: 5, suffix: ' px', formatter: (v) => v.toFixed(0) }}
             value={animation.params.maxLength}
             onChange={handleParamChange}
           />
@@ -288,7 +285,7 @@ export function AnimationPanel() {
             onChange={handleParamChange}
           />
           <ParamSlider
-            config={{ label: 'Longitud máx.', param: 'maxLength', min: 40, max: 260, step: 5, suffix: ' px', formatter: (v) => v.toFixed(0) }}
+            config={{ label: 'Longitud máx.', param: 'maxLength', min: 50, max: 1920, step: 5, suffix: ' px', formatter: (v) => v.toFixed(0) }}
             value={animation.params.maxLength}
             onChange={handleParamChange}
           />
@@ -313,7 +310,7 @@ export function AnimationPanel() {
             onChange={handleParamChange}
           />
           <ParamSlider
-            config={{ label: 'Longitud máx.', param: 'maxLength', min: 40, max: 300, step: 5, suffix: ' px', formatter: (v) => v.toFixed(0) }}
+            config={{ label: 'Longitud máx.', param: 'maxLength', min: 50, max: 1920, step: 5, suffix: ' px', formatter: (v) => v.toFixed(0) }}
             value={animation.params.maxLength}
             onChange={handleParamChange}
           />
@@ -338,7 +335,7 @@ export function AnimationPanel() {
             onChange={handleParamChange}
           />
           <ParamSlider
-            config={{ label: 'Longitud máx.', param: 'maxLength', min: 20, max: 220, step: 5, suffix: ' px', formatter: (v) => v.toFixed(0) }}
+            config={{ label: 'Longitud máx.', param: 'maxLength', min: 50, max: 1920, step: 5, suffix: ' px', formatter: (v) => v.toFixed(0) }}
             value={animation.params.maxLength}
             onChange={handleParamChange}
           />
@@ -363,7 +360,7 @@ export function AnimationPanel() {
             onChange={handleParamChange}
           />
           <ParamSlider
-            config={{ label: 'Longitud máx.', param: 'maxLength', min: 40, max: 260, step: 5, suffix: ' px', formatter: (v) => v.toFixed(0) }}
+            config={{ label: 'Longitud máx.', param: 'maxLength', min: 50, max: 1920, step: 5, suffix: ' px', formatter: (v) => v.toFixed(0) }}
             value={animation.params.maxLength}
             onChange={handleParamChange}
           />
@@ -388,7 +385,7 @@ export function AnimationPanel() {
             onChange={handleParamChange}
           />
           <ParamSlider
-            config={{ label: 'Longitud máx.', param: 'maxLength', min: 40, max: 280, step: 5, suffix: ' px', formatter: (v) => v.toFixed(0) }}
+            config={{ label: 'Longitud máx.', param: 'maxLength', min: 50, max: 1920, step: 5, suffix: ' px', formatter: (v) => v.toFixed(0) }}
             value={animation.params.maxLength}
             onChange={handleParamChange}
           />
@@ -413,7 +410,7 @@ export function AnimationPanel() {
             onChange={handleParamChange}
           />
           <ParamSlider
-            config={{ label: 'Longitud máx.', param: 'maxLength', min: 20, max: 260, step: 5, suffix: ' px', formatter: (v) => v.toFixed(0) }}
+            config={{ label: 'Longitud máx.', param: 'maxLength', min: 50, max: 1920, step: 5, suffix: ' px', formatter: (v) => v.toFixed(0) }}
             value={animation.params.maxLength}
             onChange={handleParamChange}
           />
@@ -438,7 +435,7 @@ export function AnimationPanel() {
             onChange={handleParamChange}
           />
           <ParamSlider
-            config={{ label: 'Longitud máx.', param: 'maxLength', min: 40, max: 280, step: 5, suffix: ' px', formatter: (v) => v.toFixed(0) }}
+            config={{ label: 'Longitud máx.', param: 'maxLength', min: 50, max: 1920, step: 5, suffix: ' px', formatter: (v) => v.toFixed(0) }}
             value={animation.params.maxLength}
             onChange={handleParamChange}
           />
@@ -463,7 +460,7 @@ export function AnimationPanel() {
             onChange={handleParamChange}
           />
           <ParamSlider
-            config={{ label: 'Longitud máx.', param: 'maxLength', min: 40, max: 300, step: 5, suffix: ' px', formatter: (v) => v.toFixed(0) }}
+            config={{ label: 'Longitud máx.', param: 'maxLength', min: 50, max: 1920, step: 5, suffix: ' px', formatter: (v) => v.toFixed(0) }}
             value={animation.params.maxLength}
             onChange={handleParamChange}
           />
@@ -488,7 +485,7 @@ export function AnimationPanel() {
             onChange={handleParamChange}
           />
           <ParamSlider
-            config={{ label: 'Longitud máx.', param: 'maxLength', min: 40, max: 280, step: 5, suffix: ' px', formatter: (v) => v.toFixed(0) }}
+            config={{ label: 'Longitud máx.', param: 'maxLength', min: 50, max: 1920, step: 5, suffix: ' px', formatter: (v) => v.toFixed(0) }}
             value={animation.params.maxLength}
             onChange={handleParamChange}
           />
@@ -523,7 +520,7 @@ export function AnimationPanel() {
             onChange={handleParamChange}
           />
           <ParamSlider
-            config={{ label: 'Longitud máx.', param: 'maxLength', min: 40, max: 260, step: 5, suffix: ' px', formatter: (v) => v.toFixed(0) }}
+            config={{ label: 'Longitud máx.', param: 'maxLength', min: 50, max: 1920, step: 5, suffix: ' px', formatter: (v) => v.toFixed(0) }}
             value={animation.params.maxLength}
             onChange={handleParamChange}
           />
@@ -548,7 +545,7 @@ export function AnimationPanel() {
             onChange={handleParamChange}
           />
           <ParamSlider
-            config={{ label: 'Longitud máx.', param: 'maxLength', min: 20, max: 220, step: 5, suffix: ' px', formatter: (v) => v.toFixed(0) }}
+            config={{ label: 'Longitud máx.', param: 'maxLength', min: 50, max: 1920, step: 5, suffix: ' px', formatter: (v) => v.toFixed(0) }}
             value={animation.params.maxLength}
             onChange={handleParamChange}
           />
@@ -573,7 +570,211 @@ export function AnimationPanel() {
             onChange={handleParamChange}
           />
           <ParamSlider
-            config={{ label: 'Longitud máx.', param: 'maxLength', min: 20, max: 200, step: 5, suffix: ' px', formatter: (v) => v.toFixed(0) }}
+            config={{ label: 'Longitud máx.', param: 'maxLength', min: 50, max: 1920, step: 5, suffix: ' px', formatter: (v) => v.toFixed(0) }}
+            value={animation.params.maxLength}
+            onChange={handleParamChange}
+          />
+        </>
+      )}
+
+      {/* NUEVAS ANIMACIONES - NATURAL */}
+      {animation.type === 'flowField' && (
+        <>
+          <ParamSlider
+            config={{ label: 'Escala de ruido', param: 'frequency', min: 0.01, max: 0.1, step: 0.005, formatter: defaultFormatter }}
+            value={animation.params.frequency}
+            onChange={handleParamChange}
+          />
+          <ParamSlider
+            config={{ label: 'Intensidad flujo', param: 'amplitude', min: 0.5, max: 2, step: 0.1, formatter: defaultFormatter }}
+            value={animation.params.amplitude}
+            onChange={handleParamChange}
+          />
+          <ParamSlider
+            config={{ label: 'Velocidad evolución', param: 'elasticity', min: 0.1, max: 1, step: 0.05, formatter: defaultFormatter }}
+            value={animation.params.elasticity}
+            onChange={handleParamChange}
+          />
+          <ParamSlider
+            config={{ label: 'Longitud máx.', param: 'maxLength', min: 50, max: 1920, step: 5, suffix: ' px', formatter: (v) => v.toFixed(0) }}
+            value={animation.params.maxLength}
+            onChange={handleParamChange}
+          />
+        </>
+      )}
+
+      {animation.type === 'organicGrowth' && (
+        <>
+          <ParamSlider
+            config={{ label: 'Radio de influencia', param: 'frequency', min: 0.05, max: 0.3, step: 0.01, formatter: defaultFormatter }}
+            value={animation.params.frequency}
+            onChange={handleParamChange}
+          />
+          <ParamSlider
+            config={{ label: 'Umbral activación', param: 'amplitude', min: 0.3, max: 0.7, step: 0.05, formatter: defaultFormatter }}
+            value={animation.params.amplitude}
+            onChange={handleParamChange}
+          />
+          <ParamSlider
+            config={{ label: 'Velocidad crecimiento', param: 'elasticity', min: 0.1, max: 1, step: 0.05, formatter: defaultFormatter }}
+            value={animation.params.elasticity}
+            onChange={handleParamChange}
+          />
+          <ParamSlider
+            config={{ label: 'Longitud máx.', param: 'maxLength', min: 50, max: 1920, step: 5, suffix: ' px', formatter: (v) => v.toFixed(0) }}
+            value={animation.params.maxLength}
+            onChange={handleParamChange}
+          />
+        </>
+      )}
+
+      {/* NUEVAS ANIMACIONES - ENERGETIC */}
+      {animation.type === 'magneticField' && (
+        <>
+          <ParamSlider
+            config={{ label: 'Número de polos', param: 'frequency', min: 2, max: 6, step: 1, formatter: (v) => v.toFixed(0) }}
+            value={animation.params.frequency}
+            onChange={handleParamChange}
+          />
+          <ParamSlider
+            config={{ label: 'Intensidad magnética', param: 'amplitude', min: 0.5, max: 3, step: 0.1, formatter: defaultFormatter }}
+            value={animation.params.amplitude}
+            onChange={handleParamChange}
+          />
+          <ParamSlider
+            config={{ label: 'Velocidad orbital', param: 'elasticity', min: 0.1, max: 2, step: 0.1, formatter: defaultFormatter }}
+            value={animation.params.elasticity}
+            onChange={handleParamChange}
+          />
+          <ParamSlider
+            config={{ label: 'Longitud máx.', param: 'maxLength', min: 50, max: 1920, step: 5, suffix: ' px', formatter: (v) => v.toFixed(0) }}
+            value={animation.params.maxLength}
+            onChange={handleParamChange}
+          />
+        </>
+      )}
+
+      {animation.type === 'chaosAttractor' && (
+        <>
+          <ParamSlider
+            config={{ label: 'Parámetro A', param: 'frequency', min: -2, max: 2, step: 0.1, formatter: defaultFormatter }}
+            value={animation.params.frequency}
+            onChange={handleParamChange}
+          />
+          <ParamSlider
+            config={{ label: 'Parámetro B', param: 'amplitude', min: -2, max: 2, step: 0.1, formatter: defaultFormatter }}
+            value={animation.params.amplitude}
+            onChange={handleParamChange}
+          />
+          <ParamSlider
+            config={{ label: 'Parámetro C', param: 'elasticity', min: -2, max: 2, step: 0.1, formatter: defaultFormatter }}
+            value={animation.params.elasticity}
+            onChange={handleParamChange}
+          />
+          <ParamSlider
+            config={{ label: 'Longitud máx.', param: 'maxLength', min: 50, max: 1920, step: 5, suffix: ' px', formatter: (v) => v.toFixed(0) }}
+            value={animation.params.maxLength}
+            onChange={handleParamChange}
+          />
+        </>
+      )}
+
+      {/* NUEVAS ANIMACIONES - GEOMETRIC */}
+      {animation.type === 'harmonicOscillator' && (
+        <>
+          <ParamSlider
+            config={{ label: 'Frecuencia base', param: 'frequency', min: 0.5, max: 5, step: 0.1, formatter: defaultFormatter }}
+            value={animation.params.frequency}
+            onChange={handleParamChange}
+          />
+          <ParamSlider
+            config={{ label: 'Desfase espacial', param: 'amplitude', min: 0, max: 2, step: 0.1, formatter: defaultFormatter }}
+            value={animation.params.amplitude}
+            onChange={handleParamChange}
+          />
+          <ParamSlider
+            config={{ label: 'Amortiguamiento', param: 'elasticity', min: 0, max: 1, step: 0.05, formatter: defaultFormatter }}
+            value={animation.params.elasticity}
+            onChange={handleParamChange}
+          />
+          <ParamSlider
+            config={{ label: 'Longitud máx.', param: 'maxLength', min: 50, max: 1920, step: 5, suffix: ' px', formatter: (v) => v.toFixed(0) }}
+            value={animation.params.maxLength}
+            onChange={handleParamChange}
+          />
+        </>
+      )}
+
+      {animation.type === 'spirograph' && (
+        <>
+          <ParamSlider
+            config={{ label: 'Ratio de radios', param: 'frequency', min: 0.3, max: 0.9, step: 0.05, formatter: defaultFormatter }}
+            value={animation.params.frequency}
+            onChange={handleParamChange}
+          />
+          <ParamSlider
+            config={{ label: 'Velocidad interna', param: 'amplitude', min: 0.5, max: 3, step: 0.1, formatter: defaultFormatter }}
+            value={animation.params.amplitude}
+            onChange={handleParamChange}
+          />
+          <ParamSlider
+            config={{ label: 'Velocidad externa', param: 'elasticity', min: 0.2, max: 2, step: 0.1, formatter: defaultFormatter }}
+            value={animation.params.elasticity}
+            onChange={handleParamChange}
+          />
+          <ParamSlider
+            config={{ label: 'Longitud máx.', param: 'maxLength', min: 50, max: 1920, step: 5, suffix: ' px', formatter: (v) => v.toFixed(0) }}
+            value={animation.params.maxLength}
+            onChange={handleParamChange}
+          />
+        </>
+      )}
+
+      {/* NUEVAS ANIMACIONES - EXPERIMENTAL */}
+      {animation.type === 'springMesh' && (
+        <>
+          <ParamSlider
+            config={{ label: 'Rigidez resortes', param: 'frequency', min: 0.1, max: 2, step: 0.1, formatter: defaultFormatter }}
+            value={animation.params.frequency}
+            onChange={handleParamChange}
+          />
+          <ParamSlider
+            config={{ label: 'Amortiguamiento', param: 'amplitude', min: 0.5, max: 0.95, step: 0.05, formatter: defaultFormatter }}
+            value={animation.params.amplitude}
+            onChange={handleParamChange}
+          />
+          <ParamSlider
+            config={{ label: 'Frec. perturbaciones', param: 'elasticity', min: 0.1, max: 1, step: 0.05, formatter: defaultFormatter }}
+            value={animation.params.elasticity}
+            onChange={handleParamChange}
+          />
+          <ParamSlider
+            config={{ label: 'Longitud máx.', param: 'maxLength', min: 50, max: 1920, step: 5, suffix: ' px', formatter: (v) => v.toFixed(0) }}
+            value={animation.params.maxLength}
+            onChange={handleParamChange}
+          />
+        </>
+      )}
+
+      {animation.type === 'particleLife' && (
+        <>
+          <ParamSlider
+            config={{ label: 'Número de tipos', param: 'frequency', min: 2, max: 4, step: 1, formatter: (v) => v.toFixed(0) }}
+            value={animation.params.frequency}
+            onChange={handleParamChange}
+          />
+          <ParamSlider
+            config={{ label: 'Radio de interacción', param: 'amplitude', min: 0.1, max: 0.5, step: 0.05, formatter: defaultFormatter }}
+            value={animation.params.amplitude}
+            onChange={handleParamChange}
+          />
+          <ParamSlider
+            config={{ label: 'Intensidad fuerzas', param: 'elasticity', min: 0.5, max: 2, step: 0.1, formatter: defaultFormatter }}
+            value={animation.params.elasticity}
+            onChange={handleParamChange}
+          />
+          <ParamSlider
+            config={{ label: 'Longitud máx.', param: 'maxLength', min: 50, max: 1920, step: 5, suffix: ' px', formatter: (v) => v.toFixed(0) }}
             value={animation.params.maxLength}
             onChange={handleParamChange}
           />

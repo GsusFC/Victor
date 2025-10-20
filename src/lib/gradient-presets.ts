@@ -146,6 +146,212 @@ export const BUILT_IN_GRADIENT_PRESETS: GradientPreset[] = [
     ),
     tags: ['monocromo', 'editorial'],
   },
+  {
+    id: 'cyber-punk',
+    name: 'Cyber Punk',
+    description: 'Neón intenso estilo cyberpunk',
+    type: 'linear',
+    angle: 225,
+    stops: withStops(
+      [
+        { color: '#FF00FF', position: 0 },
+        { color: '#00FFFF', position: 0.5 },
+        { color: '#FFFF00', position: 1 },
+      ],
+      'cyber-punk'
+    ),
+    tags: ['neón', 'urbano'],
+    featured: true,
+  },
+  {
+    id: 'lava-flow',
+    name: 'Lava Flow',
+    description: 'Magma ardiente y volcánico',
+    type: 'linear',
+    angle: 180,
+    stops: withStops(
+      [
+        { color: '#FF0000', position: 0 },
+        { color: '#FF4500', position: 0.3 },
+        { color: '#FFD700', position: 0.6 },
+        { color: '#FFA500', position: 1 },
+      ],
+      'lava-flow'
+    ),
+    tags: ['fuego', 'energía'],
+  },
+  {
+    id: 'electric-violet',
+    name: 'Electric Violet',
+    description: 'Violetas eléctricos con rosa neón',
+    type: 'linear',
+    angle: 45,
+    stops: withStops(
+      [
+        { color: '#8A2BE2', position: 0 },
+        { color: '#9D00FF', position: 0.4 },
+        { color: '#FF10F0', position: 0.7 },
+        { color: '#FF1493', position: 1 },
+      ],
+      'electric-violet'
+    ),
+    tags: ['neón', 'eléctrico'],
+    featured: true,
+  },
+  {
+    id: 'toxic-green',
+    name: 'Toxic Green',
+    description: 'Verde radioactivo brillante',
+    type: 'linear',
+    angle: 135,
+    stops: withStops(
+      [
+        { color: '#00FF00', position: 0 },
+        { color: '#7FFF00', position: 0.35 },
+        { color: '#ADFF2F', position: 0.7 },
+        { color: '#00FF7F', position: 1 },
+      ],
+      'toxic-green'
+    ),
+    tags: ['neón', 'radioactivo'],
+  },
+  {
+    id: 'midnight-blue',
+    name: 'Midnight Blue',
+    description: 'Azules profundos de medianoche',
+    type: 'linear',
+    angle: 90,
+    stops: withStops(
+      [
+        { color: '#000428', position: 0 },
+        { color: '#004e92', position: 0.5 },
+        { color: '#1e3c72', position: 1 },
+      ],
+      'midnight-blue'
+    ),
+    tags: ['oscuro', 'azul'],
+  },
+  {
+    id: 'neon-city',
+    name: 'Neon City',
+    description: 'Luces de ciudad nocturna',
+    type: 'linear',
+    angle: 315,
+    stops: withStops(
+      [
+        { color: '#FF006E', position: 0 },
+        { color: '#8338EC', position: 0.33 },
+        { color: '#3A86FF', position: 0.66 },
+        { color: '#06FFA5', position: 1 },
+      ],
+      'neon-city'
+    ),
+    tags: ['neón', 'urbano'],
+    featured: true,
+  },
+  {
+    id: 'golden-hour',
+    name: 'Golden Hour',
+    description: 'Cálidos dorados del atardecer',
+    type: 'linear',
+    angle: 160,
+    stops: withStops(
+      [
+        { color: '#FFD89B', position: 0 },
+        { color: '#FF9A56', position: 0.4 },
+        { color: '#FF6F61', position: 0.7 },
+        { color: '#DE3163', position: 1 },
+      ],
+      'golden-hour'
+    ),
+    tags: ['cálido', 'atardecer'],
+  },
+  {
+    id: 'matrix-code',
+    name: 'Matrix Code',
+    description: 'Verde Matrix con negro profundo',
+    type: 'linear',
+    angle: 270,
+    stops: withStops(
+      [
+        { color: '#000000', position: 0 },
+        { color: '#003B00', position: 0.4 },
+        { color: '#00FF41', position: 0.75 },
+        { color: '#39FF14', position: 1 },
+      ],
+      'matrix-code'
+    ),
+    tags: ['tech', 'verde'],
+  },
+  {
+    id: 'cotton-candy',
+    name: 'Cotton Candy',
+    description: 'Pasteles dulces rosa y azul',
+    type: 'linear',
+    angle: 60,
+    stops: withStops(
+      [
+        { color: '#FFB6D9', position: 0 },
+        { color: '#D5A5FF', position: 0.5 },
+        { color: '#A8E6FF', position: 1 },
+      ],
+      'cotton-candy'
+    ),
+    tags: ['pastel', 'dulce'],
+  },
+  {
+    id: 'fire-ice',
+    name: 'Fire & Ice',
+    description: 'Contraste extremo de fuego y hielo',
+    type: 'linear',
+    angle: 0,
+    stops: withStops(
+      [
+        { color: '#FF0000', position: 0 },
+        { color: '#FF4500', position: 0.25 },
+        { color: '#00CED1', position: 0.75 },
+        { color: '#00BFFF', position: 1 },
+      ],
+      'fire-ice'
+    ),
+    tags: ['contraste', 'extremo'],
+    featured: true,
+  },
+  {
+    id: 'cosmic-purple',
+    name: 'Cosmic Purple',
+    description: 'Morados cósmicos profundos',
+    type: 'radial',
+    angle: 0,
+    stops: withStops(
+      [
+        { color: '#2E0854', position: 0 },
+        { color: '#5E2A84', position: 0.4 },
+        { color: '#9D4EDD', position: 0.75 },
+        { color: '#C77DFF', position: 1 },
+      ],
+      'cosmic-purple'
+    ),
+    tags: ['radial', 'cósmico'],
+  },
+  {
+    id: 'retro-wave',
+    name: 'Retro Wave',
+    description: 'Estética synthwave de los 80',
+    type: 'linear',
+    angle: 180,
+    stops: withStops(
+      [
+        { color: '#FF006E', position: 0 },
+        { color: '#FF1B8D', position: 0.33 },
+        { color: '#8B2FC9', position: 0.66 },
+        { color: '#4361EE', position: 1 },
+      ],
+      'retro-wave'
+    ),
+    tags: ['retro', '80s'],
+    featured: true,
+  },
 ];
 
 export const FEATURED_GRADIENT_PRESETS = BUILT_IN_GRADIENT_PRESETS.filter((preset) => preset.featured);
