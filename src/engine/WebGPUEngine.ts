@@ -31,6 +31,7 @@ import {
   harmonicOscillatorShader,
   spirographShader,
   springMeshShader,
+  createShaderWithWorkgroupSize,
 } from './shaders/compute/animations.wgsl';
 
 const MAX_GRADIENT_STOPS = 12;
@@ -143,6 +144,7 @@ export class WebGPUEngine {
   private currentAnimationType: AnimationType = 'smoothWaves';
   private trailsEnabled = false;
   private trailsDecay = 0.95; // Factor de decay para trails
+  private optimalWorkgroupSize = 64;  // Default, will be calculated based on device limits
   private config: WebGPUEngineConfig = {
     vectorCount: 100,
     vectorLength: 20,
@@ -246,6 +248,10 @@ export class WebGPUEngine {
       }
       console.log('✅ Dispositivo WebGPU obtenido');
 
+      // Calculate optimal workgroup size based on device limits
+      this.optimalWorkgroupSize = this.calculateOptimalWorkgroupSize();
+      console.log(`📊 Optimal workgroup size: ${this.optimalWorkgroupSize}`);
+
       // Configurar context
       this.context = canvas.getContext('webgpu');
       if (!this.context) {
@@ -294,8 +300,8 @@ export class WebGPUEngine {
       code: vectorShader,
     });
 
-    // Mapeo de tipos de animación a shaders
-    const animationShaders: Record<AnimationType, string> = {
+    // Mapeo de tipos de animación a shaders (base templates)
+    const animationShaderTemplates: Record<AnimationType, string> = {
       none: noneShader,
       // Naturales/Fluidas
       smoothWaves: smoothWavesShader,
@@ -322,6 +328,14 @@ export class WebGPUEngine {
       // Experimentales
       springMesh: springMeshShader,
     };
+
+    // Apply dynamic workgroup size to all shaders
+    const animationShaders: Record<AnimationType, string> = Object.fromEntries(
+      Object.entries(animationShaderTemplates).map(([key, shader]) => [
+        key,
+        createShaderWithWorkgroupSize(shader, this.optimalWorkgroupSize),
+      ])
+    ) as Record<AnimationType, string>;
 
     // Layout de bind group para render (vertex shader necesita read-only)
     const renderBindGroupLayout = this.device.createBindGroupLayout({
@@ -1360,8 +1374,8 @@ export class WebGPUEngine {
     computePass.setPipeline(this.computePipeline);
     computePass.setBindGroup(0, this.computeBindGroup);
 
-    // Calcular workgroups (asumiendo workgroup size de 64)
-    const workgroupCount = Math.ceil(this.config.vectorCount / 64);
+    // Calcular workgroups usando el tamaño óptimo calculado
+    const workgroupCount = Math.ceil(this.config.vectorCount / this.optimalWorkgroupSize);
     computePass.dispatchWorkgroups(workgroupCount);
 
     computePass.end();
@@ -1464,6 +1478,31 @@ export class WebGPUEngine {
     }
 
     this.device.queue.submit([commandEncoder.finish()]);
+  }
+
+  /**
+   * Calcula el tamaño óptimo de workgroup basado en los límites del device
+   */
+  private calculateOptimalWorkgroupSize(): number {
+    if (!this.device) return 64;  // Fallback
+
+    const limits = this.device.limits;
+    const maxWorkgroupSizeX = limits.maxComputeWorkgroupSizeX;
+    const maxInvocationsPerWorkgroup = limits.maxComputeInvocationsPerWorkgroup;
+
+    // Start with largest power of 2 that fits within limits
+    let size = 256;  // Typical good size for desktop GPUs
+
+    // Ensure we don't exceed device limits
+    size = Math.min(size, maxWorkgroupSizeX, maxInvocationsPerWorkgroup);
+
+    // Round down to nearest power of 2 for optimal performance
+    size = Math.pow(2, Math.floor(Math.log2(size)));
+
+    // Minimum of 32 (very small workgroups are inefficient)
+    size = Math.max(32, size);
+
+    return size;
   }
 
   /**

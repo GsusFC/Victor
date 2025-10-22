@@ -3,6 +3,11 @@
  * Sistema modular de animaciones WebGPU - LIMPIEZA Y REORGANIZACIÓN
  */
 
+// Helper: Generar shader con workgroup size dinámico
+export function createShaderWithWorkgroupSize(shaderCode: string, workgroupSize: number): string {
+  return shaderCode.replace(/@workgroup_size\(64\)/g, `@workgroup_size(${workgroupSize})`);
+}
+
 // Estructura común
 const COMMON_STRUCTS = /* wgsl */ `
 const MAX_GRADIENT_STOPS: u32 = 12u;
