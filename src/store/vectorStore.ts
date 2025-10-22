@@ -8,7 +8,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 
 // ============= TYPES =============
 
-export type VectorShape = 'line' | 'triangle' | 'arc' | 'circle';
+export type VectorShape = 'line' | 'triangle' | 'arc' | 'circle' | 'star' | 'hexagon' | 'arrow' | 'diamond' | 'semicircle' | 'cross';
 
 export type AnimationCategory = 'natural' | 'energetic' | 'geometric' | 'experimental';
 

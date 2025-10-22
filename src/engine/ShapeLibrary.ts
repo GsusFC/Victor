@@ -9,7 +9,7 @@ export interface ShapeGeometry {
   segments: number; // Número de segmentos (para información)
 }
 
-export type ShapeName = 'line' | 'triangle' | 'arc' | 'circle';
+export type ShapeName = 'line' | 'triangle' | 'arc' | 'circle' | 'star' | 'hexagon' | 'arrow' | 'diamond' | 'semicircle' | 'cross';
 
 export class ShapeLibrary {
   private shapes = new Map<ShapeName, ShapeGeometry>();
@@ -23,6 +23,12 @@ export class ShapeLibrary {
     this.shapes.set('triangle', this.generateTriangle());
     this.shapes.set('arc', this.generateArc(12)); // 12 segmentos para curva suave
     this.shapes.set('circle', this.generateCircle(16)); // 16 segmentos para círculo suave
+    this.shapes.set('star', this.generateStar(5, 0.5)); // Estrella de 5 puntas
+    this.shapes.set('hexagon', this.generateHexagon());
+    this.shapes.set('arrow', this.generateArrow());
+    this.shapes.set('diamond', this.generateDiamond());
+    this.shapes.set('semicircle', this.generateSemicircle(12)); // 12 segmentos
+    this.shapes.set('cross', this.generateCross());
   }
 
   /**
@@ -185,6 +191,198 @@ export class ShapeLibrary {
     return {
       vertexCount: shape.vertexCount,
       segments: shape.segments,
+    };
+  }
+
+  /**
+   * Genera geometría de estrella
+   * @param points Número de puntas (default: 5)
+   * @param innerRadius Radio interior relativo (0-1, default: 0.5)
+   */
+  private generateStar(points: number = 5, innerRadius: number = 0.5): ShapeGeometry {
+    const vertices: number[] = [];
+    const outerRadius = 0.2;
+    const centerX = 0.2;
+    const centerY = 0.0;
+
+    // Generar puntos alternando entre radio exterior e interior
+    for (let i = 0; i < points * 2; i++) {
+      const angle0 = (i / (points * 2)) * Math.PI * 2 - Math.PI / 2;
+      const angle1 = ((i + 1) / (points * 2)) * Math.PI * 2 - Math.PI / 2;
+
+      const radius0 = i % 2 === 0 ? outerRadius : outerRadius * innerRadius;
+      const radius1 = (i + 1) % 2 === 0 ? outerRadius : outerRadius * innerRadius;
+
+      const x0 = centerX + Math.cos(angle0) * radius0;
+      const y0 = centerY + Math.sin(angle0) * radius0;
+      const x1 = centerX + Math.cos(angle1) * radius1;
+      const y1 = centerY + Math.sin(angle1) * radius1;
+
+      // Triángulo desde el centro
+      vertices.push(
+        centerX, centerY, // Centro
+        x0, y0,           // Punto actual
+        x1, y1            // Punto siguiente
+      );
+    }
+
+    return {
+      vertices: new Float32Array(vertices),
+      vertexCount: points * 2 * 3,
+      segments: points * 2,
+    };
+  }
+
+  /**
+   * Genera geometría de hexágono regular
+   */
+  private generateHexagon(): ShapeGeometry {
+    const vertices: number[] = [];
+    const radius = 0.18;
+    const centerX = 0.2;
+    const centerY = 0.0;
+    const sides = 6;
+
+    for (let i = 0; i < sides; i++) {
+      const angle0 = (i / sides) * Math.PI * 2;
+      const angle1 = ((i + 1) / sides) * Math.PI * 2;
+
+      const x0 = centerX + Math.cos(angle0) * radius;
+      const y0 = centerY + Math.sin(angle0) * radius;
+      const x1 = centerX + Math.cos(angle1) * radius;
+      const y1 = centerY + Math.sin(angle1) * radius;
+
+      vertices.push(
+        centerX, centerY,
+        x0, y0,
+        x1, y1
+      );
+    }
+
+    return {
+      vertices: new Float32Array(vertices),
+      vertexCount: sides * 3,
+      segments: sides,
+    };
+  }
+
+  /**
+   * Genera geometría de flecha (rectángulo + triángulo puntiagudo)
+   */
+  private generateArrow(): ShapeGeometry {
+    const vertices = new Float32Array([
+      // Cuerpo de la flecha (rectángulo)
+      0.0, -0.3,
+      0.0, 0.3,
+      0.6, 0.3,
+
+      0.0, -0.3,
+      0.6, 0.3,
+      0.6, -0.3,
+
+      // Punta de la flecha (triángulo grande)
+      0.6, -0.6,
+      0.6, 0.6,
+      1.0, 0.0,
+
+      0.6, -0.6,
+      1.0, 0.0,
+      1.0, 0.0, // Degenerado para mantener 6 vértices por segmento
+    ]);
+
+    return {
+      vertices,
+      vertexCount: 12,
+      segments: 2,
+    };
+  }
+
+  /**
+   * Genera geometría de rombo/diamante
+   */
+  private generateDiamond(): ShapeGeometry {
+    const vertices = new Float32Array([
+      // Triángulo izquierdo
+      0.0, 0.0,
+      0.5, 0.5,
+      1.0, 0.0,
+
+      // Triángulo derecho
+      0.0, 0.0,
+      1.0, 0.0,
+      0.5, -0.5,
+    ]);
+
+    return {
+      vertices,
+      vertexCount: 6,
+      segments: 2,
+    };
+  }
+
+  /**
+   * Genera geometría de semicírculo
+   * @param segments Número de segmentos para aproximar la curva
+   */
+  private generateSemicircle(segments: number = 12): ShapeGeometry {
+    const vertices: number[] = [];
+    const radius = 0.2;
+    const centerX = 0.2;
+    const centerY = 0.0;
+
+    for (let i = 0; i < segments; i++) {
+      // Solo media vuelta (π radianes)
+      const angle0 = (i / segments) * Math.PI;
+      const angle1 = ((i + 1) / segments) * Math.PI;
+
+      const x0 = centerX + Math.cos(angle0) * radius;
+      const y0 = centerY + Math.sin(angle0) * radius;
+      const x1 = centerX + Math.cos(angle1) * radius;
+      const y1 = centerY + Math.sin(angle1) * radius;
+
+      vertices.push(
+        centerX, centerY,
+        x0, y0,
+        x1, y1
+      );
+    }
+
+    return {
+      vertices: new Float32Array(vertices),
+      vertexCount: segments * 3,
+      segments,
+    };
+  }
+
+  /**
+   * Genera geometría de cruz (dos rectángulos perpendiculares)
+   */
+  private generateCross(): ShapeGeometry {
+    const width = 0.15;
+    const vertices = new Float32Array([
+      // Barra horizontal
+      0.2, -width,
+      0.2, width,
+      0.8, width,
+
+      0.2, -width,
+      0.8, width,
+      0.8, -width,
+
+      // Barra vertical
+      0.5 - width, 0.1,
+      0.5 - width, 0.6,
+      0.5 + width, 0.6,
+
+      0.5 - width, 0.1,
+      0.5 + width, 0.6,
+      0.5 + width, 0.1,
+    ]);
+
+    return {
+      vertices,
+      vertexCount: 12,
+      segments: 2,
     };
   }
 }

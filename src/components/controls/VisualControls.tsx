@@ -32,6 +32,12 @@ export function VisualControls() {
               <SelectItem value="triangle">Triángulo</SelectItem>
               <SelectItem value="arc">Arco</SelectItem>
               <SelectItem value="circle">Círculo</SelectItem>
+              <SelectItem value="star">Estrella</SelectItem>
+              <SelectItem value="hexagon">Hexágono</SelectItem>
+              <SelectItem value="arrow">Flecha</SelectItem>
+              <SelectItem value="diamond">Rombo</SelectItem>
+              <SelectItem value="semicircle">Semicírculo</SelectItem>
+              <SelectItem value="cross">Cruz</SelectItem>
             </SelectContent>
           </Select>
         </div>
