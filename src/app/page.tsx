@@ -13,6 +13,7 @@ import { GridControls } from '@/components/controls/GridControls';
 import { VisualControls } from '@/components/controls/VisualControls';
 import { HeaderRecordingControls } from '@/components/controls/HeaderRecordingControls';
 import { CollapsibleCard } from '@/components/ui/collapsible-card';
+import { PostProcessingControls } from '@/components/controls/PostProcessingControls';
 // import { PublishButton } from '@/components/art/PublishButton';
 // import Link from 'next/link';
 // import { Palette } from 'lucide-react';
@@ -45,6 +46,9 @@ export default function Home() {
         <div className="space-y-4">
           <CollapsibleCard title="Visual" defaultExpanded={true}>
             <VisualControls />
+          </CollapsibleCard>
+          <CollapsibleCard title="Post-Processing" defaultExpanded={false}>
+            <PostProcessingControls />
           </CollapsibleCard>
           {/* Sistema de grabación movido al header */}
           {/* Sistema de publicación deprecado temporalmente */}
