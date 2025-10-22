@@ -6,6 +6,8 @@
 import { normalizeAngle } from '@/lib/math-utils';
 import { vectorShader } from './shaders/render/vector.wgsl';
 import { fadeShader } from './shaders/render/fade.wgsl';
+import { postProcessShader } from './shaders/render/postprocess.wgsl';
+import { blurShader } from './shaders/render/blur.wgsl';
 import { ShapeLibrary, type ShapeName } from './ShapeLibrary';
 import {
   noneShader,
@@ -115,6 +117,22 @@ export class WebGPUEngine {
   private fadePipeline: GPURenderPipeline | null = null;
   private fadeBindGroup: GPUBindGroup | null = null;
   private fadeUniformBuffer: GPUBuffer | null = null;
+
+  // Post-Processing system
+  private postProcessEnabled = false;
+  private postProcessPipeline: GPURenderPipeline | null = null;
+  private postProcessBindGroup: GPUBindGroup | null = null;
+  private postProcessUniformBuffer: GPUBuffer | null = null;
+  private blurPipeline: GPURenderPipeline | null = null;
+  private blurBindGroup: GPUBindGroup | null = null;
+  private blurUniformBuffer: GPUBuffer | null = null;
+
+  // Render-to-texture (ping-pong textures)
+  private renderTexture: GPUTexture | null = null;
+  private renderTextureView: GPUTextureView | null = null;
+  private blurTexture: GPUTexture | null = null;
+  private blurTextureView: GPUTextureView | null = null;
+  private sampler: GPUSampler | null = null;
 
   // Estado
   private isInitialized = false;
@@ -240,6 +258,9 @@ export class WebGPUEngine {
 
       // Crear texture MSAA para antialiasing
       this.createMSAATexture(canvas.width, canvas.height, canvasFormat);
+
+      // Crear texturas para post-processing
+      this.createPostProcessTextures(canvas.width, canvas.height, canvasFormat);
 
       // Crear pipelines
       await this.createPipelines(canvasFormat);
@@ -502,7 +523,88 @@ export class WebGPUEngine {
       },
     });
 
-    console.log(`✅ Pipelines creadas (render + fade + ${this.computePipelines.size} compute)`);
+    // ============================================
+    // POST-PROCESSING PIPELINES
+    // ============================================
+
+    // Crear sampler para texturas
+    this.sampler = this.device.createSampler({
+      magFilter: 'linear',
+      minFilter: 'linear',
+      addressModeU: 'clamp-to-edge',
+      addressModeV: 'clamp-to-edge',
+    });
+
+    // Post-process shader module
+    const postProcessShaderModule = this.device.createShaderModule({
+      label: 'Post-Process Shader',
+      code: postProcessShader,
+    });
+
+    // Post-process bind group layout
+    const postProcessBindGroupLayout = this.device.createBindGroupLayout({
+      label: 'Post-Process Bind Group Layout',
+      entries: [
+        { binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
+        { binding: 1, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float' } },
+        { binding: 2, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } },
+      ],
+    });
+
+    const postProcessPipelineLayout = this.device.createPipelineLayout({
+      label: 'Post-Process Pipeline Layout',
+      bindGroupLayouts: [postProcessBindGroupLayout],
+    });
+
+    this.postProcessPipeline = this.device.createRenderPipeline({
+      label: 'Post-Process Pipeline',
+      layout: postProcessPipelineLayout,
+      vertex: {
+        module: postProcessShaderModule,
+        entryPoint: 'vertexMain',
+      },
+      fragment: {
+        module: postProcessShaderModule,
+        entryPoint: 'fragmentMain',
+        targets: [{ format: canvasFormat }],
+      },
+      primitive: { topology: 'triangle-list' },
+    });
+
+    // Blur shader module
+    const blurShaderModule = this.device.createShaderModule({
+      label: 'Blur Shader',
+      code: blurShader,
+    });
+
+    // Blur usa el mismo layout que post-process
+    this.blurPipeline = this.device.createRenderPipeline({
+      label: 'Blur Pipeline',
+      layout: postProcessPipelineLayout,
+      vertex: {
+        module: blurShaderModule,
+        entryPoint: 'vertexMain',
+      },
+      fragment: {
+        module: blurShaderModule,
+        entryPoint: 'fragmentMain',
+        targets: [{ format: canvasFormat }],
+      },
+      primitive: { topology: 'triangle-list' },
+    });
+
+    // Crear uniform buffers para post-processing
+    this.postProcessUniformBuffer = this.device.createBuffer({
+      size: 16 * Float32Array.BYTES_PER_ELEMENT, // 16 floats para todos los parámetros
+      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+    });
+
+    this.blurUniformBuffer = this.device.createBuffer({
+      size: 4 * Float32Array.BYTES_PER_ELEMENT, // vec2 + 2 floats
+      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+    });
+
+    console.log(`✅ Pipelines creadas (render + fade + post-process + blur + ${this.computePipelines.size} compute)`);
   }
 
   /**
@@ -538,6 +640,54 @@ export class WebGPUEngine {
         0,
         new Float32Array([this.trailsDecay])
       );
+    }
+  }
+
+  /**
+   * Actualiza configuración de post-processing
+   */
+  setPostProcessing(config: {
+    enabled?: boolean;
+    bloom?: { enabled?: boolean; intensity?: number; threshold?: number; radius?: number };
+    chromaticAberration?: { enabled?: boolean; intensity?: number; offset?: number };
+    vignette?: { enabled?: boolean; intensity?: number; softness?: number };
+    exposure?: number;
+    contrast?: number;
+    saturation?: number;
+    brightness?: number;
+  }): void {
+    if (config.enabled !== undefined) {
+      this.postProcessEnabled = config.enabled;
+    }
+
+    // Actualizar uniform buffer con la configuración
+    if (this.postProcessUniformBuffer && this.device) {
+      const uniforms = new Float32Array(16);
+
+      // Bloom (floats 0-3)
+      uniforms[0] = config.bloom?.enabled ? 1.0 : 0.0;
+      uniforms[1] = config.bloom?.intensity ?? 0.5;
+      uniforms[2] = config.bloom?.threshold ?? 0.7;
+      uniforms[3] = config.bloom?.radius ?? 3.0;
+
+      // Chromatic Aberration (floats 4-6)
+      uniforms[4] = config.chromaticAberration?.enabled ? 1.0 : 0.0;
+      uniforms[5] = config.chromaticAberration?.intensity ?? 0.5;
+      uniforms[6] = config.chromaticAberration?.offset ?? 0.01;
+
+      // Vignette (floats 7-9)
+      uniforms[7] = config.vignette?.enabled ? 1.0 : 0.0;
+      uniforms[8] = config.vignette?.intensity ?? 0.6;
+      uniforms[9] = config.vignette?.softness ?? 0.4;
+
+      // Tone Mapping & Color (floats 10-14)
+      uniforms[10] = config.exposure ?? 1.0;
+      uniforms[11] = config.contrast ?? 1.0;
+      uniforms[12] = config.saturation ?? 1.0;
+      uniforms[13] = config.brightness ?? 1.0;
+      uniforms[14] = 0.0; // padding
+
+      this.device.queue.writeBuffer(this.postProcessUniformBuffer, 0, uniforms);
     }
   }
 
@@ -646,6 +796,42 @@ export class WebGPUEngine {
   }
 
   /**
+   * Crea texturas para post-processing (render-to-texture)
+   */
+  private createPostProcessTextures(width: number, height: number, format: GPUTextureFormat): void {
+    if (!this.device) return;
+
+    // Destruir texturas anteriores si existen
+    if (this.renderTexture) {
+      this.renderTexture.destroy();
+    }
+    if (this.blurTexture) {
+      this.blurTexture.destroy();
+    }
+
+    // Crear render texture (donde renderizamos los vectores)
+    this.renderTexture = this.device.createTexture({
+      size: { width, height },
+      sampleCount: this.sampleCount,  // MSAA
+      format,
+      usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
+    });
+
+    this.renderTextureView = this.renderTexture.createView();
+
+    // Crear blur texture (para ping-pong de blur)
+    this.blurTexture = this.device.createTexture({
+      size: { width, height },
+      format,
+      usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
+    });
+
+    this.blurTextureView = this.blurTexture.createView();
+
+    console.log(`✅ Post-process textures creadas: ${width}x${height}`);
+  }
+
+  /**
    * Recrea buffers cuando cambia la configuración
    */
   private recreateBuffers(): void {
@@ -732,6 +918,7 @@ export class WebGPUEngine {
 
     const canvasFormat = navigator.gpu.getPreferredCanvasFormat();
     this.createMSAATexture(width, height, canvasFormat);
+    this.createPostProcessTextures(width, height, canvasFormat);
   }
 
   /**
