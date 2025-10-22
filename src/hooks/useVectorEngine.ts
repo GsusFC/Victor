@@ -139,6 +139,33 @@ export function useVectorEngine(options: UseVectorEngineOptions | RefObject<HTML
     engine.setTrails(visual.trails.enabled, visual.trails.opacity);
   }, [visual.trails.enabled, visual.trails.opacity]);
 
+  // Actualizar post-processing cuando cambia la configuración
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine || !engine.initialized) return;
+
+    const pp = visual.postProcessing;
+    engine.setPostProcessing({
+      enabled: pp.enabled,
+      bloom: pp.bloom,
+      chromaticAberration: pp.chromaticAberration,
+      vignette: pp.vignette,
+      exposure: pp.exposure,
+      contrast: pp.contrast,
+      saturation: pp.saturation,
+      brightness: pp.brightness,
+    });
+  }, [
+    visual.postProcessing.enabled,
+    visual.postProcessing.bloom,
+    visual.postProcessing.chromaticAberration,
+    visual.postProcessing.vignette,
+    visual.postProcessing.exposure,
+    visual.postProcessing.contrast,
+    visual.postProcessing.saturation,
+    visual.postProcessing.brightness,
+  ]);
+
   // Tracking de mouse en coordenadas ISO
   useEffect(() => {
     const canvas = canvasRef.current;

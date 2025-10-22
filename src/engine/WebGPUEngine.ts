@@ -1333,22 +1333,26 @@ export class WebGPUEngine {
    * Renderiza un frame
    */
   renderFrame(): void {
-    if (!this.device || !this.context || !this.renderPipeline || !this.renderBindGroup || !this.msaaTextureView) {
+    if (!this.device || !this.context || !this.renderPipeline || !this.renderBindGroup) {
       console.warn('⚠️ renderFrame: Recursos no disponibles');
       return;
     }
 
     const commandEncoder = this.device.createCommandEncoder();
-    const textureView = this.context.getCurrentTexture().createView();
+    const canvasTextureView = this.context.getCurrentTexture().createView();
+
+    // Determinar target de renderizado según post-processing
+    const usePostProcess = this.postProcessEnabled && this.renderTextureView && this.postProcessPipeline;
+    const targetView = usePostProcess ? this.renderTextureView : this.msaaTextureView;
+    const resolveTarget = usePostProcess ? null : canvasTextureView;
 
     // Si trails están activados, primero aplicar fade
-    if (this.trailsEnabled && this.fadePipeline && this.fadeBindGroup) {
+    if (this.trailsEnabled && this.fadePipeline && this.fadeBindGroup && targetView) {
       const fadePass = commandEncoder.beginRenderPass({
         colorAttachments: [
           {
-            view: this.msaaTextureView,
-            // No resolveTarget aquí - solo en el último pass
-            loadOp: 'load', // Cargar contenido anterior
+            view: targetView,
+            loadOp: 'load',
             storeOp: 'store',
           },
         ],
@@ -1356,16 +1360,21 @@ export class WebGPUEngine {
 
       fadePass.setPipeline(this.fadePipeline);
       fadePass.setBindGroup(0, this.fadeBindGroup);
-      fadePass.draw(3, 1, 0, 0); // Dibujar fullscreen quad (3 vértices)
+      fadePass.draw(3, 1, 0, 0);
       fadePass.end();
     }
 
-    // Render pass con MSAA
+    // Render pass principal (vectores)
+    if (!targetView) {
+      console.warn('⚠️ Target view no disponible');
+      return;
+    }
+
     const renderPass = commandEncoder.beginRenderPass({
       colorAttachments: [
         {
-          view: this.msaaTextureView, // Renderizar a texture MSAA
-          resolveTarget: textureView,  // Resolver a texture del canvas
+          view: targetView,
+          ...(resolveTarget && { resolveTarget }),
           clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
           loadOp: this.trailsEnabled ? 'load' : 'clear',
           storeOp: 'store',
@@ -1373,25 +1382,45 @@ export class WebGPUEngine {
       ],
     });
 
-    // Usar el pipeline de vectores
-    if (!this.renderPipeline) {
-      console.warn('⚠️ Pipeline de renderizado no disponible');
-      renderPass.end();
-      return;
-    }
-
     renderPass.setPipeline(this.renderPipeline);
     renderPass.setBindGroup(0, this.renderBindGroup);
 
-    // Establecer shape buffer como vertex buffer
     if (this.shapeBuffer) {
       renderPass.setVertexBuffer(0, this.shapeBuffer);
     }
 
-    // Dibujar vectores/partículas con geometry instancing
     renderPass.draw(this.currentShapeVertexCount, this.config.vectorCount, 0, 0);
-
     renderPass.end();
+
+    // Si post-processing está activado, aplicar efectos
+    if (usePostProcess && this.postProcessPipeline && this.postProcessUniformBuffer && this.renderTexture && this.sampler) {
+      // Crear bind group dinámico con la textura renderizada
+      const postProcessBindGroup = this.device.createBindGroup({
+        layout: this.postProcessPipeline.getBindGroupLayout(0),
+        entries: [
+          { binding: 0, resource: { buffer: this.postProcessUniformBuffer } },
+          { binding: 1, resource: this.renderTexture.createView() },
+          { binding: 2, resource: this.sampler },
+        ],
+      });
+
+      const postProcessPass = commandEncoder.beginRenderPass({
+        colorAttachments: [
+          {
+            view: canvasTextureView,
+            clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
+            loadOp: 'clear',
+            storeOp: 'store',
+          },
+        ],
+      });
+
+      postProcessPass.setPipeline(this.postProcessPipeline);
+      postProcessPass.setBindGroup(0, postProcessBindGroup);
+      postProcessPass.draw(3, 1, 0, 0); // Fullscreen quad
+      postProcessPass.end();
+    }
+
     this.device.queue.submit([commandEncoder.finish()]);
   }
 
