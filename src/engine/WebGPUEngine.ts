@@ -160,6 +160,13 @@ export class WebGPUEngine {
   private lastUniformData: Float32Array = new Float32Array(32 + MAX_GRADIENT_STOPS * 4);
   private uniformsDirty = true;  // Flag to track if uniforms changed
 
+  // GPU Timing (profiling)
+  private timingEnabled = false;
+  private querySet: GPUQuerySet | null = null;
+  private queryBuffer: GPUBuffer | null = null;
+  private queryResolveBuffer: GPUBuffer | null = null;
+  private lastTimingResults: { compute: number; render: number; postProcess: number } | null = null;
+
   // Cache para cálculos de gradiente de campo
   private gradientFieldCache = {
     scope: 'vector' as 'vector' | 'field',
@@ -1542,5 +1549,31 @@ export class WebGPUEngine {
    */
   getVectorData(): Float32Array | null {
     return this.currentVectorData;
+  }
+
+  /**
+   * Obtiene estadísticas de performance para debugging
+   */
+  getPerformanceStats(): {
+    vectorCount: number;
+    workgroupSize: number;
+    postProcessingEnabled: boolean;
+    trailsEnabled: boolean;
+    currentAnimation: string;
+    canvasSize: { width: number; height: number };
+  } | null {
+    if (!this.canvas) return null;
+
+    return {
+      vectorCount: this.config.vectorCount,
+      workgroupSize: this.optimalWorkgroupSize,
+      postProcessingEnabled: this.postProcessEnabled,
+      trailsEnabled: this.trailsEnabled,
+      currentAnimation: this.currentAnimationType,
+      canvasSize: {
+        width: this.canvas.width,
+        height: this.canvas.height,
+      },
+    };
   }
 }

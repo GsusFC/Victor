@@ -14,6 +14,7 @@ export interface VectorCanvasHandle {
   captureSnapshot: () => Promise<string>;
   getCurrentTime: () => number;
   getVectorData: () => Float32Array | null;
+  getEngine: () => import('@/engine/WebGPUEngine').WebGPUEngine | null;
 }
 
 interface VectorCanvasProps {
@@ -48,6 +49,7 @@ export const VectorCanvas = forwardRef<VectorCanvasHandle, VectorCanvasProps>(
       },
       getCurrentTime: () => getTime(),
       getVectorData: () => engine?.getVectorData() ?? null,
+      getEngine: () => engine,
     }), [getTime, engine]);
 
     // Notificar al padre cuando el canvas esté listo
