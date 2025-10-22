@@ -5,7 +5,7 @@
 
 export const vectorShader = /* wgsl */ `
 // Estructura de uniforms
-const MAX_GRADIENT_STOPS: u32 = 6u;
+const MAX_GRADIENT_STOPS: u32 = 12u;
 const PI: f32 = 3.14159265359;
 
 struct Uniforms {

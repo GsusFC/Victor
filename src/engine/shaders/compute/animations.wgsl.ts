@@ -5,7 +5,7 @@
 
 // Estructura común
 const COMMON_STRUCTS = /* wgsl */ `
-const MAX_GRADIENT_STOPS: u32 = 6u;
+const MAX_GRADIENT_STOPS: u32 = 12u;
 
 struct Uniforms {
   aspect: f32,

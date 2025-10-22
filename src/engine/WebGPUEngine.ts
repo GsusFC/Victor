@@ -31,7 +31,7 @@ import {
   springMeshShader,
 } from './shaders/compute/animations.wgsl';
 
-const MAX_GRADIENT_STOPS = 6;
+const MAX_GRADIENT_STOPS = 12;
 
 type VectorShape = ShapeName;
 
@@ -132,7 +132,7 @@ export class WebGPUEngine {
   };
 
   // Buffer preallocado para uniforms (optimización de memoria)
-  // 27 uniforms base + seed + 4 padding (para alinear a 16 bytes) + 24 gradient stops = 32 + 24 = 56 floats
+  // 27 uniforms base + seed + 4 padding (para alinear a 16 bytes) + 48 gradient stops (12 stops * 4 floats) = 32 + 48 = 80 floats
   private uniformDataBuffer: Float32Array = new Float32Array(32 + MAX_GRADIENT_STOPS * 4);
 
   // Cache para cálculos de gradiente de campo
@@ -583,11 +583,11 @@ export class WebGPUEngine {
   private createUniformBuffer(): GPUBuffer | null {
     if (!this.device) return null;
 
-    // Uniforms: 27 floats base + seed + 4 padding + MAX_GRADIENT_STOPS * 4 (vec4 por stop) = 56 floats = 224 bytes
+    // Uniforms: 27 floats base + seed + 4 padding + MAX_GRADIENT_STOPS * 4 (vec4 por stop) = 80 floats = 320 bytes
     // WebGPU requiere arrays alineados a 16 bytes, por eso usamos 4 floats de padding (32 floats totales antes del array)
-    const uniformFloats = 32 + MAX_GRADIENT_STOPS * 4; // 56 floats
-    const uniformBytes = uniformFloats * Float32Array.BYTES_PER_ELEMENT; // 224 bytes
-    const paddedSize = Math.ceil(uniformBytes / 16) * 16; // Ya está alineado = 224 bytes
+    const uniformFloats = 32 + MAX_GRADIENT_STOPS * 4; // 80 floats (32 base + 12 stops * 4)
+    const uniformBytes = uniformFloats * Float32Array.BYTES_PER_ELEMENT; // 320 bytes
+    const paddedSize = Math.ceil(uniformBytes / 16) * 16; // Ya está alineado = 320 bytes
 
     return this.device.createBuffer({
       size: paddedSize,
