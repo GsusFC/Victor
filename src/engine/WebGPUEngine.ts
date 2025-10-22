@@ -128,8 +128,10 @@ export class WebGPUEngine {
   private blurUniformBuffer: GPUBuffer | null = null;
 
   // Render-to-texture (ping-pong textures)
-  private renderTexture: GPUTexture | null = null;
+  private renderTexture: GPUTexture | null = null;  // MSAA texture para renderizar vectores
   private renderTextureView: GPUTextureView | null = null;
+  private resolvedTexture: GPUTexture | null = null;  // Non-MSAA texture para samplear en post-process
+  private resolvedTextureView: GPUTextureView | null = null;
   private blurTexture: GPUTexture | null = null;
   private blurTextureView: GPUTextureView | null = null;
   private sampler: GPUSampler | null = null;
@@ -805,19 +807,32 @@ export class WebGPUEngine {
     if (this.renderTexture) {
       this.renderTexture.destroy();
     }
+    if (this.resolvedTexture) {
+      this.resolvedTexture.destroy();
+    }
     if (this.blurTexture) {
       this.blurTexture.destroy();
     }
 
-    // Crear render texture (donde renderizamos los vectores)
+    // Crear render texture MSAA (donde renderizamos los vectores con antialiasing)
     this.renderTexture = this.device.createTexture({
       size: { width, height },
-      sampleCount: this.sampleCount,  // MSAA
+      sampleCount: this.sampleCount,  // MSAA (4x)
+      format,
+      usage: GPUTextureUsage.RENDER_ATTACHMENT,  // Solo render, no se puede samplear MSAA directamente
+    });
+
+    this.renderTextureView = this.renderTexture.createView();
+
+    // Crear textura resuelta (non-MSAA) para muestreo en post-process
+    // Esta textura recibe el resolve del MSAA y se puede samplear
+    this.resolvedTexture = this.device.createTexture({
+      size: { width, height },
       format,
       usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
     });
 
-    this.renderTextureView = this.renderTexture.createView();
+    this.resolvedTextureView = this.resolvedTexture.createView();
 
     // Crear blur texture (para ping-pong de blur)
     this.blurTexture = this.device.createTexture({
@@ -828,7 +843,7 @@ export class WebGPUEngine {
 
     this.blurTextureView = this.blurTexture.createView();
 
-    console.log(`✅ Post-process textures creadas: ${width}x${height}`);
+    console.log(`✅ Post-process textures creadas: ${width}x${height} (MSAA + resolved)`);
   }
 
   /**
@@ -1342,9 +1357,9 @@ export class WebGPUEngine {
     const canvasTextureView = this.context.getCurrentTexture().createView();
 
     // Determinar target de renderizado según post-processing
-    const usePostProcess = this.postProcessEnabled && this.renderTextureView && this.postProcessPipeline;
+    const usePostProcess = this.postProcessEnabled && this.renderTextureView && this.resolvedTextureView && this.postProcessPipeline;
     const targetView = usePostProcess ? this.renderTextureView : this.msaaTextureView;
-    const resolveTarget = usePostProcess ? null : canvasTextureView;
+    const resolveTarget = usePostProcess ? this.resolvedTextureView : canvasTextureView;
 
     // Si trails están activados, primero aplicar fade
     if (this.trailsEnabled && this.fadePipeline && this.fadeBindGroup && targetView) {
@@ -1393,13 +1408,13 @@ export class WebGPUEngine {
     renderPass.end();
 
     // Si post-processing está activado, aplicar efectos
-    if (usePostProcess && this.postProcessPipeline && this.postProcessUniformBuffer && this.renderTexture && this.sampler) {
-      // Crear bind group dinámico con la textura renderizada
+    if (usePostProcess && this.postProcessPipeline && this.postProcessUniformBuffer && this.resolvedTexture && this.sampler) {
+      // Crear bind group dinámico con la textura resuelta (non-MSAA)
       const postProcessBindGroup = this.device.createBindGroup({
         layout: this.postProcessPipeline.getBindGroupLayout(0),
         entries: [
           { binding: 0, resource: { buffer: this.postProcessUniformBuffer } },
-          { binding: 1, resource: this.renderTexture.createView() },
+          { binding: 1, resource: this.resolvedTexture.createView() },
           { binding: 2, resource: this.sampler },
         ],
       });
