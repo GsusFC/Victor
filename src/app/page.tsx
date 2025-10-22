@@ -24,8 +24,8 @@ export default function Home() {
   const canvasHandleRef = useRef<VectorCanvasHandle>(null);
   const recordingCallbackRef = useRef<(() => Promise<void>) | null>(null);
   const [canvasElement, setCanvasElement] = useState<HTMLCanvasElement | null>(null);
-  const [showFPS, setShowFPS] = useState(true);  // FPS counter visible by default
-  const [showPerfOverlay, setShowPerfOverlay] = useState(false);  // Performance overlay (press P)
+  const [showFPS, setShowFPS] = useState(false);  // FPS counter hidden by default (press F)
+  const [showPerfOverlay, setShowPerfOverlay] = useState(false);  // Performance overlay hidden (press P)
 
   // Keyboard shortcuts
   useEffect(() => {
