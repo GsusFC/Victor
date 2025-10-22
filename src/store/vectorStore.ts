@@ -37,8 +37,7 @@ export type AnimationType =
   | 'harmonicOscillator' // NUEVA: Oscilador armónico
   | 'spirograph'         // NUEVA: Espirógrafo
   // Experimentales
-  | 'springMesh'     // NUEVA: Malla de resortes
-  | 'particleLife';  // NUEVA: Vida artificial
+  | 'springMesh';     // NUEVA: Malla de resortes
 
 export type SpacingMode = 'fixed' | 'dynamic';
 
@@ -167,7 +166,6 @@ const animationParamsDefaults: Record<AnimationType, AnimationParamSet> = {
   spirograph: { frequency: 0.6, amplitude: 1.5, elasticity: 0.8, maxLength: 100 },  // NUEVA: radiusRatio, innerSpeed, outerSpeed
   // Experimentales
   springMesh: { frequency: 1.0, amplitude: 0.8, elasticity: 0.6, maxLength: 100 },  // NUEVA: stiffness, damping, perturbFreq
-  particleLife: { frequency: 3, amplitude: 0.3, elasticity: 1.2, maxLength: 110 },  // NUEVA: numTypes, interactionRadius, forceIntensity
 };
 
 const ensureGradientConfig = (input?: any): GradientConfig => {
@@ -224,7 +222,6 @@ export interface VectorState {
 
   // Configuración visual
   visual: {
-    renderMode: 'vector' | 'particle';  // Modo de renderizado
     vectorLength: number;
     vectorWidth: number;
     shape: VectorShape;
@@ -318,7 +315,6 @@ const defaultState: VectorState = {
   version: 1,
 
   visual: {
-    renderMode: 'vector',  // Empezar en modo vector por defecto
     vectorLength: 30,
     vectorWidth: 2,
     shape: 'line',
@@ -656,7 +652,6 @@ export const useVectorStore = create<VectorStore>()(
           'spirograph',
           // Experimentales
           'springMesh',
-          'particleLife',
         ];
         if (pState.animation?.type && !validTypes.includes(pState.animation.type)) {
           pState.animation.type = 'smoothWaves';
@@ -766,7 +761,6 @@ export const getAnimationCategory = (type: AnimationType): AnimationCategory => 
     spirograph: 'geometric',
     // Experimentales
     springMesh: 'experimental',
-    particleLife: 'experimental',
   };
   return categoryMap[type] || 'experimental';
 };

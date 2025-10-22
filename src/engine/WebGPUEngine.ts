@@ -5,7 +5,6 @@
 
 import { normalizeAngle } from '@/lib/math-utils';
 import { vectorShader } from './shaders/render/vector.wgsl';
-import { particleShader } from './shaders/render/particle.wgsl';
 import { fadeShader } from './shaders/render/fade.wgsl';
 import { ShapeLibrary, type ShapeName } from './ShapeLibrary';
 import {
@@ -30,7 +29,6 @@ import {
   harmonicOscillatorShader,
   spirographShader,
   springMeshShader,
-  particleLifeShader,
 } from './shaders/compute/animations.wgsl';
 
 const MAX_GRADIENT_STOPS = 6;
@@ -68,8 +66,7 @@ export type AnimationType =
   | 'harmonicOscillator'
   | 'spirograph'
   // Experimentales
-  | 'springMesh'
-  | 'particleLife';
+  | 'springMesh';
 
 export interface WebGPUEngineConfig {
   vectorCount: number;
@@ -78,7 +75,6 @@ export interface WebGPUEngineConfig {
   gridRows: number;
   gridCols: number;
   vectorShape: VectorShape;
-  renderMode?: 'vector' | 'particle';  // Modo de renderizado
 }
 
 export class WebGPUEngine {
@@ -90,7 +86,6 @@ export class WebGPUEngine {
   private canvas: HTMLCanvasElement | null = null;
 
   private renderPipeline: GPURenderPipeline | null = null;
-  private particleRenderPipeline: GPURenderPipeline | null = null;  // Pipeline para modo partículas
   private computePipeline: GPUComputePipeline | null = null;
   private computePipelines: Map<AnimationType, GPUComputePipeline> = new Map();
 
@@ -300,7 +295,6 @@ export class WebGPUEngine {
       spirograph: spirographShader,
       // Experimentales
       springMesh: springMeshShader,
-      particleLife: particleLifeShader,
     };
 
     // Layout de bind group para render (vertex shader necesita read-only)
@@ -397,63 +391,6 @@ export class WebGPUEngine {
       },
       multisample: {
         count: this.sampleCount, // 4x MSAA para bordes suaves
-      },
-    });
-
-    // Crear shader module de particle render
-    const particleShaderModule = this.device.createShaderModule({
-      label: 'Particle Render Shader',
-      code: particleShader,
-    });
-
-    // Particle render pipeline (más simple, sin rotación)
-    this.particleRenderPipeline = this.device.createRenderPipeline({
-      label: 'Particle Render Pipeline',
-      layout: renderPipelineLayout,  // Mismo layout que vectores
-      vertex: {
-        module: particleShaderModule,
-        entryPoint: 'vertexMain',
-        buffers: [
-          {
-            // Shape vertex buffer (binding 0)
-            arrayStride: 2 * Float32Array.BYTES_PER_ELEMENT,
-            stepMode: 'vertex',
-            attributes: [
-              {
-                shaderLocation: 0,
-                offset: 0,
-                format: 'float32x2',
-              },
-            ],
-          },
-        ],
-      },
-      fragment: {
-        module: particleShaderModule,
-        entryPoint: 'fragmentMain',
-        targets: [
-          {
-            format: canvasFormat,
-            blend: {
-              color: {
-                srcFactor: 'src-alpha',
-                dstFactor: 'one-minus-src-alpha',
-                operation: 'add',
-              },
-              alpha: {
-                srcFactor: 'one',
-                dstFactor: 'one-minus-src-alpha',
-                operation: 'add',
-              },
-            },
-          },
-        ],
-      },
-      primitive: {
-        topology: 'triangle-list',
-      },
-      multisample: {
-        count: this.sampleCount,
       },
     });
 
@@ -1249,18 +1186,14 @@ export class WebGPUEngine {
       ],
     });
 
-    // Seleccionar pipeline según modo de renderizado
-    const pipeline = this.config.renderMode === 'particle'
-      ? this.particleRenderPipeline
-      : this.renderPipeline;
-
-    if (!pipeline) {
-      console.warn('⚠️ Pipeline no disponible para renderMode:', this.config.renderMode);
+    // Usar el pipeline de vectores
+    if (!this.renderPipeline) {
+      console.warn('⚠️ Pipeline de renderizado no disponible');
       renderPass.end();
       return;
     }
 
-    renderPass.setPipeline(pipeline);
+    renderPass.setPipeline(this.renderPipeline);
     renderPass.setBindGroup(0, this.renderBindGroup);
 
     // Establecer shape buffer como vertex buffer
@@ -1285,7 +1218,6 @@ export class WebGPUEngine {
     this.vectorBuffer = null;
     this.uniformBuffer = null;
     this.renderPipeline = null;
-    this.particleRenderPipeline = null;
     this.computePipeline = null;
     this.device = null;
     this.adapter = null;

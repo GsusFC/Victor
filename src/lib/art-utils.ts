@@ -42,7 +42,6 @@ export function generateArtTitle(animationType: AnimationType): string {
     spirograph: ['Espirógrafo', 'Epitrocoide', 'Curvas Cíclicas'],
     // Experimentales
     springMesh: ['Malla Elástica', 'Red de Resortes', 'Tejido Dinámico'],
-    particleLife: ['Vida Artificial', 'Emergencia', 'Auto-Organización'],
   };
 
   const options = titles[animationType] || ['Obra Sin Título'];

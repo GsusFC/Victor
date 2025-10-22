@@ -70,7 +70,6 @@ export function useVectorEngine(options: UseVectorEngineOptions | RefObject<HTML
           gridRows: grid.rows,
           gridCols: grid.cols,
           vectorShape: visual.shape as VectorShape,
-          renderMode: visual.renderMode,
         });
 
         // Configurar trails
@@ -105,14 +104,6 @@ export function useVectorEngine(options: UseVectorEngineOptions | RefObject<HTML
     engine.setAnimationType(animation.type as any);
   }, [animation.type]);
 
-  // Cambiar forma automáticamente a círculo cuando se activa modo partículas
-  useEffect(() => {
-    if (visual.renderMode === 'particle' && visual.shape !== 'circle') {
-      const actions = useVectorStore.getState().actions;
-      actions.setVisual('shape', 'circle');
-    }
-  }, [visual.renderMode]); // Solo depender de renderMode, no de shape
-
   // Actualizar configuración cuando cambia el grid o visual
   useEffect(() => {
     const engine = engineRef.current;
@@ -125,7 +116,6 @@ export function useVectorEngine(options: UseVectorEngineOptions | RefObject<HTML
       gridRows: grid.rows,
       gridCols: grid.cols,
       vectorShape: visual.shape as VectorShape,
-      renderMode: visual.renderMode,
     });
 
     // Actualizar forma si cambió
@@ -139,7 +129,7 @@ export function useVectorEngine(options: UseVectorEngineOptions | RefObject<HTML
         generateAndUpdateGrid(engine, canvas);
       }
     }
-  }, [grid.rows, grid.cols, grid.spacing, grid.mode, visual.vectorLength, visual.vectorWidth, visual.shape, visual.renderMode, canvasRef, savedVectorData]);
+  }, [grid.rows, grid.cols, grid.spacing, grid.mode, visual.vectorLength, visual.vectorWidth, visual.shape, canvasRef, savedVectorData]);
 
   // Actualizar trails cuando cambia la configuración
   useEffect(() => {

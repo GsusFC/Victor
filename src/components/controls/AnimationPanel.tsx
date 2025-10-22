@@ -26,7 +26,6 @@ const animationsByCategory: Record<AnimationCategory, Array<{ value: string; lab
   experimental: [
     { value: 'none', label: 'Sin animación' },
     { value: 'springMesh', label: 'Malla de resortes' },
-    { value: 'particleLife', label: 'Vida artificial' },
   ],
   natural: [
     { value: 'smoothWaves', label: 'Olas suaves' },
@@ -745,31 +744,6 @@ export function AnimationPanel() {
           />
           <ParamSlider
             config={{ label: 'Frec. perturbaciones', param: 'elasticity', min: 0.1, max: 1, step: 0.05, formatter: defaultFormatter }}
-            value={animation.params.elasticity}
-            onChange={handleParamChange}
-          />
-          <ParamSlider
-            config={{ label: 'Longitud máx.', param: 'maxLength', min: 50, max: 1920, step: 5, suffix: ' px', formatter: (v) => v.toFixed(0) }}
-            value={animation.params.maxLength}
-            onChange={handleParamChange}
-          />
-        </>
-      )}
-
-      {animation.type === 'particleLife' && (
-        <>
-          <ParamSlider
-            config={{ label: 'Número de tipos', param: 'frequency', min: 2, max: 4, step: 1, formatter: (v) => v.toFixed(0) }}
-            value={animation.params.frequency}
-            onChange={handleParamChange}
-          />
-          <ParamSlider
-            config={{ label: 'Radio de interacción', param: 'amplitude', min: 0.1, max: 0.5, step: 0.05, formatter: defaultFormatter }}
-            value={animation.params.amplitude}
-            onChange={handleParamChange}
-          />
-          <ParamSlider
-            config={{ label: 'Intensidad fuerzas', param: 'elasticity', min: 0.5, max: 2, step: 0.1, formatter: defaultFormatter }}
             value={animation.params.elasticity}
             onChange={handleParamChange}
           />

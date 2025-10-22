@@ -18,22 +18,6 @@ export function VisualControls() {
   return (
     <div className="space-y-4">
       <section className="space-y-4">
-        {/* Modo de renderizado */}
-        <div className="space-y-2">
-          <Label htmlFor="render-mode" className="text-xs font-mono">
-            Modo
-          </Label>
-          <Select value={visual.renderMode} onValueChange={(value) => actions.setVisual('renderMode', value as any)}>
-            <SelectTrigger id="render-mode">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="vector">Vectores</SelectItem>
-              <SelectItem value="particle">Partículas</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
         {/* Forma del vector */}
         <div className="space-y-2">
           <Label htmlFor="vector-shape" className="text-xs font-mono">
