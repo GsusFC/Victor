@@ -234,6 +234,34 @@ export interface VectorState {
       opacity: number;     // Opacidad máxima (0-1)
       fadeMode: 'linear' | 'exponential';
     };
+    // Sistema de post-processing
+    postProcessing: {
+      enabled: boolean;
+      // Bloom
+      bloom: {
+        enabled: boolean;
+        intensity: number;    // 0-2
+        threshold: number;    // 0-1
+        radius: number;       // 1-10
+      };
+      // Chromatic Aberration
+      chromaticAberration: {
+        enabled: boolean;
+        intensity: number;    // 0-1
+        offset: number;       // 0-0.05
+      };
+      // Vignette
+      vignette: {
+        enabled: boolean;
+        intensity: number;    // 0-1
+        softness: number;     // 0-1
+      };
+      // Tone Mapping & Color
+      exposure: number;       // 0.5-2
+      contrast: number;       // 0.5-2
+      saturation: number;     // 0-2
+      brightness: number;     // 0.5-2
+    };
   };
 
   // Configuración del grid
@@ -275,6 +303,7 @@ export interface VectorActions {
   // Visual
   setVisual: <K extends keyof VectorState['visual']>(key: K, value: VectorState['visual'][K]) => void;
   setTrails: (trails: Partial<VectorState['visual']['trails']>) => void;
+  setPostProcessing: (config: Partial<VectorState['visual']['postProcessing']>) => void;
   setGradient: (gradient: Partial<GradientConfig>) => void;
   setGradientStops: (stops: GradientStop[]) => void;
   applyGradientPreset: (preset: GradientPreset, options?: { remember?: boolean }) => void;
@@ -326,6 +355,29 @@ const defaultState: VectorState = {
       opacity: 0.6,
       fadeMode: 'exponential',
     },
+    postProcessing: {
+      enabled: false,
+      bloom: {
+        enabled: false,
+        intensity: 0.5,
+        threshold: 0.7,
+        radius: 3,
+      },
+      chromaticAberration: {
+        enabled: false,
+        intensity: 0.5,
+        offset: 0.01,
+      },
+      vignette: {
+        enabled: false,
+        intensity: 0.6,
+        softness: 0.4,
+      },
+      exposure: 1.0,
+      contrast: 1.0,
+      saturation: 1.0,
+      brightness: 1.0,
+    },
   },
 
   grid: {
@@ -373,6 +425,20 @@ export const useVectorStore = create<VectorStore>()(
             visual: {
               ...state.visual,
               trails: { ...state.visual.trails, ...trails },
+            },
+          })),
+
+        setPostProcessing: (config) =>
+          set((state) => ({
+            visual: {
+              ...state.visual,
+              postProcessing: {
+                ...state.visual.postProcessing,
+                ...config,
+                bloom: config.bloom ? { ...state.visual.postProcessing.bloom, ...config.bloom } : state.visual.postProcessing.bloom,
+                chromaticAberration: config.chromaticAberration ? { ...state.visual.postProcessing.chromaticAberration, ...config.chromaticAberration } : state.visual.postProcessing.chromaticAberration,
+                vignette: config.vignette ? { ...state.visual.postProcessing.vignette, ...config.vignette } : state.visual.postProcessing.vignette,
+              },
             },
           })),
 
