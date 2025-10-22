@@ -14,6 +14,7 @@ import { VisualControls } from '@/components/controls/VisualControls';
 import { HeaderRecordingControls } from '@/components/controls/HeaderRecordingControls';
 import { CollapsibleCard } from '@/components/ui/collapsible-card';
 import { PostProcessingControls } from '@/components/controls/PostProcessingControls';
+import { FPSCounter } from '@/components/debug/FPSCounter';
 // import { PublishButton } from '@/components/art/PublishButton';
 // import Link from 'next/link';
 // import { Palette } from 'lucide-react';
@@ -22,26 +23,29 @@ export default function Home() {
   const canvasHandleRef = useRef<VectorCanvasHandle>(null);
   const recordingCallbackRef = useRef<(() => Promise<void>) | null>(null);
   const [canvasElement, setCanvasElement] = useState<HTMLCanvasElement | null>(null);
+  const [showFPS, setShowFPS] = useState(true);  // FPS counter visible by default
 
   return (
-    <ResponsiveLayout
-      leftSidebar={
-        <div className="space-y-4">
-          <CollapsibleCard title="Animación" defaultExpanded={true}>
-            <AnimationPanel />
-          </CollapsibleCard>
-          <CollapsibleCard title="Grid" defaultExpanded={true}>
-            <GridControls />
-          </CollapsibleCard>
-        </div>
-      }
-      canvas={
-        <VectorCanvas
-          ref={canvasHandleRef}
-          recordingCallbackRef={recordingCallbackRef}
-          onCanvasReady={setCanvasElement}
-        />
-      }
+    <>
+      <FPSCounter visible={showFPS} position="top-right" />
+      <ResponsiveLayout
+        leftSidebar={
+          <div className="space-y-4">
+            <CollapsibleCard title="Animación" defaultExpanded={true}>
+              <AnimationPanel />
+            </CollapsibleCard>
+            <CollapsibleCard title="Grid" defaultExpanded={true}>
+              <GridControls />
+            </CollapsibleCard>
+          </div>
+        }
+        canvas={
+          <VectorCanvas
+            ref={canvasHandleRef}
+            recordingCallbackRef={recordingCallbackRef}
+            onCanvasReady={setCanvasElement}
+          />
+        }
       rightSidebar={
         <div className="space-y-4">
           <CollapsibleCard title="Visual" defaultExpanded={true}>
@@ -62,6 +66,7 @@ export default function Home() {
           }}
         />
       }
-    />
+      />
+    </>
   );
 }

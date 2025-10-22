@@ -121,11 +121,12 @@ export class WebGPUEngine {
   // Post-Processing system
   private postProcessEnabled = false;
   private postProcessPipeline: GPURenderPipeline | null = null;
-  private postProcessBindGroup: GPUBindGroup | null = null;
+  private postProcessBindGroup: GPUBindGroup | null = null;  // Cache for post-process bind group
   private postProcessUniformBuffer: GPUBuffer | null = null;
   private blurPipeline: GPURenderPipeline | null = null;
   private blurBindGroup: GPUBindGroup | null = null;
   private blurUniformBuffer: GPUBuffer | null = null;
+  private postProcessBindGroupNeedsUpdate = true;  // Flag to track when bind group needs recreation
 
   // Render-to-texture (ping-pong textures)
   private renderTexture: GPUTexture | null = null;  // MSAA texture para renderizar vectores
@@ -154,6 +155,8 @@ export class WebGPUEngine {
   // Buffer preallocado para uniforms (optimización de memoria)
   // 27 uniforms base + seed + 4 padding (para alinear a 16 bytes) + 48 gradient stops (12 stops * 4 floats) = 32 + 48 = 80 floats
   private uniformDataBuffer: Float32Array = new Float32Array(32 + MAX_GRADIENT_STOPS * 4);
+  private lastUniformData: Float32Array = new Float32Array(32 + MAX_GRADIENT_STOPS * 4);
+  private uniformsDirty = true;  // Flag to track if uniforms changed
 
   // Cache para cálculos de gradiente de campo
   private gradientFieldCache = {
@@ -843,6 +846,10 @@ export class WebGPUEngine {
 
     this.blurTextureView = this.blurTexture.createView();
 
+    // Invalidate bind group cache since textures changed
+    this.postProcessBindGroupNeedsUpdate = true;
+    this.postProcessBindGroup = null;
+
     console.log(`✅ Post-process textures creadas: ${width}x${height} (MSAA + resolved)`);
   }
 
@@ -1321,7 +1328,24 @@ export class WebGPUEngine {
 
     uniformData.set(gradientStopData, 32);
 
-    this.device.queue.writeBuffer(this.uniformBuffer, 0, uniformData);
+    // Differential update: only write to GPU if data changed (optimization)
+    let hasChanged = this.uniformsDirty;
+    if (!hasChanged) {
+      // Quick comparison: check if any value differs
+      for (let i = 0; i < uniformData.length; i++) {
+        if (uniformData[i] !== this.lastUniformData[i]) {
+          hasChanged = true;
+          break;
+        }
+      }
+    }
+
+    if (hasChanged) {
+      this.device.queue.writeBuffer(this.uniformBuffer, 0, uniformData);
+      // Copy current data to last for next comparison
+      this.lastUniformData.set(uniformData);
+      this.uniformsDirty = false;
+    }
   }
 
   /**
@@ -1409,15 +1433,18 @@ export class WebGPUEngine {
 
     // Si post-processing está activado, aplicar efectos
     if (usePostProcess && this.postProcessPipeline && this.postProcessUniformBuffer && this.resolvedTexture && this.sampler) {
-      // Crear bind group dinámico con la textura resuelta (non-MSAA)
-      const postProcessBindGroup = this.device.createBindGroup({
-        layout: this.postProcessPipeline.getBindGroupLayout(0),
-        entries: [
-          { binding: 0, resource: { buffer: this.postProcessUniformBuffer } },
-          { binding: 1, resource: this.resolvedTexture.createView() },
-          { binding: 2, resource: this.sampler },
-        ],
-      });
+      // Crear bind group solo si es necesario (cache optimization)
+      if (this.postProcessBindGroupNeedsUpdate || !this.postProcessBindGroup) {
+        this.postProcessBindGroup = this.device.createBindGroup({
+          layout: this.postProcessPipeline.getBindGroupLayout(0),
+          entries: [
+            { binding: 0, resource: { buffer: this.postProcessUniformBuffer } },
+            { binding: 1, resource: this.resolvedTextureView! },
+            { binding: 2, resource: this.sampler },
+          ],
+        });
+        this.postProcessBindGroupNeedsUpdate = false;
+      }
 
       const postProcessPass = commandEncoder.beginRenderPass({
         colorAttachments: [
@@ -1431,7 +1458,7 @@ export class WebGPUEngine {
       });
 
       postProcessPass.setPipeline(this.postProcessPipeline);
-      postProcessPass.setBindGroup(0, postProcessBindGroup);
+      postProcessPass.setBindGroup(0, this.postProcessBindGroup);
       postProcessPass.draw(3, 1, 0, 0); // Fullscreen quad
       postProcessPass.end();
     }
