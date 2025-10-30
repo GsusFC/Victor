@@ -1,173 +1,173 @@
-# Victor - Visualización de Campos Vectoriales con WebGPU
+# Victor - Vector Field Visualization with WebGPU
 
-Sistema avanzado de visualización y animación de campos vectoriales usando **WebGPU**, **compute shaders** y **Next.js 15**.
+Advanced vector field visualization and animation system using **WebGPU**, **compute shaders**, and **Next.js 15**.
 
-## 🎨 Características Principales
+## 🎨 Key Features
 
-### Motor WebGPU
-- **Renderizado acelerado por GPU** con WebGPU API
-- **18 animaciones** implementadas con compute shaders (WGSL)
-- **MSAA 4x** para antialiasing y bordes suaves
-- **Geometry instancing** para renderizar miles de vectores eficientemente
-- **Sistema de coordenadas ISO** personalizado para aspect ratios dinámicos
+### WebGPU Engine
+- **GPU-accelerated rendering** with WebGPU API
+- **18 animations** implemented with compute shaders (WGSL)
+- **4x MSAA** for antialiasing and smooth edges
+- **Geometry instancing** for efficient rendering of thousands of vectors
+- **Custom ISO coordinate system** for dynamic aspect ratios
 
-### Animaciones Disponibles
-- **Pulso radial** - Ondas que viajan desde el centro
-- **Latido (Heartbeat)** - Expansión y contracción sincronizada
-- **Olas suaves** - Movimiento ondulatorio suave
-- **Olas de mar** - Ondas más complejas con múltiples frecuencias
-- **Flujo Perlin** - Campo de flujo basado en ruido Perlin
-- **Interacción con mouse** - Vectores que siguen el cursor
-- **Flujo direccional** - Movimiento en una dirección específica
-- **Tangente clásica** - Rotación tangencial clásica
-- **Lissajous** - Patrones de Lissajous
-- **Patrón geométrico** - Formas geométricas complejas
-- **Flocking** - Simulación de comportamiento de enjambre
-- **Vórtice** - Rotación en espiral
-- **Curl helicoidal** - Movimiento helicoidal 3D
-- Y más...
+### Available Animations
+- **Radial Pulse** - Waves traveling from the center
+- **Heartbeat** - Synchronized expansion and contraction
+- **Smooth Waves** - Smooth undulating movement
+- **Sea Waves** - Complex waves with multiple frequencies
+- **Perlin Flow** - Flow field based on Perlin noise
+- **Mouse Interaction** - Vectors following the cursor
+- **Directional Flow** - Movement in a specific direction
+- **Classic Tangent** - Classic tangential rotation
+- **Lissajous** - Lissajous patterns
+- **Geometric Pattern** - Complex geometric shapes
+- **Flocking** - Swarm behavior simulation
+- **Vortex** - Spiral rotation
+- **Helical Curl** - 3D helical movement
+- And more...
 
-### Sistema de Grabación de Video
-- **Grabación a 60 FPS** con canvas-record
-- **Múltiples formatos**: MP4 (H.264), WebM (VP9), GIF
-- **4 presets de calidad**: 720p30, 1080p30, 1080p60, 1440p60
-- **WebCodecs API** con fallback automático a WASM
-- **Controles completos**: Iniciar, pausar, reanudar, detener
-- **Estadísticas en tiempo real**: Duración, frames, FPS, tamaño
-- **100% client-side** - Sin servicios externos
+### Video Recording System
+- **60 FPS recording** with canvas-record
+- **Multiple formats**: MP4 (H.264), WebM (VP9), GIF
+- **4 quality presets**: 720p30, 1080p30, 1080p60, 1440p60
+- **WebCodecs API** with automatic WASM fallback
+- **Full controls**: Start, pause, resume, stop
+- **Real-time statistics**: Duration, frames, FPS, file size
+- **100% client-side** - No external services
 
-### Interfaz y Controles
-- **Layout responsivo** con 3 columnas adaptables
-- **Paneles colapsables** para mejor organización
-- **Controles en tiempo real**:
-  - Tipo de animación y parámetros
-  - Densidad del grid (filas/columnas)
-  - Forma de vectores (línea, triángulo, semicírculo, etc.)
-  - Color sólido o degradado
-  - Velocidad de animación
-  - Zoom y pausa
+### Interface and Controls
+- **Responsive 3-column layout** with adaptable panels
+- **Collapsible panels** for better organization
+- **Real-time controls**:
+  - Animation type and parameters
+  - Grid density (rows/columns)
+  - Vector shapes (line, triangle, semicircle, etc.)
+  - Solid color or gradient
+  - Animation speed
+  - Zoom and pause
 
-## 🚀 Instalación
+## 🚀 Installation
 
-### Requisitos
-- **Node.js 18.18+** (recomendado 20 LTS)
-- **npm**, pnpm o bun
-- **Navegador compatible con WebGPU**: Chrome 113+, Edge 113+
+### Requirements
+- **Node.js 18.18+** (recommended 20 LTS)
+- **npm**, pnpm, or bun
+- **WebGPU-compatible browser**: Chrome 113+, Edge 113+
 
 ### Setup
 ```bash
-# Clonar repositorio
-git clone https://github.com/GsusFC/NewVictor.git
-cd NewVictor
+# Clone repository
+git clone https://github.com/GsusFC/Victor.git
+cd Victor
 
-# Instalar dependencias
+# Install dependencies
 npm install
 
-# Ejecutar en desarrollo
+# Run development server
 npm run dev
 ```
 
-La aplicación estará disponible en: http://localhost:3000
+Application will be available at: http://localhost:3000
 
-## 📁 Estructura del Proyecto
+## 📁 Project Structure
 
 ```
 src/
-├── engine/                 # Motor WebGPU
-│   ├── WebGPUEngine.ts    # Motor principal
-│   ├── BufferManager.ts   # Gestión de buffers GPU
-│   ├── CoordinateSystem.ts # Sistema de coordenadas ISO
-│   ├── ShapeLibrary.ts    # Biblioteca de formas geométricas
-│   └── shaders/           # Shaders WGSL
-│       ├── compute/       # Compute shaders (animaciones)
-│       └── render/        # Render shaders (visualización)
+├── engine/                 # WebGPU Engine
+│   ├── WebGPUEngine.ts    # Main engine
+│   ├── BufferManager.ts   # GPU buffer management
+│   ├── CoordinateSystem.ts # ISO coordinate system
+│   ├── ShapeLibrary.ts    # Geometric shapes library
+│   └── shaders/           # WGSL Shaders
+│       ├── compute/       # Compute shaders (animations)
+│       └── render/        # Render shaders (visualization)
 ├── components/
-│   ├── canvas/            # Componente del canvas WebGPU
-│   ├── controls/          # Paneles de control
-│   └── layout/            # Layout responsivo
+│   ├── canvas/            # WebGPU canvas component
+│   ├── controls/          # Control panels
+│   └── layout/            # Responsive layout
 ├── hooks/
-│   ├── useVectorEngine.ts # Hook principal del motor
-│   ├── useVideoRecorder.ts # Hook de grabación
-│   └── useAnimationFrame.ts # Loop de animación
+│   ├── useVectorEngine.ts # Main engine hook
+│   ├── useVideoRecorder.ts # Recording hook
+│   └── useAnimationFrame.ts # Animation loop
 ├── store/
-│   └── vectorStore.ts     # Estado global (Zustand)
+│   └── vectorStore.ts     # Global state (Zustand)
 ├── lib/
-│   ├── video-recorder.ts  # Sistema de grabación
-│   └── math-utils.ts      # Utilidades matemáticas
-└── types/                 # Tipos TypeScript
+│   ├── video-recorder.ts  # Recording system
+│   └── math-utils.ts      # Math utilities
+└── types/                 # TypeScript types
 
 ```
 
-## 🎮 Uso
+## 🎮 Usage
 
-### Controles Básicos
-1. **Seleccionar animación**: Panel izquierdo "Animación"
-2. **Ajustar densidad**: Panel izquierdo "Grid" (filas/columnas)
-3. **Cambiar visualización**: Panel derecho "Visual"
-4. **Grabar video**: Panel derecho "Grabación"
+### Basic Controls
+1. **Select animation**: Left panel "Animation"
+2. **Adjust density**: Left panel "Grid" (rows/columns)
+3. **Change visualization**: Right panel "Visual"
+4. **Record video**: Right panel "Recording"
 
-### Grabación de Video
-1. Expandir panel "Grabación" (derecha)
-2. Seleccionar formato (MP4 recomendado)
-3. Elegir calidad (Alta = 1080p60)
-4. Click "Iniciar grabación"
-5. Esperar el tiempo deseado
-6. Click "Detener" para descargar
+### Video Recording
+1. Expand "Recording" panel (right)
+2. Select format (MP4 recommended)
+3. Choose quality (High = 1080p60)
+4. Click "Start recording"
+5. Wait for desired duration
+6. Click "Stop" to download
 
-### Atajos de Teclado
-- **Scroll** en canvas: Zoom in/out
+### Keyboard Shortcuts
+- **Scroll** on canvas: Zoom in/out
 
-## 🛠️ Tecnologías
+## 🛠️ Technologies
 
 ### Frontend
-- **Next.js 15** - Framework React con App Router
+- **Next.js 15** - React framework with App Router
 - **React 19** - UI library
 - **TypeScript** - Type safety
 - **Tailwind CSS 4** - Styling
-- **shadcn/ui** - Componentes UI
+- **shadcn/ui** - UI components
 
-### Renderizado
-- **WebGPU** - API gráfica moderna
+### Rendering
+- **WebGPU** - Modern graphics API
 - **WGSL** - WebGPU Shading Language
-- **Compute Shaders** - Cómputo en GPU
+- **Compute Shaders** - GPU compute
 
-### Estado y Performance
+### State and Performance
 - **Zustand** - State management
 - **canvas-record** - Video recording
 - **media-codecs** - Codec handling
 
 ## 📊 Performance
 
-- **60 FPS** en animaciones con miles de vectores
-- **MSAA 4x** sin impacto significativo
-- **Compute shaders** ejecutan animaciones en GPU
-- **Geometry instancing** reduce draw calls
+- **60 FPS** animations with thousands of vectors
+- **4x MSAA** with minimal performance impact
+- **Compute shaders** execute animations on GPU
+- **Geometry instancing** reduces draw calls
 
-## 🌐 Compatibilidad
+## 🌐 Compatibility
 
-### Navegadores Soportados
-- ✅ **Chrome 113+** - Soporte completo
-- ✅ **Edge 113+** - Soporte completo
-- ⚠️ **Safari** - Sin soporte WebGPU aún
+### Supported Browsers
+- ✅ **Chrome 113+** - Full support
+- ✅ **Edge 113+** - Full support
+- ⚠️ **Safari** - WebGPU not supported yet
 - ⚠️ **Firefox** - WebGPU experimental
 
-### Grabación de Video
+### Video Recording
 - ✅ **Chrome/Edge** - WebCodecs (hardware accelerated)
-- ⚠️ **Safari** - Fallback a WASM encoder
+- ⚠️ **Safari** - WASM encoder fallback
 
 ## 📝 Scripts
 
 ```bash
-# Desarrollo con webpack
+# Development with webpack
 npm run dev
 
-# Desarrollo con Turbopack (experimental)
+# Development with Turbopack (experimental)
 npm run dev:turbo
 
-# Build de producción
+# Production build
 npm run build
 
-# Ejecutar build
+# Run build
 npm run start
 
 # Linting
@@ -176,53 +176,53 @@ npm run lint
 
 ## 🐛 Debugging
 
-### Logs de Console
-El motor incluye logs detallados:
-- 🚀 Inicialización del engine
-- ✅ Confirmaciones de operaciones
-- 📐 Dimensiones del canvas
-- 🎬 Frames renderizados
-- 🎥 Estado de grabación
+### Console Logs
+The engine includes detailed logs:
+- 🚀 Engine initialization
+- ✅ Operation confirmations
+- 📐 Canvas dimensions
+- 🎬 Rendered frames
+- 🎥 Recording status
 
 ### Troubleshooting
 
-**WebGPU no disponible:**
-- Verifica que estés usando Chrome/Edge 113+
-- Habilita flags experimentales: `chrome://flags/#enable-unsafe-webgpu`
+**WebGPU not available:**
+- Verify you're using Chrome/Edge 113+
+- Enable experimental flags: `chrome://flags/#enable-unsafe-webgpu`
 
-**Grabación no funciona:**
-- Verifica compatibilidad WebCodecs
-- Prueba con formato WebM si MP4 falla
+**Recording not working:**
+- Check WebCodecs compatibility
+- Try WebM format if MP4 fails
 
-**Performance bajo:**
-- Reduce densidad del grid
-- Desactiva MSAA en `WebGPUEngine.ts`
+**Low performance:**
+- Reduce grid density
+- Disable MSAA in `WebGPUEngine.ts`
 
-## 📚 Documentación Adicional
+## 📚 Additional Documentation
 
-- [WEBGPU_MIGRATION.md](WEBGPU_MIGRATION.md) - Guía de migración
-- [CANVAS_V3_STRATEGY.md](CANVAS_V3_STRATEGY.md) - Estrategia del canvas
-- [DEBUG_INSTRUCTIONS.md](DEBUG_INSTRUCTIONS.md) - Instrucciones de debug
+- [WEBGPU_MIGRATION.md](WEBGPU_MIGRATION.md) - Migration guide
+- [CANVAS_V3_STRATEGY.md](CANVAS_V3_STRATEGY.md) - Canvas strategy
+- [DEBUG_INSTRUCTIONS.md](DEBUG_INSTRUCTIONS.md) - Debug instructions
 
-## 🤝 Contribuciones
+## 🤝 Contributing
 
-Las contribuciones son bienvenidas. Por favor:
-1. Fork el repositorio
-2. Crea una rama para tu feature
-3. Commit con mensajes descriptivos
-4. Abre un Pull Request
+Contributions are welcome. Please:
+1. Fork the repository
+2. Create a branch for your feature
+3. Commit with descriptive messages
+4. Open a Pull Request
 
-## 📄 Licencia
+## 📄 License
 
-Este proyecto está bajo licencia MIT.
+This project is licensed under the MIT License.
 
-## 🙏 Agradecimientos
+## 🙏 Acknowledgments
 
-- **WebGPU Community** - Especificaciones y ejemplos
-- **canvas-record** - Sistema de grabación
-- **shadcn/ui** - Componentes UI
-- **Claude Code** - Asistencia en desarrollo
+- **WebGPU Community** - Specifications and examples
+- **canvas-record** - Recording system
+- **shadcn/ui** - UI components
+- **Claude** - Development assistance
 
 ---
 
-Desarrollado con ❤️ usando WebGPU y Next.js
+Developed with ❤️ using WebGPU and Next.js
