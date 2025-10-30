@@ -6,6 +6,7 @@
 import { Recorder } from 'canvas-record';
 import { AVC } from 'media-codecs';
 import { MediaRecorderFallback } from './media-recorder-fallback';
+import { RECORDING_CONSTANTS } from './recording/constants';
 import type { RecordingConfig, RecordingState, RecordingStats, RecordingError, VideoQuality } from '@/types/recording';
 
 export class VideoRecorder {
@@ -24,7 +25,6 @@ export class VideoRecorder {
   private savedBuffer: ArrayBuffer | Uint8Array | Blob[] | null = null;
   private recorderInitializing: boolean = false; // Flag para evitar captura durante inicialización
   private recorderStartDelayFrames: number = 0; // Frames a esperar después de iniciar recorder
-  private readonly RECORDER_START_DELAY = 10; // Frames para estabilizar canvas-record (evitar frames verdes)
 
   constructor(canvas: HTMLCanvasElement, config?: Partial<RecordingConfig>) {
     this.canvas = canvas;
@@ -143,7 +143,7 @@ export class VideoRecorder {
       // Entrar en estado "recording" - Iniciar inmediatamente
       this.state = 'recording';
 
-      console.log(`🎬 Iniciando grabación (sin warmup, con delay de ${this.RECORDER_START_DELAY} frames)`);
+      console.log(`🎬 Iniciando grabación (sin warmup, con delay de ${RECORDING_CONSTANTS.RECORDER_START_DELAY_FRAMES} frames)`);
       
       // Iniciar recorder inmediatamente (sin esperar)
       this.recorderInitializing = true;
@@ -181,9 +181,9 @@ export class VideoRecorder {
 
     // Delay después de iniciar recorder para permitir que canvas-record se estabilice
     // Evita capturar frames verdes o corruptos del inicio
-    if (this.recorderStartDelayFrames < this.RECORDER_START_DELAY) {
+    if (this.recorderStartDelayFrames < RECORDING_CONSTANTS.RECORDER_START_DELAY_FRAMES) {
       this.recorderStartDelayFrames++;
-      console.log(`⏳ Delay de estabilización: ${this.recorderStartDelayFrames}/${this.RECORDER_START_DELAY} frames`);
+      console.log(`⏳ Delay de estabilización: ${this.recorderStartDelayFrames}/${RECORDING_CONSTANTS.RECORDER_START_DELAY_FRAMES} frames`);
       return;
     }
 

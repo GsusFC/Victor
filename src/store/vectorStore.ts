@@ -5,6 +5,7 @@
 
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
+import type { AnimationType } from '@/types/engine';
 
 // ============= TYPES =============
 
@@ -12,43 +13,6 @@ export type VectorShape = 'line' | 'triangle' | 'arc' | 'circle' | 'star' | 'hex
 
 export type AnimationCategory = 'natural' | 'energetic' | 'geometric' | 'experimental';
 
-export type AnimationType =
-  | 'none'
-  // Naturales/Fluidas
-  | 'smoothWaves'
-  | 'seaWaves'
-  | 'breathingSoft'
-  | 'flowField'
-  | 'dnaHelix'
-  | 'rippleEffect'
-  | 'organicGrowth'
-  | 'fluidDynamics'
-  | 'aurora'
-  // Energéticas
-  | 'electricPulse'
-  | 'vortex'
-  | 'directionalFlow'
-  | 'storm'
-  | 'solarFlare'
-  | 'radiation'
-  | 'magneticField'
-  | 'chaosAttractor'
-  | 'plasmaBall'
-  | 'blackHole'
-  | 'lightningStorm'
-  | 'quantumField'
-  // Geométricas
-  | 'tangenteClasica'
-  | 'lissajous'
-  | 'geometricPattern'
-  | 'harmonicOscillator'
-  | 'spirograph'
-  | 'fibonacci'
-  | 'voronoiDiagram'
-  | 'mandalas'
-  | 'kaleidoscope'
-  // Experimentales
-  | 'springMesh';
 
 export type SpacingMode = 'fixed' | 'dynamic';
 

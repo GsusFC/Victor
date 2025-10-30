@@ -7,6 +7,7 @@ import { useEffect, useRef, RefObject, MutableRefObject } from 'react';
 import { WebGPUEngine } from '@/engine/WebGPUEngine';
 import { ISOCoordinates } from '@/engine/CoordinateSystem';
 import { useVectorStore, selectGrid, selectAnimation, selectVisual, selectCanvas, type VectorShape } from '@/store/vectorStore';
+import type { AnimationType } from '@/types/engine';
 import { useAnimationFrame } from './useAnimationFrame';
 
 interface UseVectorEngineOptions {

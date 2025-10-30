@@ -4,6 +4,7 @@
  */
 
 import { normalizeAngle } from '@/lib/math-utils';
+import type { AnimationType, VectorShape, WebGPUEngineConfig } from '@/types/engine';
 import { vectorShader } from './shaders/render/vector.wgsl';
 import { fadeShader } from './shaders/render/fade.wgsl';
 import { postProcessShader } from './shaders/render/postprocess.wgsl';
@@ -50,60 +51,13 @@ import {
 
 const MAX_GRADIENT_STOPS = 12;
 
-type VectorShape = ShapeName;
-
 interface MouseUniform {
   x: number;
   y: number;
   active: boolean;
 }
 
-export type AnimationType =
-  | 'none'
-  // Naturales/Fluidas
-  | 'smoothWaves'
-  | 'seaWaves'
-  | 'breathingSoft'
-  | 'flowField'
-  | 'dnaHelix'
-  | 'rippleEffect'
-  | 'organicGrowth'
-  | 'fluidDynamics'
-  | 'aurora'
-  // Energéticas
-  | 'electricPulse'
-  | 'vortex'
-  | 'directionalFlow'
-  | 'storm'
-  | 'solarFlare'
-  | 'radiation'
-  | 'magneticField'
-  | 'chaosAttractor'
-  | 'plasmaBall'
-  | 'blackHole'
-  | 'lightningStorm'
-  | 'quantumField'
-  // Geométricas
-  | 'tangenteClasica'
-  | 'lissajous'
-  | 'geometricPattern'
-  | 'harmonicOscillator'
-  | 'spirograph'
-  | 'fibonacci'
-  | 'voronoiDiagram'
-  | 'mandalas'
-  | 'kaleidoscope'
-  // Experimentales
-  | 'springMesh';
 
-export interface WebGPUEngineConfig {
-  vectorCount: number;
-  vectorLength: number;
-  vectorWidth: number;
-  gridRows: number;
-  gridCols: number;
-  vectorShape: VectorShape;
-}
 
 export class WebGPUEngine {
   private static instance: WebGPUEngine | null = null;
