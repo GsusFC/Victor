@@ -13,6 +13,7 @@ import { bloomExtractShader } from './shaders/render/bloom-extract.wgsl';
 import { bloomBlurShader } from './shaders/render/bloom-blur.wgsl';
 import { bloomCombineShader } from './shaders/render/bloom-combine.wgsl';
 import { ShapeLibrary, type ShapeName } from './ShapeLibrary';
+import { TextureManager } from './core/TextureManager';
 import {
   noneShader,
   smoothWavesShader,
@@ -67,6 +68,9 @@ export class WebGPUEngine {
   private context: GPUCanvasContext | null = null;
   private canvas: HTMLCanvasElement | null = null;
 
+  // Managers
+  private textureManager: TextureManager | null = null;
+
   private renderPipeline: GPURenderPipeline | null = null;
   private computePipeline: GPUComputePipeline | null = null;
   private computePipelines: Map<AnimationType, GPUComputePipeline> = new Map();
@@ -78,11 +82,6 @@ export class WebGPUEngine {
 
   // Vector data cache (para exportación)
   private currentVectorData: Float32Array | null = null;
-
-  // MSAA
-  private msaaTexture: GPUTexture | null = null;
-  private msaaTextureView: GPUTextureView | null = null;
-  private readonly sampleCount = 4; // 4x MSAA
 
   // Bind groups
   private renderBindGroup: GPUBindGroup | null = null;
@@ -120,19 +119,6 @@ export class WebGPUEngine {
   private bloomRadius = 1.5;
   private bloomThreshold = 0.7;
   private bloomIntensity = 0.5;
-
-  // Render-to-texture (ping-pong textures)
-  private renderTexture: GPUTexture | null = null;  // MSAA texture para renderizar vectores
-  private renderTextureView: GPUTextureView | null = null;
-  private resolvedTexture: GPUTexture | null = null;  // Non-MSAA texture para samplear en post-process
-  private resolvedTextureView: GPUTextureView | null = null;
-  private blurTexture: GPUTexture | null = null;
-  private blurTextureView: GPUTextureView | null = null;
-  private bloomTexture1: GPUTexture | null = null;  // Para extract bright pass
-  private bloomTexture1View: GPUTextureView | null = null;
-  private bloomTexture2: GPUTexture | null = null;  // Para blur ping-pong
-  private bloomTexture2View: GPUTextureView | null = null;
-  private sampler: GPUSampler | null = null;
 
   // Estado
   private isInitialized = false;
@@ -195,6 +181,17 @@ export class WebGPUEngine {
       WebGPUEngine.instance = new WebGPUEngine();
     }
     return WebGPUEngine.instance;
+  }
+
+  /**
+   * Helper: Obtiene las texturas del TextureManager
+   */
+  private getTextures() {
+    if (!this.textureManager) {
+      throw new Error('TextureManager no inicializado');
+    }
+    const canvasFormat = navigator.gpu.getPreferredCanvasFormat();
+    return this.textureManager.getPostProcessTextures(canvasFormat);
   }
 
   /**
@@ -270,11 +267,9 @@ export class WebGPUEngine {
       });
       console.log(`✅ Contexto configurado (format: ${canvasFormat})`);
 
-      // Crear texture MSAA para antialiasing
-      this.createMSAATexture(canvas.width, canvas.height, canvasFormat);
-
-      // Crear texturas para post-processing
-      this.createPostProcessTextures(canvas.width, canvas.height, canvasFormat);
+      // Inicializar TextureManager
+      this.textureManager = new TextureManager(this.device, canvas);
+      console.log('✅ TextureManager inicializado');
 
       // Crear pipelines
       await this.createPipelines(canvasFormat);
@@ -444,7 +439,7 @@ export class WebGPUEngine {
         topology: 'triangle-list',
       },
       multisample: {
-        count: this.sampleCount, // 4x MSAA para bordes suaves
+        count: this.textureManager?.getMSAASampleCount() || 4, // 4x MSAA para bordes suaves
       },
     });
 
@@ -552,21 +547,14 @@ export class WebGPUEngine {
         topology: 'triangle-list',
       },
       multisample: {
-        count: this.sampleCount, // Debe coincidir con MSAA del render principal
+        count: this.textureManager?.getMSAASampleCount() || 4, // Debe coincidir con MSAA del render principal
       },
     });
 
     // ============================================
     // POST-PROCESSING PIPELINES
     // ============================================
-
-    // Crear sampler para texturas
-    this.sampler = this.device.createSampler({
-      magFilter: 'linear',
-      minFilter: 'linear',
-      addressModeU: 'clamp-to-edge',
-      addressModeV: 'clamp-to-edge',
-    });
+    // Nota: El sampler se obtiene del TextureManager
 
     // Post-process shader module
     const postProcessShaderModule = this.device.createShaderModule({
@@ -978,103 +966,6 @@ export class WebGPUEngine {
     return buffer;
   }
 
-  /**
-   * Crea texture MSAA para antialiasing
-   */
-  private createMSAATexture(width: number, height: number, format: GPUTextureFormat): void {
-    if (!this.device) return;
-
-    // Destruir texture anterior si existe
-    if (this.msaaTexture) {
-      this.msaaTexture.destroy();
-    }
-
-    // Crear nueva texture MSAA
-    this.msaaTexture = this.device.createTexture({
-      size: { width, height },
-      sampleCount: this.sampleCount,
-      format,
-      usage: GPUTextureUsage.RENDER_ATTACHMENT,
-    });
-
-    this.msaaTextureView = this.msaaTexture.createView();
-    console.log(`✅ MSAA texture creada: ${width}x${height} (${this.sampleCount}x samples)`);
-  }
-
-  /**
-   * Crea texturas para post-processing (render-to-texture)
-   */
-  private createPostProcessTextures(width: number, height: number, format: GPUTextureFormat): void {
-    if (!this.device) return;
-
-    // Destruir texturas anteriores si existen
-    if (this.renderTexture) {
-      this.renderTexture.destroy();
-    }
-    if (this.resolvedTexture) {
-      this.resolvedTexture.destroy();
-    }
-    if (this.blurTexture) {
-      this.blurTexture.destroy();
-    }
-    if (this.bloomTexture1) {
-      this.bloomTexture1.destroy();
-    }
-    if (this.bloomTexture2) {
-      this.bloomTexture2.destroy();
-    }
-
-    // Crear render texture MSAA (donde renderizamos los vectores con antialiasing)
-    this.renderTexture = this.device.createTexture({
-      size: { width, height },
-      sampleCount: this.sampleCount,  // MSAA (4x)
-      format,  // Canvas format (bgra8unorm)
-      usage: GPUTextureUsage.RENDER_ATTACHMENT,
-    });
-
-    this.renderTextureView = this.renderTexture.createView();
-
-    // Crear textura resuelta (non-MSAA) para muestreo en post-process
-    this.resolvedTexture = this.device.createTexture({
-      size: { width, height },
-      format,  // Canvas format
-      usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
-    });
-
-    this.resolvedTextureView = this.resolvedTexture.createView();
-
-    // Crear blur texture (para ping-pong de blur)
-    this.blurTexture = this.device.createTexture({
-      size: { width, height },
-      format,  // Canvas format
-      usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
-    });
-
-    this.blurTextureView = this.blurTexture.createView();
-
-    // Crear bloom textures (para advanced bloom multi-pass)
-    this.bloomTexture1 = this.device.createTexture({
-      size: { width, height },
-      format,  // Canvas format
-      usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
-    });
-
-    this.bloomTexture1View = this.bloomTexture1.createView();
-
-    this.bloomTexture2 = this.device.createTexture({
-      size: { width, height },
-      format,  // Canvas format
-      usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
-    });
-
-    this.bloomTexture2View = this.bloomTexture2.createView();
-
-    // Invalidate bind group cache since textures changed
-    this.postProcessBindGroupNeedsUpdate = true;
-    this.postProcessBindGroup = null;
-
-    console.log(`✅ Post-process textures creadas: ${width}x${height} (MSAA + Bloom)`);
-  }
 
   /**
    * Recrea buffers cuando cambia la configuración
@@ -1156,14 +1047,17 @@ export class WebGPUEngine {
   }
 
   /**
-   * Actualiza las dimensiones del canvas y recrea la texture MSAA
+   * Actualiza las dimensiones del canvas y recrea texturas
    */
-  updateCanvasDimensions(width: number, height: number): void {
-    if (!this.canvas || !this.context || !this.device) return;
+  updateCanvasDimensions(_width: number, _height: number): void {
+    if (!this.canvas || !this.context || !this.device || !this.textureManager) return;
 
     const canvasFormat = navigator.gpu.getPreferredCanvasFormat();
-    this.createMSAATexture(width, height, canvasFormat);
-    this.createPostProcessTextures(width, height, canvasFormat);
+    this.textureManager.updateCanvasDimensions(canvasFormat);
+
+    // Invalidar bind groups que usan las texturas
+    this.postProcessBindGroupNeedsUpdate = true;
+    this.postProcessBindGroup = null;
   }
 
   /**
@@ -1592,21 +1486,20 @@ export class WebGPUEngine {
       !this.device ||
       !this.bloomExtractPipeline ||
       !this.bloomBlurPipeline ||
-      !this.bloomCombinePipeline ||
-      !this.resolvedTextureView ||
-      !this.bloomTexture1View ||
-      !this.bloomTexture2View ||
-      !this.sampler
+      !this.bloomCombinePipeline
     ) {
       return;
     }
+
+    // Obtener texturas del TextureManager
+    const textures = this.getTextures();
 
     // Pass 1: Extract bright colors
     const extractBindGroup = this.device.createBindGroup({
       layout: this.bloomExtractPipeline.getBindGroupLayout(0),
       entries: [
-        { binding: 0, resource: this.resolvedTextureView }, // Input: rendered scene
-        { binding: 1, resource: this.sampler },
+        { binding: 0, resource: textures.resolved.view }, // Input: rendered scene
+        { binding: 1, resource: textures.sampler },
         { binding: 2, resource: { buffer: this.bloomExtractUniformBuffer! } },
       ],
     });
@@ -1614,7 +1507,7 @@ export class WebGPUEngine {
     const extractPass = commandEncoder.beginRenderPass({
       colorAttachments: [
         {
-          view: this.bloomTexture1View,
+          view: textures.bloomExtract.view,
           clearValue: { r: 0, g: 0, b: 0, a: 1 },
           loadOp: 'clear',
           storeOp: 'store',
@@ -1638,8 +1531,8 @@ export class WebGPUEngine {
     const horizontalBlurBindGroup = this.device.createBindGroup({
       layout: this.bloomBlurPipeline.getBindGroupLayout(0),
       entries: [
-        { binding: 0, resource: this.bloomTexture1View }, // Input: bright pass
-        { binding: 1, resource: this.sampler },
+        { binding: 0, resource: textures.bloomExtract.view }, // Input: bright pass
+        { binding: 1, resource: textures.sampler },
         { binding: 2, resource: { buffer: this.bloomBlurUniformBuffer! } },
       ],
     });
@@ -1647,7 +1540,7 @@ export class WebGPUEngine {
     const horizontalBlurPass = commandEncoder.beginRenderPass({
       colorAttachments: [
         {
-          view: this.bloomTexture2View,
+          view: textures.bloomBlur1.view,
           clearValue: { r: 0, g: 0, b: 0, a: 1 },
           loadOp: 'clear',
           storeOp: 'store',
@@ -1671,8 +1564,8 @@ export class WebGPUEngine {
     const verticalBlurBindGroup = this.device.createBindGroup({
       layout: this.bloomBlurPipeline.getBindGroupLayout(0),
       entries: [
-        { binding: 0, resource: this.bloomTexture2View }, // Input: horizontally blurred
-        { binding: 1, resource: this.sampler },
+        { binding: 0, resource: textures.bloomBlur1.view }, // Input: horizontally blurred
+        { binding: 1, resource: textures.sampler },
         { binding: 2, resource: { buffer: this.bloomBlurUniformBuffer! } },
       ],
     });
@@ -1680,7 +1573,7 @@ export class WebGPUEngine {
     const verticalBlurPass = commandEncoder.beginRenderPass({
       colorAttachments: [
         {
-          view: this.bloomTexture1View, // Output back to texture1 (ping-pong complete)
+          view: textures.bloomBlur2.view, // Output to bloomBlur2 (final blurred bloom)
           clearValue: { r: 0, g: 0, b: 0, a: 1 },
           loadOp: 'clear',
           storeOp: 'store',
@@ -1697,9 +1590,9 @@ export class WebGPUEngine {
     const combineBindGroup = this.device.createBindGroup({
       layout: this.bloomCombinePipeline.getBindGroupLayout(0),
       entries: [
-        { binding: 0, resource: this.resolvedTextureView }, // Original scene
-        { binding: 1, resource: this.bloomTexture1View },   // Blurred bloom
-        { binding: 2, resource: this.sampler },
+        { binding: 0, resource: textures.resolved.view }, // Original scene
+        { binding: 1, resource: textures.bloomBlur2.view }, // Blurred bloom
+        { binding: 2, resource: textures.sampler },
         { binding: 3, resource: { buffer: this.bloomCombineUniformBuffer! } },
       ],
     });
@@ -1707,7 +1600,7 @@ export class WebGPUEngine {
     const combinePass = commandEncoder.beginRenderPass({
       colorAttachments: [
         {
-          view: this.blurTextureView!, // Write combined result to blurTexture
+          view: textures.blur.view, // Write combined result to blurTexture
           clearValue: { r: 0, g: 0, b: 0, a: 1 },
           loadOp: 'clear',
           storeOp: 'store',
@@ -1733,13 +1626,16 @@ export class WebGPUEngine {
       return;
     }
 
+    // Obtener texturas del TextureManager
+    const textures = this.getTextures();
+
     const commandEncoder = this.device.createCommandEncoder();
     const canvasTextureView = this.context.getCurrentTexture().createView();
 
     // Determinar target de renderizado según post-processing
-    const usePostProcess = this.postProcessEnabled && this.renderTextureView && this.resolvedTextureView && this.postProcessPipeline;
-    const targetView = usePostProcess ? this.renderTextureView : this.msaaTextureView;
-    const resolveTarget = usePostProcess ? this.resolvedTextureView : canvasTextureView;
+    const usePostProcess = this.postProcessEnabled && this.postProcessPipeline;
+    const targetView = usePostProcess ? textures.renderMSAA.view : textures.renderMSAA.view;
+    const resolveTarget = usePostProcess ? textures.resolved.view : canvasTextureView;
 
     // Si trails están activados, primero aplicar fade
     if (this.trailsEnabled && this.fadePipeline && this.fadeBindGroup && targetView) {
@@ -1793,11 +1689,11 @@ export class WebGPUEngine {
     }
 
     // Si post-processing está activado, aplicar efectos
-    if (usePostProcess && this.postProcessPipeline && this.postProcessUniformBuffer && this.resolvedTexture && this.sampler) {
+    if (usePostProcess && this.postProcessPipeline && this.postProcessUniformBuffer) {
       // Determinar qué textura usar como input:
       // Si bloom está activo, usar blurTexture (contiene bloom aplicado)
       // Si no, usar resolvedTexture (imagen original)
-      const postProcessInputView = this.bloomEnabled ? this.blurTextureView! : this.resolvedTextureView!;
+      const postProcessInputView = this.bloomEnabled ? textures.blur.view : textures.resolved.view;
 
       // Crear bind group solo si es necesario (cache optimization)
       // NOTA: El bind group debe recrearse si cambia la textura de input
@@ -1807,7 +1703,7 @@ export class WebGPUEngine {
           entries: [
             { binding: 0, resource: { buffer: this.postProcessUniformBuffer } },
             { binding: 1, resource: postProcessInputView },
-            { binding: 2, resource: this.sampler },
+            { binding: 2, resource: textures.sampler },
           ],
         });
         this.postProcessBindGroupNeedsUpdate = false;
@@ -1864,9 +1760,11 @@ export class WebGPUEngine {
   destroy(): void {
     this.vectorBuffer?.destroy();
     this.uniformBuffer?.destroy();
+    this.textureManager?.dispose();
 
     this.vectorBuffer = null;
     this.uniformBuffer = null;
+    this.textureManager = null;
     this.renderPipeline = null;
     this.computePipeline = null;
     this.device = null;
