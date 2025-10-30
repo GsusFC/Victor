@@ -52,8 +52,6 @@ import {
   createShaderWithWorkgroupSize,
 } from './shaders/compute/animations.wgsl';
 
-const MAX_GRADIENT_STOPS = 12;
-
 interface MouseUniform {
   x: number;
   y: number;
@@ -631,25 +629,6 @@ export class WebGPUEngine {
   }
 
   /**
-   * Crea buffer de uniforms
-   */
-  private createUniformBuffer(): GPUBuffer | null {
-    if (!this.device) return null;
-
-    // Uniforms: 27 floats base + seed + 4 padding + MAX_GRADIENT_STOPS * 4 (vec4 por stop) = 80 floats = 320 bytes
-    // WebGPU requiere arrays alineados a 16 bytes, por eso usamos 4 floats de padding (32 floats totales antes del array)
-    const uniformFloats = 32 + MAX_GRADIENT_STOPS * 4; // 80 floats (32 base + 12 stops * 4)
-    const uniformBytes = uniformFloats * Float32Array.BYTES_PER_ELEMENT; // 320 bytes
-    const paddedSize = Math.ceil(uniformBytes / 16) * 16; // Ya está alineado = 320 bytes
-
-    return this.device.createBuffer({
-      size: paddedSize,
-      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-      mappedAtCreation: false,
-    });
-  }
-
-  /**
    * Crea buffer de geometría de forma
    */
   private createShapeBuffer(shapeName: VectorShape): GPUBuffer | null {
@@ -682,13 +661,13 @@ export class WebGPUEngine {
   private recreateBuffers(): void {
     // Destruir buffers antiguos
     this.vectorBuffer?.destroy();
-    this.uniformBuffer?.destroy();
     this.shapeBuffer?.destroy();
 
     // Crear nuevos buffers
     this.vectorBuffer = this.createVectorBuffer(this.config.vectorCount);
-    this.uniformBuffer = this.createUniformBuffer();
     this.shapeBuffer = this.createShapeBuffer(this.config.vectorShape);
+
+    // NOTA: uniformBuffer NO se recrea aquí porque es manejado por UniformManager
   }
 
   /**
