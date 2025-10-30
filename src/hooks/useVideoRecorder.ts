@@ -32,6 +32,7 @@ interface UseVideoRecorderReturn {
   pauseRecording: () => Promise<void>;
   resumeRecording: () => Promise<void>;
   downloadVideo: () => void;
+  resetRecorder: () => void;
 
   // Callback para inyectar en el loop de render
   captureFrameCallback: (() => Promise<void>) | null;
@@ -98,6 +99,7 @@ export function useVideoRecorder({
 
   /**
    * Actualiza stats periódicamente durante grabación
+   * También verifica si el recorder se detuvo automáticamente
    */
   const startStatsInterval = useCallback(() => {
     if (statsIntervalRef.current) {
@@ -106,15 +108,31 @@ export function useVideoRecorder({
 
     statsIntervalRef.current = setInterval(() => {
       if (recorderRef.current) {
-        setStats(recorderRef.current.getStats());
+        const newStats = recorderRef.current.getStats();
+        const currentState = recorderRef.current.getState();
+        
+        setStats(newStats);
+        
+        // Sincronizar estado en caso de que VideoRecorder se haya detenido automáticamente
+        if (currentState !== 'recording' && currentState !== 'paused') {
+          console.log('🔄 Detectado cambio de estado en VideoRecorder:', currentState);
+          setState(currentState);
+          
+          // Si se completó el loop, finalizar la grabación
+          if (currentState === 'idle' || currentState === 'processing') {
+            stopStatsInterval();
+            setHasBuffer(recorderRef.current.hasBuffer());
+          }
+        }
       }
-    }, 500); // Actualizar cada 500ms
+    }, 100); // Reducido a 100ms para detección más rápida
   }, []);
 
   const stopStatsInterval = useCallback(() => {
     if (statsIntervalRef.current) {
       clearInterval(statsIntervalRef.current);
       statsIntervalRef.current = null;
+      console.log('⏹️ Intervalo de stats detenido');
     }
   }, []);
 
@@ -152,6 +170,9 @@ export function useVideoRecorder({
     if (!recorderRef.current) return;
 
     try {
+      console.log('📞 Llamando a stopRecording...');
+      stopStatsInterval(); // Detener intervalo PRIMERO
+      
       await recorderRef.current.stop();
       const newState = recorderRef.current.getState();
       const newStats = recorderRef.current.getStats();
@@ -161,13 +182,12 @@ export function useVideoRecorder({
         state: newState,
         hasBuffer: bufferAvailable,
         frames: newStats.frameCount,
-        duration: newStats.duration
+        duration: newStats.duration.toFixed(2) + 's'
       });
 
       setState(newState);
       setStats(newStats);
       setHasBuffer(bufferAvailable);
-      stopStatsInterval();
       onStop?.();
     } catch (error) {
       console.error('Error deteniendo grabación:', error);
@@ -234,6 +254,27 @@ export function useVideoRecorder({
   }, [onError]);
 
   /**
+   * Resetea el recorder para permitir nueva grabación
+   */
+  const resetRecorder = useCallback(() => {
+    if (recorderRef.current) {
+      recorderRef.current.clearBuffer();
+    }
+
+    setState('idle');
+    setHasBuffer(false);
+    setError(null);
+    setStats({
+      duration: 0,
+      frameCount: 0,
+      estimatedSize: 0,
+      currentFps: 0,
+    });
+
+    console.log('🔄 Recorder reseteado, listo para nueva grabación');
+  }, []);
+
+  /**
    * Callback para capturar frames (se inyecta en el loop de render)
    */
   const captureFrameCallback = useCallback(async () => {
@@ -260,6 +301,7 @@ export function useVideoRecorder({
     pauseRecording,
     resumeRecording,
     downloadVideo,
+    resetRecorder,
     captureFrameCallback: isRecording ? captureFrameCallback : null,
   };
 }

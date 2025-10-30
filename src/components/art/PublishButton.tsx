@@ -30,14 +30,6 @@ export function PublishButton({ canvasHandleRef }: PublishButtonProps) {
   const [artId, setArtId] = useState<string>('');
   const [copied, setCopied] = useState(false);
 
-  // Usar selectores individuales para evitar recrear objetos
-  const version = useVectorStore((state) => state.version);
-  const visual = useVectorStore((state) => state.visual);
-  const grid = useVectorStore((state) => state.grid);
-  const animation = useVectorStore((state) => state.animation);
-  const canvas = useVectorStore((state) => state.canvas);
-  const gradients = useVectorStore((state) => state.gradients);
-
   const handlePublish = async () => {
     if (!canvasHandleRef.current) {
       alert('Canvas no disponible');
@@ -53,18 +45,30 @@ export function PublishButton({ canvasHandleRef }: PublishButtonProps) {
       const vectorDataRaw = canvasHandleRef.current.getVectorData();
       const vectorData = vectorDataRaw ? Array.from(vectorDataRaw) : undefined;
 
+      // IMPORTANTE: Capturar estado ACTUAL en el momento del clic, no del render
+      const state = useVectorStore.getState();
+      const { version, visual, grid, animation, canvas, gradients } = state;
+
+      // Capturar dimensiones REALES del canvas HTML (no del store)
+      const canvasElement = canvasHandleRef.current.canvas;
+      const realCanvasWidth = canvasElement?.width || canvas.width;
+      const realCanvasHeight = canvasElement?.height || canvas.height;
+
       // LOG: Ver qué configuración estamos capturando
       console.log('📤 PublishButton: Capturando configuración para publicar');
       console.log('📤 Version:', version);
       console.log('📤 Visual:', JSON.stringify(visual, null, 2));
       console.log('📤 Grid:', JSON.stringify(grid, null, 2));
       console.log('📤 Animation:', JSON.stringify(animation, null, 2));
-      console.log('📤 Canvas:', JSON.stringify(canvas, null, 2));
+      console.log('📤 Canvas Store:', JSON.stringify(canvas, null, 2));
+      console.log('📤 Canvas Real:', { width: realCanvasWidth, height: realCanvasHeight });
       console.log('📤 Gradients:', JSON.stringify(gradients, null, 2));
       console.log('📤 Capture Time:', captureTime);
       console.log('📤 Vector Data (primeros 20):', vectorData?.slice(0, 20));
 
       // Publicar a través del API
+      // NOTA: NO guardamos vectorData para evitar conflictos
+      // El sistema regenerará el grid normalmente con el seed guardado
       const response = await fetch('/api/art/publish', {
         method: 'POST',
         headers: {
@@ -76,12 +80,16 @@ export function PublishButton({ canvasHandleRef }: PublishButtonProps) {
             visual,
             grid,
             animation,
-            canvas,
+            canvas: {
+              ...canvas,
+              width: realCanvasWidth,
+              height: realCanvasHeight,
+            },
             gradients,
           },
           thumbnail,
           captureTime,
-          vectorData,
+          // vectorData omitido deliberadamente
         }),
       });
 

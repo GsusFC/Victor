@@ -1,18 +1,21 @@
 /**
- * RecordingPanel - Panel de control de grabación de video
+ * RecordingPanel - Panel de control de grabación SIMPLIFICADO
+ * Solo grabación manual sin loops automáticos
  */
 
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useVideoRecorder } from '@/hooks/useVideoRecorder';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { Video, Circle, Square, Pause, Play, AlertCircle, Download } from 'lucide-react';
+import { Video, Circle, Square, Pause, Play, AlertCircle, Download, RotateCcw, CheckCircle } from 'lucide-react';
 import type { VideoFormat, VideoQuality, RecordingConfig } from '@/types/recording';
+
+type FlowState = 'config' | 'countdown' | 'recording' | 'paused' | 'processing' | 'ready';
 
 interface RecordingPanelProps {
   canvas: HTMLCanvasElement | null;
@@ -23,18 +26,16 @@ export function RecordingPanel({ canvas, onRecordingCallbackChange }: RecordingP
   // Estado de configuración
   const [format, setFormat] = useState<VideoFormat>('mp4');
   const [quality, setQuality] = useState<VideoQuality>('high');
-  const fileName = 'victor-animation';
+  const [countdown, setCountdown] = useState(3);
+  const [flowState, setFlowState] = useState<FlowState>('config');
 
   // Config para el hook
-  const config: RecordingConfig = useMemo(
-    () => ({
-      format,
-      quality,
-      frameRate: 60,
-      fileName,
-    }),
-    [format, quality, fileName]
-  );
+  const config: RecordingConfig = {
+    format,
+    quality,
+    frameRate: 60,
+    fileName: 'victor-animation',
+  };
 
   // Hook de grabación
   const {
@@ -47,12 +48,16 @@ export function RecordingPanel({ canvas, onRecordingCallbackChange }: RecordingP
     pauseRecording,
     resumeRecording,
     downloadVideo,
+    resetRecorder,
     captureFrameCallback,
   } = useVideoRecorder({
     canvas,
     config,
     onStart: () => console.log('🎥 Grabación iniciada'),
-    onStop: () => console.log('✅ Grabación completada'),
+    onStop: () => {
+      console.log('✅ Grabación completada');
+      setFlowState('ready');
+    },
     onError: (error) => console.error('❌ Error en grabación:', error),
   });
 
@@ -65,19 +70,43 @@ export function RecordingPanel({ canvas, onRecordingCallbackChange }: RecordingP
     };
   }, [captureFrameCallback, onRecordingCallbackChange]);
 
-  // Estados de grabación
+  // Manejar countdown
+  useEffect(() => {
+    if (flowState !== 'countdown') return;
+
+    const timer = setTimeout(async () => {
+      if (countdown > 1) {
+        setCountdown(countdown - 1);
+      } else {
+        setCountdown(3);
+        setFlowState('recording');
+        await startRecording();
+      }
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [flowState, countdown, startRecording]);
+
+  // Estados derivados
   const isIdle = state === 'idle';
   const isPaused = state === 'paused';
   const isProcessing = state === 'processing';
   const hasError = state === 'error';
 
-  // Debug log
-  console.log('🎥 RecordingPanel render:', {
-    state,
-    hasBuffer,
-    isIdle,
-    showDownloadButton: hasBuffer && isIdle
-  });
+  // Funciones manejadoras
+  const handleStartRecording = () => {
+    setFlowState('countdown');
+    setCountdown(3);
+  };
+
+  const handleStopRecording = async () => {
+    await stopRecording();
+  };
+
+  const handleNewRecording = () => {
+    resetRecorder();
+    setFlowState('config');
+  };
 
   // Formatear duración
   const formatDuration = (seconds: number): string => {
@@ -102,19 +131,31 @@ export function RecordingPanel({ canvas, onRecordingCallbackChange }: RecordingP
           <span className="text-sm font-mono">Grabación</span>
         </div>
         <Badge
-          variant={isRecording ? 'destructive' : isProcessing ? 'default' : 'outline'}
+          variant={
+            flowState === 'countdown'
+              ? 'secondary'
+              : flowState === 'recording'
+                ? 'destructive'
+                : flowState === 'processing'
+                  ? 'default'
+                  : flowState === 'ready'
+                    ? 'outline'
+                    : 'outline'
+          }
           className="text-xs font-mono"
         >
-          {state === 'idle' && 'Inactivo'}
-          {state === 'recording' && '● REC'}
-          {state === 'paused' && '⏸ Pausado'}
-          {state === 'processing' && 'Procesando...'}
-          {state === 'error' && 'Error'}
+          {flowState === 'config' && 'Configurando'}
+          {flowState === 'countdown' && `⏱️ ${countdown}`}
+          {flowState === 'recording' && '● REC'}
+          {flowState === 'paused' && '⏸ Pausado'}
+          {flowState === 'processing' && 'Procesando...'}
+          {flowState === 'ready' && '✅ Listo'}
+          {hasError && 'Error'}
         </Badge>
       </div>
 
-      {/* Configuración (solo cuando no está grabando) */}
-      {isIdle && (
+      {/* CONFIGURACIÓN - Solo en estado 'config' */}
+      {flowState === 'config' && (
         <div className="space-y-2">
           {/* Formato */}
           <div className="space-y-1">
@@ -139,72 +180,62 @@ export function RecordingPanel({ canvas, onRecordingCallbackChange }: RecordingP
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="low">Baja (720p30 - 5 Mbps)</SelectItem>
-                <SelectItem value="medium">Media (1080p30 - 8 Mbps)</SelectItem>
-                <SelectItem value="high">Alta (1080p60 - 12 Mbps)</SelectItem>
-                <SelectItem value="max">Máxima (1440p60 - 20 Mbps)</SelectItem>
+                <SelectItem value="low">Baja (1080p30 - 6 Mbps)</SelectItem>
+                <SelectItem value="medium">Redes Sociales (1080p30 - 8 Mbps)</SelectItem>
+                <SelectItem value="high">Alta (1080p60 - 18 Mbps)</SelectItem>
+                <SelectItem value="max">Máxima (1080p60 - 30 Mbps)</SelectItem>
               </SelectContent>
             </Select>
           </div>
-        </div>
-      )}
 
-      {/* Estadísticas (cuando está grabando) */}
-      {!isIdle && stats && (
-        <div className="space-y-2 p-2 rounded bg-muted/20 border border-border/40">
-          <div className="grid grid-cols-2 gap-2 text-xs font-mono">
-            <div>
-              <div className="text-muted-foreground">Duración</div>
-              <div className="font-medium">{formatDuration(stats.duration)}</div>
-            </div>
-            <div>
-              <div className="text-muted-foreground">Frames</div>
-              <div className="font-medium">{stats.frameCount}</div>
-            </div>
-            <div>
-              <div className="text-muted-foreground">FPS</div>
-              <div className="font-medium">{stats.currentFps.toFixed(1)}</div>
-            </div>
-            <div>
-              <div className="text-muted-foreground">Tamaño</div>
-              <div className="font-medium">{formatFileSize(stats.estimatedSize)}</div>
-            </div>
-          </div>
-
-          {/* Barra de progreso (solo visual durante grabación) */}
-          {isRecording && (
-            <div className="space-y-1">
-              <Progress value={undefined} className="h-1" />
-              <div className="text-xs text-muted-foreground text-center">Grabando...</div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Mensaje de error */}
-      {hasError && (
-        <div className="flex items-start gap-2 p-2 rounded bg-destructive/10 border border-destructive/20">
-          <AlertCircle className="w-4 h-4 text-destructive flex-shrink-0 mt-0.5" />
-          <div className="text-xs text-destructive">
-            Error en la grabación. Verifica que tu navegador soporte WebCodecs API.
-          </div>
-        </div>
-      )}
-
-      {/* Controles */}
-      <div className="flex gap-2">
-        {isIdle ? (
+          {/* Botón iniciar */}
           <Button
-            onClick={startRecording}
+            onClick={handleStartRecording}
             disabled={!canvas}
             size="sm"
             className="w-full gap-2 h-8 text-xs"
           >
             <Circle className="w-3 h-3 fill-current" />
-            Iniciar grabación
+            Iniciar Grabación
           </Button>
-        ) : (
-          <>
+        </div>
+      )}
+
+      {/* COUNTDOWN */}
+      {flowState === 'countdown' && (
+        <div className="flex flex-col items-center justify-center p-8 space-y-4 rounded bg-muted/40 border border-border/40">
+          <div className="text-6xl font-bold font-mono text-primary animate-pulse">{countdown}</div>
+          <div className="text-sm text-muted-foreground">Preparando grabación...</div>
+        </div>
+      )}
+
+      {/* GRABANDO - Estadísticas y controles */}
+      {(flowState === 'recording' || flowState === 'paused') && stats && (
+        <div className="space-y-2">
+          {/* Estadísticas */}
+          <div className="p-2 rounded bg-muted/20 border border-border/40 space-y-2">
+            <div className="grid grid-cols-2 gap-2 text-xs font-mono">
+              <div>
+                <div className="text-muted-foreground">Duración</div>
+                <div className="font-medium">{formatDuration(stats.duration)}</div>
+              </div>
+              <div>
+                <div className="text-muted-foreground">Frames</div>
+                <div className="font-medium">{stats.frameCount}</div>
+              </div>
+              <div>
+                <div className="text-muted-foreground">FPS</div>
+                <div className="font-medium">{stats.currentFps.toFixed(1)}</div>
+              </div>
+              <div>
+                <div className="text-muted-foreground">Tamaño</div>
+                <div className="font-medium">{formatFileSize(stats.estimatedSize)}</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Controles */}
+          <div className="flex gap-2">
             {/* Pausar/Reanudar */}
             <Button
               onClick={isPaused ? resumeRecording : pauseRecording}
@@ -228,7 +259,7 @@ export function RecordingPanel({ canvas, onRecordingCallbackChange }: RecordingP
 
             {/* Detener */}
             <Button
-              onClick={stopRecording}
+              onClick={handleStopRecording}
               disabled={isProcessing}
               size="sm"
               variant="destructive"
@@ -237,35 +268,73 @@ export function RecordingPanel({ canvas, onRecordingCallbackChange }: RecordingP
               <Square className="w-3 h-3 fill-current" />
               Detener
             </Button>
-          </>
-        )}
-      </div>
-
-      {/* Botón de descarga (solo visible cuando hay buffer) */}
-      {hasBuffer && isIdle && (
-        <div className="space-y-2 p-2 rounded bg-green-500/10 border border-green-500/20">
-          <div className="flex items-center gap-2 text-xs text-green-600 dark:text-green-400">
-            <Video className="w-3 h-3" />
-            <span className="font-medium">Video listo para descargar</span>
           </div>
-          <Button
-            onClick={downloadVideo}
-            size="sm"
-            variant="outline"
-            className="w-full gap-2 h-8 text-xs border-green-500/30 hover:bg-green-500/10"
-          >
-            <Download className="w-3 h-3" />
-            Descargar video
-          </Button>
         </div>
       )}
 
-      {/* Información adicional */}
-      {isIdle && !hasBuffer && (
-        <div className="text-xs text-muted-foreground space-y-1">
-          <p>• Graba animaciones a 60 FPS</p>
-          <p>• Requiere Chrome/Edge con WebCodecs</p>
-          <p>• Descarga manual tras detener grabación</p>
+      {/* PROCESANDO */}
+      {flowState === 'processing' && (
+        <div className="space-y-2 p-2 rounded bg-muted/20 border border-border/40">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Circle className="w-2 h-2 animate-pulse" />
+            Procesando video...
+          </div>
+          <Progress value={undefined} className="h-1" />
+        </div>
+      )}
+
+      {/* LISTO - Video grabado */}
+      {flowState === 'ready' && hasBuffer && (
+        <div className="space-y-2">
+          {/* Indicador de éxito */}
+          <div className="flex items-center gap-2 text-green-600 dark:text-green-400 p-2 rounded bg-green-500/10 border border-green-500/20">
+            <CheckCircle className="w-4 h-4" />
+            <span className="text-xs font-medium">Video listo para descargar</span>
+          </div>
+
+          {/* Estadísticas finales */}
+          <div className="grid grid-cols-2 gap-2 p-2 rounded bg-muted/20 border border-border/40 text-xs font-mono">
+            <div>
+              <div className="text-muted-foreground">Duración</div>
+              <div className="font-medium">{formatDuration(stats.duration)}</div>
+            </div>
+            <div>
+              <div className="text-muted-foreground">Tamaño</div>
+              <div className="font-medium">{formatFileSize(stats.estimatedSize)}</div>
+            </div>
+          </div>
+
+          {/* Botones de acción */}
+          <div className="space-y-2">
+            <Button
+              onClick={downloadVideo}
+              size="sm"
+              className="w-full gap-2 h-8 text-xs"
+            >
+              <Download className="w-3 h-3" />
+              Descargar Video
+            </Button>
+
+            <Button
+              onClick={handleNewRecording}
+              size="sm"
+              variant="outline"
+              className="w-full gap-2 h-8 text-xs"
+            >
+              <RotateCcw className="w-3 h-3" />
+              Grabar de Nuevo
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Mensaje de error */}
+      {hasError && (
+        <div className="flex items-start gap-2 p-2 rounded bg-destructive/10 border border-destructive/20">
+          <AlertCircle className="w-4 h-4 text-destructive flex-shrink-0 mt-0.5" />
+          <div className="text-xs text-destructive">
+            Error en la grabación. Verifica que tu navegador soporte WebCodecs API.
+          </div>
         </div>
       )}
     </div>

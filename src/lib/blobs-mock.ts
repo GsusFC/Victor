@@ -6,12 +6,16 @@
 
 // Storage en memoria persistente durante HMR (Hot Module Replacement)
 // Usamos globalThis para evitar que se reinicialice en cada recarga del módulo
-const globalForMock = globalThis as unknown as {
-  mockBlobsStorage: Record<string, any> | undefined;
-};
+declare global {
+  var mockBlobsStorage: Record<string, any> | undefined;
+}
 
-globalForMock.mockBlobsStorage = globalForMock.mockBlobsStorage ?? {};
-const mockStorage = globalForMock.mockBlobsStorage;
+// Asegurar que el storage exista y sea persistente
+if (!global.mockBlobsStorage) {
+  global.mockBlobsStorage = {};
+}
+
+const mockStorage = global.mockBlobsStorage;
 
 export function getStore(name: string) {
   console.log(`[Mock Blobs] Using mock store: ${name}`);

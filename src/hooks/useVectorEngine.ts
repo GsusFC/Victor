@@ -75,8 +75,8 @@ export function useVectorEngine(options: UseVectorEngineOptions | RefObject<HTML
         // Configurar trails
         engine.setTrails(visual.trails.enabled, visual.trails.opacity);
 
-        // Generar grid inicial (usar posiciones guardadas si están disponibles)
-        generateAndUpdateGrid(engine, canvas, savedVectorData);
+        // Generar grid inicial
+        generateAndUpdateGrid(engine, canvas);
       } else {
         console.error('❌ useVectorEngine: Falló la inicialización');
       }
@@ -121,15 +121,12 @@ export function useVectorEngine(options: UseVectorEngineOptions | RefObject<HTML
     // Actualizar forma si cambió
     engine.setShape(visual.shape as VectorShape);
 
-    // Regenerar grid SOLO si NO hay datos guardados
-    // (Si hay datos guardados, queremos mantener las posiciones exactas)
-    if (!savedVectorData) {
-      const canvas = canvasRef.current;
-      if (canvas) {
-        generateAndUpdateGrid(engine, canvas);
-      }
+    // Regenerar grid normalmente (sin usar savedVectorData)
+    const canvas = canvasRef.current;
+    if (canvas) {
+      generateAndUpdateGrid(engine, canvas);
     }
-  }, [grid.rows, grid.cols, grid.spacing, grid.mode, visual.vectorLength, visual.vectorWidth, visual.shape, canvasRef, savedVectorData]);
+  }, [grid.rows, grid.cols, grid.spacing, grid.mode, visual.vectorLength, visual.vectorWidth, visual.shape, canvasRef]);
 
   // Actualizar trails cuando cambia la configuración
   useEffect(() => {
@@ -164,6 +161,26 @@ export function useVectorEngine(options: UseVectorEngineOptions | RefObject<HTML
     visual.postProcessing.contrast,
     visual.postProcessing.saturation,
     visual.postProcessing.brightness,
+  ]);
+
+  // Advanced Bloom configuration
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine || !engine.initialized) return;
+
+    const bloom = visual.postProcessing.advancedBloom;
+    // Safety check for backward compatibility
+    if (!bloom) return;
+
+    engine.setAdvancedBloom({
+      enabled: bloom.enabled,
+      quality: bloom.quality,
+      radius: bloom.radius,
+      threshold: bloom.threshold,
+      intensity: bloom.intensity,
+    });
+  }, [
+    visual.postProcessing.advancedBloom,
   ]);
 
   // Tracking de mouse en coordenadas ISO
@@ -256,27 +273,17 @@ export function useVectorEngine(options: UseVectorEngineOptions | RefObject<HTML
 
 /**
  * Genera grid de vectores y actualiza el buffer del engine
- * @param savedData - Posiciones exactas guardadas (opcional). Si se provee, se usa directamente
+ * Siempre regenera el grid normalmente (sin datos guardados)
+ * El seed garantiza reproducibilidad a través de las animaciones
  */
 function generateAndUpdateGrid(
   engine: WebGPUEngine,
-  canvas: HTMLCanvasElement,
-  savedData?: number[]
+  canvas: HTMLCanvasElement
 ) {
   const grid = useVectorStore.getState().grid;
   const visual = useVectorStore.getState().visual;
 
   const vectorCount = grid.rows * grid.cols;
-
-  // Si hay datos guardados, usarlos directamente
-  if (savedData && savedData.length === vectorCount * 4) {
-    console.log('📍 Usando posiciones EXACTAS guardadas del grid');
-    const vectorData = new Float32Array(savedData);
-    engine.updateVectorBuffer(vectorData);
-    return;
-  }
-
-  // Si no hay datos guardados, generar el grid normalmente
   const aspect = canvas.width / canvas.height;
   const pixelToISO = canvas.height > 0 ? 2 / canvas.height : 0.001;
 

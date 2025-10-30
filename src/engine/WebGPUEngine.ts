@@ -8,15 +8,20 @@ import { vectorShader } from './shaders/render/vector.wgsl';
 import { fadeShader } from './shaders/render/fade.wgsl';
 import { postProcessShader } from './shaders/render/postprocess.wgsl';
 import { blurShader } from './shaders/render/blur.wgsl';
+import { bloomExtractShader } from './shaders/render/bloom-extract.wgsl';
+import { bloomBlurShader } from './shaders/render/bloom-blur.wgsl';
+import { bloomCombineShader } from './shaders/render/bloom-combine.wgsl';
 import { ShapeLibrary, type ShapeName } from './ShapeLibrary';
 import {
   noneShader,
   smoothWavesShader,
   seaWavesShader,
   breathingSoftShader,
-  flockingShader,
   flowFieldShader,
+  rippleEffectShader,
   organicGrowthShader,
+  fluidDynamicsShader,
+  auroraShader,
   electricPulseShader,
   vortexShader,
   directionalFlowShader,
@@ -25,11 +30,20 @@ import {
   radiationShader,
   magneticFieldShader,
   chaosAttractorShader,
+  plasmaBallShader,
+  blackHoleShader,
+  lightningStormShader,
+  quantumFieldShader,
   tangenteClasicaShader,
   lissajousShader,
   geometricPatternShader,
   harmonicOscillatorShader,
   spirographShader,
+  fibonacciShader,
+  voronoiDiagramShader,
+  mandalasShader,
+  kaleidoscopeShader,
+  dnaHelixShader,
   springMeshShader,
   createShaderWithWorkgroupSize,
 } from './shaders/compute/animations.wgsl';
@@ -50,9 +64,12 @@ export type AnimationType =
   | 'smoothWaves'
   | 'seaWaves'
   | 'breathingSoft'
-  | 'flocking'
   | 'flowField'
+  | 'dnaHelix'
+  | 'rippleEffect'
   | 'organicGrowth'
+  | 'fluidDynamics'
+  | 'aurora'
   // Energéticas
   | 'electricPulse'
   | 'vortex'
@@ -62,12 +79,20 @@ export type AnimationType =
   | 'radiation'
   | 'magneticField'
   | 'chaosAttractor'
+  | 'plasmaBall'
+  | 'blackHole'
+  | 'lightningStorm'
+  | 'quantumField'
   // Geométricas
   | 'tangenteClasica'
   | 'lissajous'
   | 'geometricPattern'
   | 'harmonicOscillator'
   | 'spirograph'
+  | 'fibonacci'
+  | 'voronoiDiagram'
+  | 'mandalas'
+  | 'kaleidoscope'
   // Experimentales
   | 'springMesh';
 
@@ -129,6 +154,19 @@ export class WebGPUEngine {
   private blurUniformBuffer: GPUBuffer | null = null;
   private postProcessBindGroupNeedsUpdate = true;  // Flag to track when bind group needs recreation
 
+  // Advanced Bloom system
+  private bloomExtractPipeline: GPURenderPipeline | null = null;
+  private bloomBlurPipeline: GPURenderPipeline | null = null;
+  private bloomCombinePipeline: GPURenderPipeline | null = null;
+  private bloomExtractUniformBuffer: GPUBuffer | null = null;
+  private bloomBlurUniformBuffer: GPUBuffer | null = null;
+  private bloomCombineUniformBuffer: GPUBuffer | null = null;
+  private bloomEnabled = false;
+  private bloomQuality = 9;  // 5, 9, or 13 samples
+  private bloomRadius = 1.5;
+  private bloomThreshold = 0.7;
+  private bloomIntensity = 0.5;
+
   // Render-to-texture (ping-pong textures)
   private renderTexture: GPUTexture | null = null;  // MSAA texture para renderizar vectores
   private renderTextureView: GPUTextureView | null = null;
@@ -136,6 +174,10 @@ export class WebGPUEngine {
   private resolvedTextureView: GPUTextureView | null = null;
   private blurTexture: GPUTexture | null = null;
   private blurTextureView: GPUTextureView | null = null;
+  private bloomTexture1: GPUTexture | null = null;  // Para extract bright pass
+  private bloomTexture1View: GPUTextureView | null = null;
+  private bloomTexture2: GPUTexture | null = null;  // Para blur ping-pong
+  private bloomTexture2View: GPUTextureView | null = null;
   private sampler: GPUSampler | null = null;
 
   // Estado
@@ -314,9 +356,12 @@ export class WebGPUEngine {
       smoothWaves: smoothWavesShader,
       seaWaves: seaWavesShader,
       breathingSoft: breathingSoftShader,
-      flocking: flockingShader,
       flowField: flowFieldShader,
+      dnaHelix: dnaHelixShader,
+      rippleEffect: rippleEffectShader,
       organicGrowth: organicGrowthShader,
+      fluidDynamics: fluidDynamicsShader,
+      aurora: auroraShader,
       // Energéticas
       electricPulse: electricPulseShader,
       vortex: vortexShader,
@@ -326,12 +371,20 @@ export class WebGPUEngine {
       radiation: radiationShader,
       magneticField: magneticFieldShader,
       chaosAttractor: chaosAttractorShader,
+      plasmaBall: plasmaBallShader,
+      blackHole: blackHoleShader,
+      lightningStorm: lightningStormShader,
+      quantumField: quantumFieldShader,
       // Geométricas
       tangenteClasica: tangenteClasicaShader,
       lissajous: lissajousShader,
       geometricPattern: geometricPatternShader,
       harmonicOscillator: harmonicOscillatorShader,
       spirograph: spirographShader,
+      fibonacci: fibonacciShader,
+      voronoiDiagram: voronoiDiagramShader,
+      mandalas: mandalasShader,
+      kaleidoscope: kaleidoscopeShader,
       // Experimentales
       springMesh: springMeshShader,
     };
@@ -630,7 +683,132 @@ export class WebGPUEngine {
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
 
-    console.log(`✅ Pipelines creadas (render + fade + post-process + blur + ${this.computePipelines.size} compute)`);
+    // ============================================
+    // ADVANCED BLOOM PIPELINES
+    // ============================================
+
+    // 1. Bloom Extract Pipeline (extract bright pass)
+    const bloomExtractShaderModule = this.device.createShaderModule({
+      label: 'Bloom Extract Shader',
+      code: bloomExtractShader,
+    });
+
+    const bloomExtractBindGroupLayout = this.device.createBindGroupLayout({
+      label: 'Bloom Extract Bind Group Layout',
+      entries: [
+        { binding: 0, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float' } },
+        { binding: 1, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } },
+        { binding: 2, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
+      ],
+    });
+
+    const bloomExtractPipelineLayout = this.device.createPipelineLayout({
+      label: 'Bloom Extract Pipeline Layout',
+      bindGroupLayouts: [bloomExtractBindGroupLayout],
+    });
+
+    this.bloomExtractPipeline = this.device.createRenderPipeline({
+      label: 'Bloom Extract Pipeline',
+      layout: bloomExtractPipelineLayout,
+      vertex: {
+        module: bloomExtractShaderModule,
+        entryPoint: 'vertexMain',
+      },
+      fragment: {
+        module: bloomExtractShaderModule,
+        entryPoint: 'fragmentMain',
+        targets: [{ format: canvasFormat }],
+      },
+      primitive: { topology: 'triangle-list' },
+    });
+
+    this.bloomExtractUniformBuffer = this.device.createBuffer({
+      size: 16, // threshold + softKnee + padding (vec4)
+      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+    });
+
+    // 2. Bloom Blur Pipeline (separable gaussian blur)
+    const bloomBlurShaderModule = this.device.createShaderModule({
+      label: 'Bloom Blur Shader',
+      code: bloomBlurShader,
+    });
+
+    const bloomBlurBindGroupLayout = this.device.createBindGroupLayout({
+      label: 'Bloom Blur Bind Group Layout',
+      entries: [
+        { binding: 0, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float' } },
+        { binding: 1, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } },
+        { binding: 2, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
+      ],
+    });
+
+    const bloomBlurPipelineLayout = this.device.createPipelineLayout({
+      label: 'Bloom Blur Pipeline Layout',
+      bindGroupLayouts: [bloomBlurBindGroupLayout],
+    });
+
+    this.bloomBlurPipeline = this.device.createRenderPipeline({
+      label: 'Bloom Blur Pipeline',
+      layout: bloomBlurPipelineLayout,
+      vertex: {
+        module: bloomBlurShaderModule,
+        entryPoint: 'vertexMain',
+      },
+      fragment: {
+        module: bloomBlurShaderModule,
+        entryPoint: 'fragmentMain',
+        targets: [{ format: canvasFormat }],
+      },
+      primitive: { topology: 'triangle-list' },
+    });
+
+    this.bloomBlurUniformBuffer = this.device.createBuffer({
+      size: 16, // direction (vec2) + radius + quality = 4 floats
+      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+    });
+
+    // 3. Bloom Combine Pipeline (combine with original)
+    const bloomCombineShaderModule = this.device.createShaderModule({
+      label: 'Bloom Combine Shader',
+      code: bloomCombineShader,
+    });
+
+    const bloomCombineBindGroupLayout = this.device.createBindGroupLayout({
+      label: 'Bloom Combine Bind Group Layout',
+      entries: [
+        { binding: 0, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float' } },
+        { binding: 1, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float' } },
+        { binding: 2, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } },
+        { binding: 3, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
+      ],
+    });
+
+    const bloomCombinePipelineLayout = this.device.createPipelineLayout({
+      label: 'Bloom Combine Pipeline Layout',
+      bindGroupLayouts: [bloomCombineBindGroupLayout],
+    });
+
+    this.bloomCombinePipeline = this.device.createRenderPipeline({
+      label: 'Bloom Combine Pipeline',
+      layout: bloomCombinePipelineLayout,
+      vertex: {
+        module: bloomCombineShaderModule,
+        entryPoint: 'vertexMain',
+      },
+      fragment: {
+        module: bloomCombineShaderModule,
+        entryPoint: 'fragmentMain',
+        targets: [{ format: canvasFormat }],
+      },
+      primitive: { topology: 'triangle-list' },
+    });
+
+    this.bloomCombineUniformBuffer = this.device.createBuffer({
+      size: 32, // bloomIntensity + padding (WebGPU requires 32 bytes minimum)
+      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+    });
+
+    console.log(`✅ Pipelines creadas (render + fade + post-process + blur + advanced bloom + ${this.computePipelines.size} compute)`);
   }
 
   /**
@@ -714,6 +892,54 @@ export class WebGPUEngine {
       uniforms[14] = 0.0; // padding
 
       this.device.queue.writeBuffer(this.postProcessUniformBuffer, 0, uniforms);
+    }
+  }
+
+  /**
+   * Actualiza configuración de advanced bloom
+   */
+  setAdvancedBloom(config: {
+    enabled?: boolean;
+    quality?: 5 | 9 | 13;
+    radius?: number;
+    threshold?: number;
+    intensity?: number;
+  }): void {
+    if (config.enabled !== undefined) {
+      this.bloomEnabled = config.enabled;
+    }
+    if (config.quality !== undefined) {
+      this.bloomQuality = config.quality;
+    }
+    if (config.radius !== undefined) {
+      this.bloomRadius = config.radius;
+    }
+    if (config.threshold !== undefined) {
+      this.bloomThreshold = config.threshold;
+    }
+    if (config.intensity !== undefined) {
+      this.bloomIntensity = config.intensity;
+    }
+
+    // Actualizar uniform buffers si ya existen
+    if (this.device) {
+      // Extract uniforms: threshold + softKnee
+      if (this.bloomExtractUniformBuffer) {
+        this.device.queue.writeBuffer(
+          this.bloomExtractUniformBuffer,
+          0,
+          new Float32Array([this.bloomThreshold, 0.5, 0.0, 0.0]) // threshold, softKnee, padding
+        );
+      }
+
+      // Combine uniforms: intensity
+      if (this.bloomCombineUniformBuffer) {
+        this.device.queue.writeBuffer(
+          this.bloomCombineUniformBuffer,
+          0,
+          new Float32Array([this.bloomIntensity, 0.0, 0.0, 0.0]) // intensity, padding
+        );
+      }
     }
   }
 
@@ -837,22 +1063,27 @@ export class WebGPUEngine {
     if (this.blurTexture) {
       this.blurTexture.destroy();
     }
+    if (this.bloomTexture1) {
+      this.bloomTexture1.destroy();
+    }
+    if (this.bloomTexture2) {
+      this.bloomTexture2.destroy();
+    }
 
     // Crear render texture MSAA (donde renderizamos los vectores con antialiasing)
     this.renderTexture = this.device.createTexture({
       size: { width, height },
       sampleCount: this.sampleCount,  // MSAA (4x)
-      format,
-      usage: GPUTextureUsage.RENDER_ATTACHMENT,  // Solo render, no se puede samplear MSAA directamente
+      format,  // Canvas format (bgra8unorm)
+      usage: GPUTextureUsage.RENDER_ATTACHMENT,
     });
 
     this.renderTextureView = this.renderTexture.createView();
 
     // Crear textura resuelta (non-MSAA) para muestreo en post-process
-    // Esta textura recibe el resolve del MSAA y se puede samplear
     this.resolvedTexture = this.device.createTexture({
       size: { width, height },
-      format,
+      format,  // Canvas format
       usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
     });
 
@@ -861,17 +1092,34 @@ export class WebGPUEngine {
     // Crear blur texture (para ping-pong de blur)
     this.blurTexture = this.device.createTexture({
       size: { width, height },
-      format,
+      format,  // Canvas format
       usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
     });
 
     this.blurTextureView = this.blurTexture.createView();
 
+    // Crear bloom textures (para advanced bloom multi-pass)
+    this.bloomTexture1 = this.device.createTexture({
+      size: { width, height },
+      format,  // Canvas format
+      usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
+    });
+
+    this.bloomTexture1View = this.bloomTexture1.createView();
+
+    this.bloomTexture2 = this.device.createTexture({
+      size: { width, height },
+      format,  // Canvas format
+      usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
+    });
+
+    this.bloomTexture2View = this.bloomTexture2.createView();
+
     // Invalidate bind group cache since textures changed
     this.postProcessBindGroupNeedsUpdate = true;
     this.postProcessBindGroup = null;
 
-    console.log(`✅ Post-process textures creadas: ${width}x${height} (MSAA + resolved)`);
+    console.log(`✅ Post-process textures creadas: ${width}x${height} (MSAA + Bloom)`);
   }
 
   /**
@@ -1121,8 +1369,6 @@ export class WebGPUEngine {
           return { frequency: 0.02, amplitude: 35, elasticity: 0.8, maxLength: 110 };
         case 'breathingSoft':
           return { frequency: 1.1, amplitude: 60, elasticity: 0.4, maxLength: 150 };
-        case 'flocking':
-          return { frequency: 0.15, amplitude: 0.8, elasticity: 0.4, maxLength: 95 };
         // Energéticas
         case 'electricPulse':
           return { frequency: 0.02, amplitude: 28, elasticity: 0.6, maxLength: 120 };
@@ -1166,12 +1412,6 @@ export class WebGPUEngine {
         break;
       }
       case 'geometricPattern': {
-        param3 = Math.max(0, Math.min(1, param3));
-        break;
-      }
-      case 'flocking': {
-        param1 = Math.max(0.01, param1);
-        param2 = Math.max(0, Math.min(2, param2));
         param3 = Math.max(0, Math.min(1, param3));
         break;
       }
@@ -1390,6 +1630,147 @@ export class WebGPUEngine {
   }
 
   /**
+   * Aplica advanced bloom multi-pass (extract → blur H → blur V → combine)
+   * @param commandEncoder Command encoder para agregar render passes
+   */
+  private applyAdvancedBloom(commandEncoder: GPUCommandEncoder): void {
+    if (
+      !this.device ||
+      !this.bloomExtractPipeline ||
+      !this.bloomBlurPipeline ||
+      !this.bloomCombinePipeline ||
+      !this.resolvedTextureView ||
+      !this.bloomTexture1View ||
+      !this.bloomTexture2View ||
+      !this.sampler
+    ) {
+      return;
+    }
+
+    // Pass 1: Extract bright colors
+    const extractBindGroup = this.device.createBindGroup({
+      layout: this.bloomExtractPipeline.getBindGroupLayout(0),
+      entries: [
+        { binding: 0, resource: this.resolvedTextureView }, // Input: rendered scene
+        { binding: 1, resource: this.sampler },
+        { binding: 2, resource: { buffer: this.bloomExtractUniformBuffer! } },
+      ],
+    });
+
+    const extractPass = commandEncoder.beginRenderPass({
+      colorAttachments: [
+        {
+          view: this.bloomTexture1View,
+          clearValue: { r: 0, g: 0, b: 0, a: 1 },
+          loadOp: 'clear',
+          storeOp: 'store',
+        },
+      ],
+    });
+
+    extractPass.setPipeline(this.bloomExtractPipeline);
+    extractPass.setBindGroup(0, extractBindGroup);
+    extractPass.draw(3, 1, 0, 0);
+    extractPass.end();
+
+    // Pass 2: Horizontal blur
+    const horizontalBlurUniforms = new Float32Array([
+      1.0, 0.0,                  // direction (horizontal)
+      this.bloomRadius,          // radius
+      this.bloomQuality,         // quality
+    ]);
+    this.device.queue.writeBuffer(this.bloomBlurUniformBuffer!, 0, horizontalBlurUniforms);
+
+    const horizontalBlurBindGroup = this.device.createBindGroup({
+      layout: this.bloomBlurPipeline.getBindGroupLayout(0),
+      entries: [
+        { binding: 0, resource: this.bloomTexture1View }, // Input: bright pass
+        { binding: 1, resource: this.sampler },
+        { binding: 2, resource: { buffer: this.bloomBlurUniformBuffer! } },
+      ],
+    });
+
+    const horizontalBlurPass = commandEncoder.beginRenderPass({
+      colorAttachments: [
+        {
+          view: this.bloomTexture2View,
+          clearValue: { r: 0, g: 0, b: 0, a: 1 },
+          loadOp: 'clear',
+          storeOp: 'store',
+        },
+      ],
+    });
+
+    horizontalBlurPass.setPipeline(this.bloomBlurPipeline);
+    horizontalBlurPass.setBindGroup(0, horizontalBlurBindGroup);
+    horizontalBlurPass.draw(3, 1, 0, 0);
+    horizontalBlurPass.end();
+
+    // Pass 3: Vertical blur
+    const verticalBlurUniforms = new Float32Array([
+      0.0, 1.0,                  // direction (vertical)
+      this.bloomRadius,          // radius
+      this.bloomQuality,         // quality
+    ]);
+    this.device.queue.writeBuffer(this.bloomBlurUniformBuffer!, 0, verticalBlurUniforms);
+
+    const verticalBlurBindGroup = this.device.createBindGroup({
+      layout: this.bloomBlurPipeline.getBindGroupLayout(0),
+      entries: [
+        { binding: 0, resource: this.bloomTexture2View }, // Input: horizontally blurred
+        { binding: 1, resource: this.sampler },
+        { binding: 2, resource: { buffer: this.bloomBlurUniformBuffer! } },
+      ],
+    });
+
+    const verticalBlurPass = commandEncoder.beginRenderPass({
+      colorAttachments: [
+        {
+          view: this.bloomTexture1View, // Output back to texture1 (ping-pong complete)
+          clearValue: { r: 0, g: 0, b: 0, a: 1 },
+          loadOp: 'clear',
+          storeOp: 'store',
+        },
+      ],
+    });
+
+    verticalBlurPass.setPipeline(this.bloomBlurPipeline);
+    verticalBlurPass.setBindGroup(0, verticalBlurBindGroup);
+    verticalBlurPass.draw(3, 1, 0, 0);
+    verticalBlurPass.end();
+
+    // Pass 4: Combine bloom with original (write to blurTexture for final post-process)
+    const combineBindGroup = this.device.createBindGroup({
+      layout: this.bloomCombinePipeline.getBindGroupLayout(0),
+      entries: [
+        { binding: 0, resource: this.resolvedTextureView }, // Original scene
+        { binding: 1, resource: this.bloomTexture1View },   // Blurred bloom
+        { binding: 2, resource: this.sampler },
+        { binding: 3, resource: { buffer: this.bloomCombineUniformBuffer! } },
+      ],
+    });
+
+    const combinePass = commandEncoder.beginRenderPass({
+      colorAttachments: [
+        {
+          view: this.blurTextureView!, // Write combined result to blurTexture
+          clearValue: { r: 0, g: 0, b: 0, a: 1 },
+          loadOp: 'clear',
+          storeOp: 'store',
+        },
+      ],
+    });
+
+    combinePass.setPipeline(this.bloomCombinePipeline);
+    combinePass.setBindGroup(0, combineBindGroup);
+    combinePass.draw(3, 1, 0, 0);
+    combinePass.end();
+
+    // Ahora blurTexture contiene la imagen con bloom aplicado
+    // El post-process final debe usar blurTexture en lugar de resolvedTexture
+  }
+
+  /**
    * Renderiza un frame
    */
   renderFrame(): void {
@@ -1452,15 +1833,26 @@ export class WebGPUEngine {
     renderPass.draw(this.currentShapeVertexCount, this.config.vectorCount, 0, 0);
     renderPass.end();
 
+    // Si advanced bloom está activado, aplicar multi-pass bloom
+    if (this.bloomEnabled && usePostProcess) {
+      this.applyAdvancedBloom(commandEncoder);
+    }
+
     // Si post-processing está activado, aplicar efectos
     if (usePostProcess && this.postProcessPipeline && this.postProcessUniformBuffer && this.resolvedTexture && this.sampler) {
+      // Determinar qué textura usar como input:
+      // Si bloom está activo, usar blurTexture (contiene bloom aplicado)
+      // Si no, usar resolvedTexture (imagen original)
+      const postProcessInputView = this.bloomEnabled ? this.blurTextureView! : this.resolvedTextureView!;
+
       // Crear bind group solo si es necesario (cache optimization)
+      // NOTA: El bind group debe recrearse si cambia la textura de input
       if (this.postProcessBindGroupNeedsUpdate || !this.postProcessBindGroup) {
         this.postProcessBindGroup = this.device.createBindGroup({
           layout: this.postProcessPipeline.getBindGroupLayout(0),
           entries: [
             { binding: 0, resource: { buffer: this.postProcessUniformBuffer } },
-            { binding: 1, resource: this.resolvedTextureView! },
+            { binding: 1, resource: postProcessInputView },
             { binding: 2, resource: this.sampler },
           ],
         });

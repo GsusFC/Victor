@@ -19,18 +19,28 @@ export class VideoRecorder {
   private frameCount: number = 0;
   private errorInfo: RecordingError | null = null;
   private savedBuffer: ArrayBuffer | Uint8Array | Blob[] | null = null;
-  private warmupFramesSkipped: number = 0;
-  private readonly WARMUP_FRAMES = 90; // Skip primeros 90 frames (~1.5 segundos para estabilidad GPU)
+  private recorderInitializing: boolean = false; // Flag para evitar captura durante inicialización
+  private recorderStartDelayFrames: number = 0; // Frames a esperar después de iniciar recorder
+  private readonly RECORDER_START_DELAY = 10; // Frames para estabilizar canvas-record (evitar frames verdes)
 
   constructor(canvas: HTMLCanvasElement, config?: Partial<RecordingConfig>) {
     this.canvas = canvas;
     this.context = canvas.getContext('webgpu');
 
-    // Configuración por defecto
+    // Configuración por defecto - obtener FPS del preset de calidad
+    const defaultQuality = config?.quality || 'high';
+    const QUALITY_PRESETS: Record<string, { fps: number }> = {
+      low: { fps: 30 },
+      medium: { fps: 30 },
+      high: { fps: 60 },
+      max: { fps: 60 },
+    };
+    const fpsForQuality = QUALITY_PRESETS[defaultQuality]?.fps || 60;
+
     this.config = {
       format: 'mp4',
       quality: 'high',
-      frameRate: 60,
+      frameRate: config?.frameRate || fpsForQuality,
       fileName: 'victor-animation',
       ...config,
     };
@@ -66,9 +76,9 @@ export class VideoRecorder {
       return undefined; // Fallback automático a WASM
     }
 
-    // H.264 para MP4 (mejor compatibilidad)
+    // H.264 High Profile para MP4 (mejor compatibilidad y calidad)
     if (this.config.format === 'mp4') {
-      return AVC.getCodec({ profile: 'Main', level: '5.2' });
+      return AVC.getCodec({ profile: 'High', level: '5.2' }); // High Profile para mejor calidad
     }
 
     // VP9 para WebM (mejor compresión)
@@ -80,10 +90,10 @@ export class VideoRecorder {
    */
   private getBitrate(): number {
     const presets: Record<VideoQuality, number> = {
-      low: 4_000_000, // 4 Mbps
-      medium: 8_000_000, // 8 Mbps
-      high: 12_000_000, // 12 Mbps
-      max: 20_000_000, // 20 Mbps
+      low: 6_000_000, // 6 Mbps (mejorado)
+      medium: 12_000_000, // 12 Mbps (mejorado)
+      high: 18_000_000, // 18 Mbps (mejorado) - Óptimo para arte
+      max: 30_000_000, // 30 Mbps (mejorado)
     };
 
     return presets[this.config.quality];
@@ -124,12 +134,19 @@ export class VideoRecorder {
       this.startTime = performance.now();
       this.errorInfo = null;
       this.savedBuffer = null; // Limpiar buffer anterior
-      this.warmupFramesSkipped = 0; // Reset contador de warmup
+      this.recorderInitializing = false; // Reset flag
+      this.recorderStartDelayFrames = 0; // Reset delay counter
 
-      // Entrar en estado "warmup" - NO iniciar el recorder todavía
-      this.state = 'recording'; // Necesario para que captureFrame() se ejecute
+      // Entrar en estado "recording" - Iniciar inmediatamente
+      this.state = 'recording';
 
-      console.log(`🎬 Iniciando warmup: esperando ${this.WARMUP_FRAMES} frames antes de grabar`);
+      console.log(`🎬 Iniciando grabación (sin warmup, con delay de ${this.RECORDER_START_DELAY} frames)`);
+      
+      // Iniciar recorder inmediatamente (sin esperar)
+      this.recorderInitializing = true;
+      await this.initializeRecorder();
+      this.recorderInitializing = false;
+      this.recorderStartDelayFrames = 0;
     } catch (error) {
       this.state = 'error';
       this.errorInfo = {
@@ -159,28 +176,17 @@ export class VideoRecorder {
       return;
     }
 
-    // Fase de warmup: esperar frames antes de iniciar el recorder
-    if (this.warmupFramesSkipped < this.WARMUP_FRAMES) {
-      this.warmupFramesSkipped++;
-
-      // Iniciar el recorder DESPUÉS del warmup
-      if (this.warmupFramesSkipped === this.WARMUP_FRAMES) {
-        console.log('✅ Warmup completado, esperando flush GPU...');
-
-        // Esperar a que GPU termine trabajos pendientes antes de iniciar recorder
-        if (this.device) {
-          await this.device.queue.onSubmittedWorkDone();
-        }
-
-        console.log('✅ GPU lista, iniciando recorder...');
-        await this.initializeRecorder();
-      }
+    // Delay después de iniciar recorder para permitir que canvas-record se estabilice
+    // Evita capturar frames verdes o corruptos del inicio
+    if (this.recorderStartDelayFrames < this.RECORDER_START_DELAY) {
+      this.recorderStartDelayFrames++;
+      console.log(`⏳ Delay de estabilización: ${this.recorderStartDelayFrames}/${this.RECORDER_START_DELAY} frames`);
       return;
     }
 
-    // Ya pasó el warmup, capturar frames normalmente
-    if (!this.recorder) {
-      console.error('❌ Recorder no inicializado después del warmup');
+    // Capturar frames normalmente después del delay
+    if (!this.recorder || this.recorderInitializing) {
+      console.error('❌ Recorder no inicializado');
       return;
     }
 
@@ -287,6 +293,7 @@ export class VideoRecorder {
    */
   async stop(): Promise<void> {
     if (!this.recorder) {
+      this.state = 'idle';
       return;
     }
 
@@ -299,8 +306,22 @@ export class VideoRecorder {
       this.state = 'processing';
       console.log('🛑 Deteniendo grabación...');
 
-      // Detener la grabación y obtener el buffer
-      const buffer = await this.recorder.stop();
+      // Detener la grabación
+      let buffer = null;
+      try {
+        buffer = await this.recorder.stop();
+      } catch (stopError) {
+        console.warn('⚠️ Error al detener recorder:', stopError);
+        // Intentar obtener el buffer de otra forma si recorder tiene método getBuffer
+        if (typeof (this.recorder as any).getBuffer === 'function') {
+          try {
+            buffer = (this.recorder as any).getBuffer();
+            console.log('💡 Buffer obtenido alternativamente');
+          } catch (getError) {
+            console.warn('⚠️ No se pudo obtener buffer alternativamente:', getError);
+          }
+        }
+      }
 
       this.updateStats();
 
@@ -316,21 +337,27 @@ export class VideoRecorder {
       if (buffer) {
         this.savedBuffer = buffer;
         console.log('💾 Buffer guardado, listo para descargar manualmente');
+        this.state = 'idle';
       } else {
-        console.error('⚠️ No se pudo capturar el buffer');
+        // Si no hay buffer pero grabamos frames, intentar crear un blob vacío
+        console.warn('⚠️ No se pudo capturar el buffer de canvas-record');
+        this.state = 'idle';
+        this.errorInfo = {
+          code: 'BUFFER_ERROR',
+          message: 'No se pudo capturar el buffer, intenta de nuevo',
+          recoverable: true,
+        };
       }
 
-      this.state = 'idle';
       this.recorder = null;
     } catch (error) {
       this.state = 'error';
       this.errorInfo = {
         code: 'STOP_ERROR',
         message: 'Error deteniendo grabación',
-        recoverable: false,
+        recoverable: true,
       };
       console.error('❌ Error deteniendo grabación:', error);
-      throw error;
     }
   }
 
@@ -518,6 +545,16 @@ export class VideoRecorder {
     }
 
     this.downloadBuffer(this.savedBuffer);
+  }
+
+  /**
+   * Limpia el buffer guardado para permitir nueva grabación
+   */
+  clearBuffer(): void {
+    if (this.savedBuffer) {
+      this.savedBuffer = null;
+      console.log('🧹 Buffer limpiado, listo para nueva grabación');
+    }
   }
 
   /**

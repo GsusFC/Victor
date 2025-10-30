@@ -22,10 +22,11 @@ interface VectorCanvasProps {
   onCanvasReady?: (canvas: HTMLCanvasElement | null) => void;
   initialTimeOffset?: number;
   vectorData?: number[];
+  fixedDimensions?: { width: number; height: number };
 }
 
 export const VectorCanvas = forwardRef<VectorCanvasHandle, VectorCanvasProps>(
-  ({ recordingCallbackRef, onCanvasReady, initialTimeOffset = 0, vectorData }, ref) => {
+  ({ recordingCallbackRef, onCanvasReady, initialTimeOffset = 0, vectorData, fixedDimensions }, ref) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
 
@@ -59,8 +60,10 @@ export const VectorCanvas = forwardRef<VectorCanvasHandle, VectorCanvasProps>(
       }
     }, [onCanvasReady]);
 
-    // Hook de tamaño responsivo (sin límite de altura máxima)
-    const { width, height } = useResponsiveCanvas(containerRef, 400, 4000);
+  // Hook de tamaño responsivo (sin límite de altura máxima)
+  // Si hay dimensiones fijas, usarlas directamente (para galería minimalista)
+  const responsiveDimensions = useResponsiveCanvas(containerRef, 400, 4000);
+  const { width, height } = fixedDimensions ?? responsiveDimensions;
 
     // Canvas config y actions del store
     const canvasConfig = useVectorStore(selectCanvas);

@@ -70,8 +70,8 @@ export async function POST(request: NextRequest) {
 
     await store.setJSON('index', index);
 
-    // Construir URL
-    const url = `${request.nextUrl.origin}/art/${id}`;
+    // Construir URL - Usar /view/ para experiencia minimal
+    const url = `${request.nextUrl.origin}/view/${id}`;
 
     return NextResponse.json({
       success: true,

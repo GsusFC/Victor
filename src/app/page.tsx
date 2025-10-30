@@ -11,14 +11,14 @@ import { ResponsiveLayout } from '@/components/layout/ResponsiveLayout';
 import { AnimationPanel } from '@/components/controls/AnimationPanel';
 import { GridControls } from '@/components/controls/GridControls';
 import { VisualControls } from '@/components/controls/VisualControls';
-import { HeaderRecordingControls } from '@/components/controls/HeaderRecordingControls';
+import { RecordingPanel } from '@/components/controls/RecordingPanel';
 import { CollapsibleCard } from '@/components/ui/collapsible-card';
 import { PostProcessingControls } from '@/components/controls/PostProcessingControls';
 import { FPSCounter } from '@/components/debug/FPSCounter';
 import { PerformanceOverlay } from '@/components/debug/PerformanceOverlay';
-// import { PublishButton } from '@/components/art/PublishButton';
-// import Link from 'next/link';
-// import { Palette } from 'lucide-react';
+import { PublishButton } from '@/components/art/PublishButton';
+import Link from 'next/link';
+import { Palette } from 'lucide-react';
 
 export default function Home() {
   const canvasHandleRef = useRef<VectorCanvasHandle>(null);
@@ -81,17 +81,30 @@ export default function Home() {
           <CollapsibleCard title="Post-Processing" defaultExpanded={false}>
             <PostProcessingControls />
           </CollapsibleCard>
-          {/* Sistema de grabación movido al header */}
-          {/* Sistema de publicación deprecado temporalmente */}
+          <CollapsibleCard title="Grabación" defaultExpanded={true}>
+            <RecordingPanel
+              canvas={canvasElement}
+              onRecordingCallbackChange={(callback) => {
+                recordingCallbackRef.current = callback;
+              }}
+            />
+          </CollapsibleCard>
+          <CollapsibleCard title="📤 Publicar Arte" defaultExpanded={true}>
+            <div className="space-y-3">
+              <p className="text-xs text-muted-foreground font-mono">
+                Comparte tu animación como obra inmutable con un link único
+              </p>
+              <PublishButton canvasHandleRef={canvasHandleRef} />
+              <Link
+                href="/gallery"
+                className="inline-flex items-center gap-2 text-xs text-cyan-400 hover:text-cyan-300 transition-colors"
+              >
+                <Palette className="w-4 h-4" />
+                Ver Galería
+              </Link>
+            </div>
+          </CollapsibleCard>
         </div>
-      }
-      recordingControls={
-        <HeaderRecordingControls
-          canvas={canvasElement}
-          onRecordingCallbackChange={(callback) => {
-            recordingCallbackRef.current = callback;
-          }}
-        />
       }
       />
     </>

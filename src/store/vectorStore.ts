@@ -17,27 +17,38 @@ export type AnimationType =
   // Naturales/Fluidas
   | 'smoothWaves'
   | 'seaWaves'
-  | 'breathingSoft'  // Renombrado de helicalCurl
-  | 'flocking'
-  | 'flowField'      // NUEVA: Campo de flujo Perlin
-  | 'organicGrowth'  // NUEVA: Crecimiento orgánico
+  | 'breathingSoft'
+  | 'flowField'
+  | 'dnaHelix'
+  | 'rippleEffect'
+  | 'organicGrowth'
+  | 'fluidDynamics'
+  | 'aurora'
   // Energéticas
-  | 'electricPulse'  // Mejorado de centerPulse
+  | 'electricPulse'
   | 'vortex'
   | 'directionalFlow'
-  | 'storm'          // Nueva: Tormenta caótica
-  | 'solarFlare'     // Nueva: Explosión solar
-  | 'radiation'      // Nueva: Radiación desde múltiples fuentes
-  | 'magneticField'  // NUEVA: Campo magnético
-  | 'chaosAttractor' // NUEVA: Atractor caótico
+  | 'storm'
+  | 'solarFlare'
+  | 'radiation'
+  | 'magneticField'
+  | 'chaosAttractor'
+  | 'plasmaBall'
+  | 'blackHole'
+  | 'lightningStorm'
+  | 'quantumField'
   // Geométricas
   | 'tangenteClasica'
   | 'lissajous'
   | 'geometricPattern'
-  | 'harmonicOscillator' // NUEVA: Oscilador armónico
-  | 'spirograph'         // NUEVA: Espirógrafo
+  | 'harmonicOscillator'
+  | 'spirograph'
+  | 'fibonacci'
+  | 'voronoiDiagram'
+  | 'mandalas'
+  | 'kaleidoscope'
   // Experimentales
-  | 'springMesh';     // NUEVA: Malla de resortes
+  | 'springMesh';
 
 export type SpacingMode = 'fixed' | 'dynamic';
 
@@ -47,8 +58,8 @@ export type GradientScope = 'vector' | 'field';
 export interface GradientStop {
   id: string;
   color: string;
-  position: number; // Rango 0 - 1
-  opacity?: number; // Permitir stops semi-transparentes
+  position: number;
+  opacity?: number;
   curve?: GradientCurve;
 }
 
@@ -57,7 +68,7 @@ export interface GradientPreset {
   name: string;
   description?: string;
   type: 'linear' | 'radial';
-  angle: number; // En grados, solo aplica a linear
+  angle: number;
   stops: GradientStop[];
   tags?: string[];
   featured?: boolean;
@@ -142,30 +153,37 @@ type AnimationParamSet = {
 
 const animationParamsDefaults: Record<AnimationType, AnimationParamSet> = {
   none: { frequency: 0, amplitude: 0, elasticity: 0, maxLength: 60 },
-  // Naturales/Fluidas
   smoothWaves: { frequency: 0.02, amplitude: 20, elasticity: 0.5, maxLength: 90 },
   seaWaves: { frequency: 0.02, amplitude: 35, elasticity: 0.8, maxLength: 110 },
-  breathingSoft: { frequency: 1.1, amplitude: 60, elasticity: 0.4, maxLength: 150 }, // helicalCurl
-  flocking: { frequency: 0.5, amplitude: 1.5, elasticity: 0.4, maxLength: 95 },
-  flowField: { frequency: 0.04, amplitude: 1.2, elasticity: 0.5, maxLength: 100 },  // NUEVA: noiseScale, flowIntensity, evolution
-  organicGrowth: { frequency: 0.15, amplitude: 0.5, elasticity: 0.5, maxLength: 100 },  // NUEVA: influenceRadius, threshold, growthSpeed
-  // Energéticas
-  electricPulse: { frequency: 0.03, amplitude: 45, elasticity: 0.7, maxLength: 130 }, // Mejorado centerPulse
+  breathingSoft: { frequency: 1.1, amplitude: 60, elasticity: 0.4, maxLength: 150 },
+  flowField: { frequency: 0.04, amplitude: 1.2, elasticity: 0.5, maxLength: 100 },
+  dnaHelix: { frequency: 1.0, amplitude: 0.4, elasticity: 45, maxLength: 100 },
+  rippleEffect: { frequency: 1.5, amplitude: 4, elasticity: 0.5, maxLength: 120 },
+  organicGrowth: { frequency: 1.0, amplitude: 0.5, elasticity: 0.2, maxLength: 150 },
+  fluidDynamics: { frequency: 0.05, amplitude: 1.0, elasticity: 0.6, maxLength: 100 },
+  aurora: { frequency: 1.0, amplitude: 45, elasticity: 0.5, maxLength: 110 },
+  electricPulse: { frequency: 0.03, amplitude: 45, elasticity: 0.7, maxLength: 130 },
   vortex: { frequency: 1.2, amplitude: 0.45, elasticity: 1.2, maxLength: 130 },
   directionalFlow: { frequency: 45, amplitude: 25, elasticity: 0.6, maxLength: 90 },
   storm: { frequency: 1.5, amplitude: 1.0, elasticity: 1.2, maxLength: 140 },
   solarFlare: { frequency: 1.8, amplitude: 0.5, elasticity: 45, maxLength: 150 },
   radiation: { frequency: 1.0, amplitude: 4, elasticity: 0.5, maxLength: 120 },
-  magneticField: { frequency: 4, amplitude: 1.5, elasticity: 0.8, maxLength: 125 },  // NUEVA: numPoles, intensity, orbitalSpeed
-  chaosAttractor: { frequency: 0, amplitude: 0, elasticity: 0, maxLength: 110 },  // NUEVA: a, b, c (param1-3 se mapean directamente)
-  // Geométricas
+  magneticField: { frequency: 4, amplitude: 1.5, elasticity: 0.8, maxLength: 125 },
+  chaosAttractor: { frequency: 0, amplitude: 0, elasticity: 0, maxLength: 110 },
+  plasmaBall: { frequency: 1.5, amplitude: 6, elasticity: 0.3, maxLength: 130 },
+  blackHole: { frequency: 1.2, amplitude: 0.5, elasticity: 0.5, maxLength: 140 },
+  lightningStorm: { frequency: 2.0, amplitude: 0.4, elasticity: 0.6, maxLength: 120 },
+  quantumField: { frequency: 0.08, amplitude: 1.0, elasticity: 0.5, maxLength: 110 },
   tangenteClasica: { frequency: 0.6, amplitude: 1, elasticity: 0.5, maxLength: 110 },
   lissajous: { frequency: 2.0, amplitude: 3.0, elasticity: 120, maxLength: 90 },
   geometricPattern: { frequency: 4, amplitude: 45, elasticity: 0.5, maxLength: 80 },
-  harmonicOscillator: { frequency: 2.0, amplitude: 1.0, elasticity: 0.4, maxLength: 90 },  // NUEVA: baseFreq, spatialPhase, damping
-  spirograph: { frequency: 0.6, amplitude: 1.5, elasticity: 0.8, maxLength: 100 },  // NUEVA: radiusRatio, innerSpeed, outerSpeed
-  // Experimentales
-  springMesh: { frequency: 1.0, amplitude: 0.8, elasticity: 0.6, maxLength: 100 },  // NUEVA: stiffness, damping, perturbFreq
+  harmonicOscillator: { frequency: 2.0, amplitude: 1.0, elasticity: 0.4, maxLength: 90 },
+  spirograph: { frequency: 0.6, amplitude: 1.5, elasticity: 0.8, maxLength: 100 },
+  fibonacci: { frequency: 0.3, amplitude: 45, elasticity: 0.5, maxLength: 100 },
+  voronoiDiagram: { frequency: 8, amplitude: 0.5, elasticity: 0.3, maxLength: 110 },
+  mandalas: { frequency: 6, amplitude: 1.5, elasticity: 0.4, maxLength: 95 },
+  kaleidoscope: { frequency: 3, amplitude: 1.0, elasticity: 1.0, maxLength: 100 },
+  springMesh: { frequency: 1.0, amplitude: 0.8, elasticity: 0.6, maxLength: 100 },
 };
 
 const ensureGradientConfig = (input?: any): GradientConfig => {
@@ -174,7 +192,6 @@ const ensureGradientConfig = (input?: any): GradientConfig => {
   }
 
   if (Array.isArray(input)) {
-    // Caso extremo: se guardó directamente como stops
     return {
       ...cloneGradientConfig(defaultGradient),
       enabled: true,
@@ -214,93 +231,76 @@ const ensureGradientConfig = (input?: any): GradientConfig => {
   };
 };
 
-// ============= STATE SCHEMA =============
-
 export interface VectorState {
-  // Versión del schema (para migraciones futuras)
   version: number;
-
-  // Configuración visual
   visual: {
     vectorLength: number;
     vectorWidth: number;
     shape: VectorShape;
     color: string;
     gradient?: GradientConfig;
-    // Sistema de trails (estelas)
     trails: {
       enabled: boolean;
-      length: number;      // Número de posiciones en el historial (2-20)
-      opacity: number;     // Opacidad máxima (0-1)
+      length: number;
+      opacity: number;
       fadeMode: 'linear' | 'exponential';
     };
-    // Sistema de post-processing
     postProcessing: {
       enabled: boolean;
-      // Bloom
       bloom: {
         enabled: boolean;
-        intensity: number;    // 0-2
-        threshold: number;    // 0-1
-        radius: number;       // 1-10
+        intensity: number;
+        threshold: number;
+        radius: number;
       };
-      // Chromatic Aberration
+      advancedBloom: {
+        enabled: boolean;
+        quality: 5 | 9 | 13;
+        radius: number;
+        threshold: number;
+        intensity: number;
+      };
       chromaticAberration: {
         enabled: boolean;
-        intensity: number;    // 0-1
-        offset: number;       // 0-0.05
+        intensity: number;
+        offset: number;
       };
-      // Vignette
       vignette: {
         enabled: boolean;
-        intensity: number;    // 0-1
-        softness: number;     // 0-1
+        intensity: number;
+        softness: number;
       };
-      // Tone Mapping & Color
-      exposure: number;       // 0.5-2
-      contrast: number;       // 0.5-2
-      saturation: number;     // 0-2
-      brightness: number;     // 0.5-2
+      exposure: number;
+      contrast: number;
+      saturation: number;
+      brightness: number;
     };
   };
-
-  // Configuración del grid
   grid: {
     rows: number;
     cols: number;
     spacing: number;
     mode: SpacingMode;
   };
-
-  // Configuración de animación
   animation: {
     type: AnimationType;
     speed: number;
     paused: boolean;
-    category?: AnimationCategory; // Categoría actual (derivada del tipo)
-    // Parámetros dinámicos por tipo de animación
+    category?: AnimationCategory;
     params: Record<string, number>;
-    // Sistema de seeds para reproducibilidad
     seed: number;
-    autoSeed: boolean; // Si true, genera nueva seed al cambiar animación
+    autoSeed: boolean;
   };
-
-  // Configuración del canvas
   canvas: {
     width: number;
     height: number;
     zoom: number;
     backgroundColor: string;
   };
-
-  // Biblioteca de gradientes
   gradients: GradientLibraryState;
 }
 
-// ============= ACTIONS =============
-
 export interface VectorActions {
-  // Visual
   setVisual: <K extends keyof VectorState['visual']>(key: K, value: VectorState['visual'][K]) => void;
   setTrails: (trails: Partial<VectorState['visual']['trails']>) => void;
   setPostProcessing: (config: Partial<VectorState['visual']['postProcessing']>) => void;
@@ -310,12 +310,8 @@ export interface VectorActions {
   addCustomGradientPreset: (preset: Omit<GradientPreset, 'id' | 'createdAt' | 'updatedAt' | 'isCustom'> & { id?: string }) => GradientPreset;
   updateCustomGradientPreset: (id: string, patch: Partial<Omit<GradientPreset, 'id'>>) => void;
   removeCustomGradientPreset: (id: string) => void;
-
-  // Grid
   setGrid: (config: Partial<VectorState['grid']>) => void;
   setGridDimensions: (rows: number, cols: number) => void;
-
-  // Animation
   setAnimation: (config: Partial<VectorState['animation']>) => void;
   setAnimationType: (type: AnimationType) => void;
   togglePause: () => void;
@@ -323,26 +319,15 @@ export interface VectorActions {
   setSeed: (seed: number) => void;
   generateNewSeed: () => void;
   toggleAutoSeed: () => void;
-
-  // Canvas
   setCanvas: (config: Partial<VectorState['canvas']>) => void;
-
-  // Import/Export
   importConfig: (config: Pick<VectorState, 'animation' | 'grid' | 'visual' | 'gradients'>) => void;
-
-  // Reset
   reset: () => void;
 }
 
-// ============= STORE TYPE =============
-
 export type VectorStore = VectorState & { actions: VectorActions };
-
-// ============= DEFAULT STATE =============
 
 const defaultState: VectorState = {
   version: 1,
-
   visual: {
     vectorLength: 30,
     vectorWidth: 2,
@@ -363,6 +348,13 @@ const defaultState: VectorState = {
         threshold: 0.7,
         radius: 3,
       },
+      advancedBloom: {
+        enabled: false,
+        quality: 9,
+        radius: 1.5,
+        threshold: 0.7,
+        intensity: 0.5,
+      },
       chromaticAberration: {
         enabled: false,
         intensity: 0.5,
@@ -379,47 +371,38 @@ const defaultState: VectorState = {
       brightness: 1.0,
     },
   },
-
   grid: {
     rows: 15,
     cols: 20,
     spacing: 20,
     mode: 'fixed',
   },
-
   animation: {
     type: 'smoothWaves',
     speed: 1,
     paused: false,
     params: { ...animationParamsDefaults.smoothWaves },
     seed: Math.floor(Math.random() * 1000000),
-    autoSeed: false,
+    autoSeed: true,
   },
-
   canvas: {
     width: 800,
     height: 600,
     zoom: 1,
     backgroundColor: '#000000',
   },
-
   gradients: defaultGradientLibrary,
 };
-
-// ============= STORE IMPLEMENTATION =============
 
 export const useVectorStore = create<VectorStore>()(
   persist(
     (set) => ({
       ...defaultState,
-
       actions: {
-        // Visual actions
         setVisual: (key, value) =>
           set((state) => ({
             visual: { ...state.visual, [key]: value },
           })),
-
         setTrails: (trails) =>
           set((state) => ({
             visual: {
@@ -427,7 +410,6 @@ export const useVectorStore = create<VectorStore>()(
               trails: { ...state.visual.trails, ...trails },
             },
           })),
-
         setPostProcessing: (config) =>
           set((state) => ({
             visual: {
@@ -436,18 +418,17 @@ export const useVectorStore = create<VectorStore>()(
                 ...state.visual.postProcessing,
                 ...config,
                 bloom: config.bloom ? { ...state.visual.postProcessing.bloom, ...config.bloom } : state.visual.postProcessing.bloom,
+                advancedBloom: (config as any).advancedBloom ? { ...state.visual.postProcessing.advancedBloom, ...(config as any).advancedBloom } : state.visual.postProcessing.advancedBloom,
                 chromaticAberration: config.chromaticAberration ? { ...state.visual.postProcessing.chromaticAberration, ...config.chromaticAberration } : state.visual.postProcessing.chromaticAberration,
                 vignette: config.vignette ? { ...state.visual.postProcessing.vignette, ...config.vignette } : state.visual.postProcessing.vignette,
               },
             },
           })),
-
         setGradient: (gradient) =>
           set((state) => {
             const currentGradient = state.visual.gradient ?? cloneGradientConfig(defaultGradient);
             const shouldDetachPreset =
               gradient.stops !== undefined || gradient.type !== undefined || gradient.angle !== undefined;
-
             const nextGradient: GradientConfig = {
               ...currentGradient,
               ...gradient,
@@ -456,7 +437,6 @@ export const useVectorStore = create<VectorStore>()(
               name: gradient.name ?? currentGradient.name,
               scope: gradient.scope ?? currentGradient.scope ?? 'vector',
             };
-
             return {
               visual: {
                 ...state.visual,
@@ -464,7 +444,6 @@ export const useVectorStore = create<VectorStore>()(
               },
             };
           }),
-
         setGradientStops: (stops) =>
           set((state) => {
             const currentGradient = state.visual.gradient ?? cloneGradientConfig(defaultGradient);
@@ -480,7 +459,6 @@ export const useVectorStore = create<VectorStore>()(
               },
             };
           }),
-
         applyGradientPreset: (preset, options) => {
           const normalizedStops = normalizeStops(preset.stops);
           set((state) => ({
@@ -503,7 +481,6 @@ export const useVectorStore = create<VectorStore>()(
             },
           }));
         },
-
         addCustomGradientPreset: (presetInput) => {
           const now = Date.now();
           const normalizedStops = normalizeStops(presetInput.stops);
@@ -520,7 +497,6 @@ export const useVectorStore = create<VectorStore>()(
             updatedAt: now,
             isCustom: true,
           };
-
           set((state) => ({
             gradients: {
               ...state.gradients,
@@ -528,10 +504,8 @@ export const useVectorStore = create<VectorStore>()(
               lastUsedPresetId: preset.id,
             },
           }));
-
           return preset;
         },
-
         updateCustomGradientPreset: (id, patch) =>
           set((state) => ({
             gradients: {
@@ -548,7 +522,6 @@ export const useVectorStore = create<VectorStore>()(
               ),
             },
           })),
-
         removeCustomGradientPreset: (id) =>
           set((state) => ({
             gradients: {
@@ -557,30 +530,23 @@ export const useVectorStore = create<VectorStore>()(
               lastUsedPresetId: state.gradients.lastUsedPresetId === id ? null : state.gradients.lastUsedPresetId,
             },
           })),
-
-        // Grid actions
         setGrid: (config) =>
           set((state) => ({
             grid: { ...state.grid, ...config },
           })),
-
         setGridDimensions: (rows, cols) =>
           set((state) => ({
             grid: { ...state.grid, rows, cols },
           })),
-
-        // Animation actions
         setAnimation: (config) =>
           set((state) => ({
             animation: { ...state.animation, ...config },
           })),
-
         setAnimationType: (type) =>
           set((state) => {
             const newSeed = state.animation.autoSeed
               ? Math.floor(Math.random() * 1000000)
               : state.animation.seed;
-
             return {
               animation: {
                 ...state.animation,
@@ -590,12 +556,10 @@ export const useVectorStore = create<VectorStore>()(
               },
             };
           }),
-
         togglePause: () =>
           set((state) => ({
             animation: { ...state.animation, paused: !state.animation.paused },
           })),
-
         setAnimationParam: (key, value) =>
           set((state) => ({
             animation: {
@@ -603,12 +567,10 @@ export const useVectorStore = create<VectorStore>()(
               params: { ...state.animation.params, [key]: value },
             },
           })),
-
         setSeed: (seed) =>
           set((state) => ({
             animation: { ...state.animation, seed },
           })),
-
         generateNewSeed: () =>
           set((state) => ({
             animation: {
@@ -616,7 +578,6 @@ export const useVectorStore = create<VectorStore>()(
               seed: Math.floor(Math.random() * 1000000),
             },
           })),
-
         toggleAutoSeed: () =>
           set((state) => ({
             animation: {
@@ -624,14 +585,10 @@ export const useVectorStore = create<VectorStore>()(
               autoSeed: !state.animation.autoSeed,
             },
           })),
-
-        // Canvas actions
         setCanvas: (config) =>
           set((state) => ({
             canvas: { ...state.canvas, ...config },
           })),
-
-        // Import/Export actions
         importConfig: (config) =>
           set((state) => ({
             animation: { ...state.animation, ...config.animation, paused: false },
@@ -643,117 +600,50 @@ export const useVectorStore = create<VectorStore>()(
             },
             gradients: { ...state.gradients, ...config.gradients },
           })),
-
-        // Reset
         reset: () => set(defaultState),
       },
     }),
     {
       name: 'victor-vector-store-v2',
       storage: createJSONStorage(() => localStorage),
-
-      // Persistir visual, grid, animation, version y gradients (no canvas)
       partialize: (state) => ({
         version: state.version,
         visual: state.visual,
         grid: state.grid,
         animation: {
           ...state.animation,
-          paused: false, // Siempre iniciar sin pausa
+          paused: false,
         },
         gradients: state.gradients,
       }),
-
-      // Validación y migración al cargar
       merge: (persistedState: unknown, currentState) => {
         const pState = persistedState as Partial<VectorState>;
-        // Si no hay versión, es estado antiguo - resetear
         if (!pState?.version) {
           console.warn('⚠️ Estado antiguo detectado, usando valores por defecto');
           return currentState;
         }
-
-        // Validar shapes
-        const validShapes: VectorShape[] = ['line', 'triangle', 'arc', 'circle'];
-        if (pState.visual?.shape && !validShapes.includes(pState.visual.shape)) {
-          pState.visual.shape = 'line';
+        if (pState.visual?.postProcessing && !(pState.visual.postProcessing as any).advancedBloom) {
+          (pState.visual.postProcessing as any).advancedBloom = {
+            enabled: false,
+            quality: 9,
+            radius: 1.5,
+            threshold: 0.7,
+            intensity: 0.5,
+          };
         }
-
-        // Validar animationType (migraciones de valores antiguos)
-        if (pState.animation?.type) {
-          const oldType = pState.animation.type as string;
-          // Migrar valores obsoletos a nuevos
-          if (oldType === 'tangentialFlow') pState.animation.type = 'tangenteClasica';
-          if (oldType === 'helicalCurl') pState.animation.type = 'breathingSoft';
-          if (oldType === 'centerPulse') pState.animation.type = 'electricPulse';
-          // Eliminar valores obsoletos
-          if (['static', 'staticAngle', 'randomStatic', 'randomLoop', 'perlinFlow', 'mouseInteraction', 'heartbeat'].includes(oldType)) {
-            pState.animation.type = 'smoothWaves';
-          }
-        }
-
-        const validTypes: AnimationType[] = [
-          'none',
-          // Naturales/Fluidas
-          'smoothWaves',
-          'seaWaves',
-          'breathingSoft',
-          'flocking',
-          'flowField',
-          'organicGrowth',
-          // Energéticas
-          'electricPulse',
-          'vortex',
-          'directionalFlow',
-          'storm',
-          'solarFlare',
-          'radiation',
-          'magneticField',
-          'chaosAttractor',
-          // Geométricas
-          'tangenteClasica',
-          'lissajous',
-          'geometricPattern',
-          'harmonicOscillator',
-          'spirograph',
-          // Experimentales
-          'springMesh',
-        ];
+        const validTypes: AnimationType[] = Object.keys(animationParamsDefaults) as AnimationType[];
         if (pState.animation?.type && !validTypes.includes(pState.animation.type)) {
           pState.animation.type = 'smoothWaves';
         }
-
         const mergedVisualGradient = ensureGradientConfig(pState.visual?.gradient ?? currentState.visual.gradient);
-
         const mergedVisual = {
           ...currentState.visual,
           ...pState.visual,
           gradient: mergedVisualGradient,
         };
-
-        const persistedGradients = (pState as any).gradients as Partial<GradientLibraryState> | undefined;
-        const customPresets = persistedGradients?.customPresets?.map((preset) => ({
-          ...preset,
-          id: preset.id ?? createId('preset'),
-          type: preset.type ?? 'linear',
-          angle: preset.angle ?? 45,
-          stops: normalizeStops((preset.stops as GradientStop[] | undefined) ?? []),
-          createdAt: preset.createdAt ?? Date.now(),
-          updatedAt: preset.updatedAt ?? Date.now(),
-          isCustom: true,
-        })) ?? currentState.gradients.customPresets;
-
-        const mergedGradients: GradientLibraryState = {
-          customPresets,
-          lastUsedPresetId:
-            persistedGradients?.lastUsedPresetId ?? currentState.gradients.lastUsedPresetId ?? null,
-        };
-
-        // Merge con valores por defecto
         const resolvedType = validTypes.includes(pState.animation?.type as AnimationType)
           ? (pState.animation?.type as AnimationType)
           : currentState.animation.type;
-
         const mergedAnimation = {
           ...currentState.animation,
           ...pState.animation,
@@ -764,22 +654,18 @@ export const useVectorStore = create<VectorStore>()(
           },
           paused: false,
         };
-
         return {
           ...currentState,
           visual: mergedVisual,
           grid: { ...currentState.grid, ...pState.grid },
           animation: mergedAnimation,
-          gradients: mergedGradients,
+          gradients: { ...currentState.gradients, ...pState.gradients },
         };
       },
     }
   )
 );
 
-// ============= SELECTORS =============
-
-// Selectores optimizados para evitar re-renders innecesarios
 export const selectVisual = (state: VectorStore) => state.visual;
 export const selectGrid = (state: VectorStore) => state.grid;
 export const selectAnimation = (state: VectorStore) => state.animation;
@@ -787,7 +673,6 @@ export const selectCanvas = (state: VectorStore) => state.canvas;
 export const selectActions = (state: VectorStore) => state.actions;
 export const selectGradientLibrary = (state: VectorStore) => state.gradients;
 
-// Selector combinado para configuración completa
 export const selectVectorConfig = (state: VectorStore) => ({
   visual: state.visual,
   grid: state.grid,
@@ -795,22 +680,18 @@ export const selectVectorConfig = (state: VectorStore) => ({
   canvas: state.canvas,
 });
 
-// ============= UTILITIES =============
-
-/**
- * Obtiene la categoría de un tipo de animación
- */
 export const getAnimationCategory = (type: AnimationType): AnimationCategory => {
   const categoryMap: Record<AnimationType, AnimationCategory> = {
     none: 'experimental',
-    // Naturales/Fluidas
     smoothWaves: 'natural',
     seaWaves: 'natural',
     breathingSoft: 'natural',
-    flocking: 'natural',
     flowField: 'natural',
+    dnaHelix: 'natural',
+    rippleEffect: 'natural',
     organicGrowth: 'natural',
-    // Energéticas
+    fluidDynamics: 'natural',
+    aurora: 'natural',
     electricPulse: 'energetic',
     vortex: 'energetic',
     directionalFlow: 'energetic',
@@ -819,44 +700,62 @@ export const getAnimationCategory = (type: AnimationType): AnimationCategory => 
     radiation: 'energetic',
     magneticField: 'energetic',
     chaosAttractor: 'energetic',
-    // Geométricas
+    plasmaBall: 'energetic',
+    blackHole: 'energetic',
+    lightningStorm: 'energetic',
+    quantumField: 'energetic',
     tangenteClasica: 'geometric',
     lissajous: 'geometric',
     geometricPattern: 'geometric',
     harmonicOscillator: 'geometric',
     spirograph: 'geometric',
-    // Experimentales
+    fibonacci: 'geometric',
+    voronoiDiagram: 'geometric',
+    mandalas: 'geometric',
+    kaleidoscope: 'geometric',
     springMesh: 'experimental',
   };
   return categoryMap[type] || 'experimental';
 };
 
-/**
- * Obtiene todas las animaciones de una categoría
- */
 export const getAnimationsByCategory = (category: AnimationCategory): AnimationType[] => {
   const allTypes: AnimationType[] = [
     'none',
     'smoothWaves',
     'seaWaves',
     'breathingSoft',
-    'flocking',
+    'flowField',
+    'dnaHelix',
+    'rippleEffect',
+    'organicGrowth',
+    'fluidDynamics',
+    'aurora',
     'electricPulse',
     'vortex',
     'directionalFlow',
     'storm',
     'solarFlare',
     'radiation',
+    'magneticField',
+    'chaosAttractor',
+    'plasmaBall',
+    'blackHole',
+    'lightningStorm',
+    'quantumField',
     'tangenteClasica',
     'lissajous',
     'geometricPattern',
+    'harmonicOscillator',
+    'spirograph',
+    'fibonacci',
+    'voronoiDiagram',
+    'mandalas',
+    'kaleidoscope',
+    'springMesh',
   ];
   return allTypes.filter((type) => getAnimationCategory(type) === category);
 };
 
-/**
- * Limpia el store del localStorage (útil para debugging)
- */
 export const clearVectorStore = () => {
   if (typeof window !== 'undefined') {
     localStorage.removeItem('victor-vector-store-v2');

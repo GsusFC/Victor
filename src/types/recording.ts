@@ -12,7 +12,6 @@ export interface RecordingConfig {
   format: VideoFormat;
   quality: VideoQuality;
   frameRate: number;
-  maxDuration?: number; // Segundos, undefined = ilimitado
   fileName?: string;
 }
 
@@ -32,27 +31,27 @@ export interface QualityPreset {
 
 export const QUALITY_PRESETS: Record<VideoQuality, QualityPreset> = {
   low: {
-    label: 'Baja (720p30)',
-    resolution: '720p',
-    bitrate: 4_000_000, // 4 Mbps
+    label: 'Baja (1080p30)',
+    resolution: '1080p',
+    bitrate: 6_000_000, // 6 Mbps
     fps: 30,
   },
   medium: {
-    label: 'Media (1080p60)',
+    label: 'Redes Sociales (1080p30)',
     resolution: '1080p',
-    bitrate: 8_000_000, // 8 Mbps
-    fps: 60,
+    bitrate: 8_000_000, // 8 Mbps - Optimizado para Instagram, TikTok, YouTube
+    fps: 30,
   },
   high: {
     label: 'Alta (1080p60)',
     resolution: '1080p',
-    bitrate: 12_000_000, // 12 Mbps
+    bitrate: 18_000_000, // 18 Mbps - Óptimo para arte
     fps: 60,
   },
   max: {
-    label: 'Máxima (1440p60)',
-    resolution: '1440p',
-    bitrate: 20_000_000, // 20 Mbps
+    label: 'Máxima (1080p60)',
+    resolution: '1080p',
+    bitrate: 30_000_000, // 30 Mbps
     fps: 60,
   },
 };
