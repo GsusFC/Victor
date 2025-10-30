@@ -15,6 +15,7 @@ import { bloomCombineShader } from './shaders/render/bloom-combine.wgsl';
 import { ShapeLibrary, type ShapeName } from './ShapeLibrary';
 import { TextureManager } from './core/TextureManager';
 import { PipelineManager } from './core/PipelineManager';
+import { UniformManager } from './core/UniformManager';
 import {
   noneShader,
   smoothWavesShader,
@@ -72,6 +73,7 @@ export class WebGPUEngine {
   // Managers
   private textureManager: TextureManager | null = null;
   private pipelineManager: PipelineManager | null = null;
+  private uniformManager: UniformManager | null = null;
 
   private renderPipeline: GPURenderPipeline | null = null;
   private computePipeline: GPUComputePipeline | null = null;
@@ -138,12 +140,6 @@ export class WebGPUEngine {
     vectorShape: 'line',
   };
 
-  // Buffer preallocado para uniforms (optimización de memoria)
-  // 27 uniforms base + seed + 4 padding (para alinear a 16 bytes) + 48 gradient stops (12 stops * 4 floats) = 32 + 48 = 80 floats
-  private uniformDataBuffer: Float32Array = new Float32Array(32 + MAX_GRADIENT_STOPS * 4);
-  private lastUniformData: Float32Array = new Float32Array(32 + MAX_GRADIENT_STOPS * 4);
-  private uniformsDirty = true;  // Flag to track if uniforms changed
-
   // GPU Timing (profiling)
   private timingEnabled = false;
   private querySet: GPUQuerySet | null = null;
@@ -163,17 +159,6 @@ export class WebGPUEngine {
     radialMax: Math.SQRT2,
     hasLoggedOnce: false,
     lastLoggedHash: '',
-  };
-
-  // Cache inteligente para gradient stops - evita procesamiento en cada frame
-  private gradientStopsCache: {
-    lastHash: string | null;
-    cachedData: Float32Array;
-    cachedCount: number;
-  } = {
-    lastHash: null,
-    cachedData: new Float32Array(MAX_GRADIENT_STOPS * 4),
-    cachedCount: 0,
   };
 
   private constructor() {}
@@ -272,6 +257,11 @@ export class WebGPUEngine {
       // Inicializar TextureManager
       this.textureManager = new TextureManager(this.device, canvas);
       console.log('✅ TextureManager inicializado');
+
+      // Inicializar UniformManager
+      this.uniformManager = new UniformManager(this.device);
+      this.uniformBuffer = this.uniformManager.getBuffer();
+      console.log('✅ UniformManager inicializado');
 
       // Crear shader modules
       const renderShaderModule = this.device.createShaderModule({
@@ -838,70 +828,6 @@ export class WebGPUEngine {
   /**
    * Procesa gradient stops con cache inteligente para evitar procesamiento en cada frame
    */
-  private getProcessedGradientStops(
-    stops: any[],
-    enabled: boolean,
-    hexToRgb: (hex: string) => { r: number; g: number; b: number },
-    clamp01: (value: number) => number
-  ): { gradientStopData: Float32Array; gradientStopCount: number } {
-    // Si no hay stops, retornar cache vacío
-    if (stops.length === 0) {
-      this.gradientStopsCache.lastHash = '';
-      this.gradientStopsCache.cachedCount = 0;
-      return {
-        gradientStopData: this.gradientStopsCache.cachedData,
-        gradientStopCount: 0,
-      };
-    }
-
-    // Crear hash ultrarrápido de los stops
-    const hash = stops
-      .map((s) => `${s.color}|${(s.position ?? 0).toFixed(3)}`)
-      .join(',');
-
-    // Si el hash es el mismo, retornar datos cacheados (sin procesamiento)
-    if (hash === this.gradientStopsCache.lastHash) {
-      return {
-        gradientStopData: this.gradientStopsCache.cachedData,
-        gradientStopCount: this.gradientStopsCache.cachedCount,
-      };
-    }
-
-    // Hash cambió, procesar stops
-    const sortedStops = [...stops]
-      .sort((a, b) => {
-        const posA = a.position ?? 0;
-        const posB = b.position ?? 0;
-        return posA - posB;
-      })
-      .slice(0, MAX_GRADIENT_STOPS);
-
-    // Reutilizar Float32Array existente
-    const data = this.gradientStopsCache.cachedData;
-    data.fill(0); // Limpiar datos anteriores
-
-    sortedStops.forEach((stop, index) => {
-      const stopRgb = hexToRgb(stop.color);
-      const position = clamp01(
-        stop.position ?? index / Math.max(1, sortedStops.length - 1)
-      );
-      const offset = index * 4;
-      data[offset + 0] = stopRgb.r;
-      data[offset + 1] = stopRgb.g;
-      data[offset + 2] = stopRgb.b;
-      data[offset + 3] = position;
-    });
-
-    // Actualizar cache
-    this.gradientStopsCache.lastHash = hash;
-    this.gradientStopsCache.cachedCount = sortedStops.length;
-
-    return {
-      gradientStopData: data,
-      gradientStopCount: sortedStops.length,
-    };
-  }
-
   /**
    * Actualiza uniforms
    */
@@ -922,7 +848,7 @@ export class WebGPUEngine {
     mousePosition?: MouseUniform,
     seed: number = 12345
   ): void {
-    if (!this.device || !this.uniformBuffer) return;
+    if (!this.uniformManager) return;
 
     // Valores por defecto según tipo de animación
     const defaults = (type: AnimationType) => {
@@ -1015,7 +941,7 @@ export class WebGPUEngine {
         break;
     }
 
-    // Convertir color hex a RGB (0-1)
+    // Convertir color hex a RGB
     const hexToRgb = (hex: string) => {
       const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
       return result
@@ -1027,34 +953,18 @@ export class WebGPUEngine {
         : { r: 1, g: 1, b: 1 };
     };
 
-    const clamp01 = (value: number) => Math.min(1, Math.max(0, value));
-
     const rgb = hexToRgb(color);
-
     const mouseUniform = mousePosition ?? { x: 0, y: 0, active: false };
-
     const gradientStopsInput = gradient?.stops ?? [];
     const enabled = Boolean(gradient?.enabled) && gradientStopsInput.length > 0;
-
-    // Procesar gradient stops con cache inteligente
-    const { gradientStopData, gradientStopCount } = this.getProcessedGradientStops(
-      enabled ? gradientStopsInput : [],
-      enabled,
-      hexToRgb,
-      clamp01
-    );
 
     // Factor dinámico de conversión píxel → ISO (Y va de -1 a 1)
     const canvasHeight = this.canvas?.height ?? 0;
     const pixelToISO = canvasHeight > 0 ? 2 / canvasHeight : 0.001;
 
-    // Usar param4 directamente sin forzar máximo (permite acortar vectores)
-    const maxLengthPx = param4;
-
     const gradientScope = gradient?.scope ?? 'vector';
     const gradientMode = gradientScope === 'field' ? 1 : 0;
     const gradientTypeValue = gradient?.type === 'radial' ? 1 : 0;
-
 
     const currentAngle = normalizeAngle(gradient?.angle ?? 0);
     const currentType = gradient?.type ?? 'linear';
@@ -1072,17 +982,15 @@ export class WebGPUEngine {
     let radialMax = this.gradientFieldCache.radialMax;
 
     if (gradientMode === 1 && needsRecalc) {
-      // Convertir ángulo CSS a radianes (0° = derecha, 90° = arriba, 180° = izquierda, 270° = abajo)
       const angleRad = (currentAngle * Math.PI) / 180;
       linearDirX = Math.cos(angleRad);
       linearDirY = Math.sin(angleRad);
 
-      // Corners en espacio ISO: X va de [-aspect, aspect], Y va de [-1, 1]
       const corners = [
-        { x: -aspect, y: -1 },  // Esquina inferior izquierda
-        { x: aspect, y: -1 },   // Esquina inferior derecha
-        { x: aspect, y: 1 },    // Esquina superior derecha
-        { x: -aspect, y: 1 },   // Esquina superior izquierda
+        { x: -aspect, y: -1 },
+        { x: aspect, y: -1 },
+        { x: aspect, y: 1 },
+        { x: -aspect, y: 1 },
       ];
 
       linearMin = Number.POSITIVE_INFINITY;
@@ -1098,7 +1006,6 @@ export class WebGPUEngine {
         if (radius > radialMax) radialMax = radius;
       });
 
-      // Seguridad: evitar divisiones por cero
       if (!Number.isFinite(linearMin) || !Number.isFinite(linearMax) || Math.abs(linearMax - linearMin) < 1e-4) {
         linearMin = -1;
         linearMax = 1;
@@ -1108,7 +1015,6 @@ export class WebGPUEngine {
         radialMax = Math.SQRT2;
       }
 
-      // Actualizar cache
       this.gradientFieldCache.scope = gradientScope;
       this.gradientFieldCache.type = currentType;
       this.gradientFieldCache.angle = currentAngle;
@@ -1119,61 +1025,39 @@ export class WebGPUEngine {
       this.gradientFieldCache.radialMax = radialMax;
     }
 
-    // Reutilizar buffer preallocado en lugar de crear uno nuevo cada frame
-    const uniformData = this.uniformDataBuffer;
-    uniformData[0] = aspect;
-    uniformData[1] = time;
-    uniformData[2] = this.config.vectorLength;
-    uniformData[3] = this.config.vectorWidth;
-    uniformData[4] = pixelToISO;
-    uniformData[5] = zoom;
-    uniformData[6] = speed;
-    uniformData[7] = gradientStopCount;
-    uniformData[8] = param1;
-    uniformData[9] = param2;
-    uniformData[10] = param3;
-    uniformData[11] = maxLengthPx;
-    uniformData[12] = mouseUniform.active ? mouseUniform.x : 0.0;
-    uniformData[13] = mouseUniform.active ? mouseUniform.y : 0.0;
-    uniformData[14] = mouseUniform.active ? 1.0 : 0.0;
-    uniformData[15] = rgb.r;
-    uniformData[16] = rgb.g;
-    uniformData[17] = rgb.b;
-    uniformData[18] = enabled ? 1.0 : 0.0;
-    uniformData[19] = 0.0; // Reserved (antes shapeIndex, ya no se usa)
-    uniformData[20] = gradientMode;
-    uniformData[21] = gradientTypeValue;
-    uniformData[22] = linearDirX;
-    uniformData[23] = linearDirY;
-    uniformData[24] = linearMin;
-    uniformData[25] = linearMax;
-    uniformData[26] = radialMax;
-    uniformData[27] = seed; // Seed para PRNG
-    uniformData[28] = 0.0; // Padding 1
-    uniformData[29] = 0.0; // Padding 2
-    uniformData[30] = 0.0; // Padding 3 (alinear array a 128 bytes = múltiplo de 16)
-    uniformData[31] = 0.0; // Padding 4
-
-    uniformData.set(gradientStopData, 32);
-
-    // Differential update: only write to GPU if data changed (optimization)
-    let hasChanged = this.uniformsDirty;
-    if (!hasChanged) {
-      // Quick comparison: check if any value differs
-      for (let i = 0; i < uniformData.length; i++) {
-        if (uniformData[i] !== this.lastUniformData[i]) {
-          hasChanged = true;
-          break;
-        }
-      }
-    }
-
-    if (hasChanged) {
-      this.device.queue.writeBuffer(this.uniformBuffer, 0, uniformData);
-      // Copy current data to last for next comparison
-      this.lastUniformData.set(uniformData);
-      this.uniformsDirty = false;
-    }
+    // Delegar al UniformManager
+    this.uniformManager.updateUniforms(
+      {
+        aspect,
+        time,
+        vectorLength: this.config.vectorLength,
+        vectorWidth: this.config.vectorWidth,
+        pixelToISO,
+        zoom,
+        speed,
+        gradientStopCount: 0, // Se calculará en el manager
+        param1,
+        param2,
+        param3,
+        maxLength: param4,
+        mouseX: mouseUniform.active ? mouseUniform.x : 0.0,
+        mouseY: mouseUniform.active ? mouseUniform.y : 0.0,
+        mouseActive: mouseUniform.active ? 1.0 : 0.0,
+        colorR: rgb.r,
+        colorG: rgb.g,
+        colorB: rgb.b,
+        gradientEnabled: enabled ? 1.0 : 0.0,
+        gradientMode,
+        gradientType: gradientTypeValue,
+        linearDirX,
+        linearDirY,
+        linearMin,
+        linearMax,
+        radialMax,
+        seed,
+      },
+      enabled ? gradientStopsInput : []
+    );
   }
 
   /**
@@ -1478,14 +1362,15 @@ export class WebGPUEngine {
    */
   destroy(): void {
     this.vectorBuffer?.destroy();
-    this.uniformBuffer?.destroy();
     this.textureManager?.dispose();
     this.pipelineManager?.dispose();
+    this.uniformManager?.dispose();
 
     this.vectorBuffer = null;
     this.uniformBuffer = null;
     this.textureManager = null;
     this.pipelineManager = null;
+    this.uniformManager = null;
     this.renderPipeline = null;
     this.computePipeline = null;
     this.device = null;
