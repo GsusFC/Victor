@@ -21,7 +21,6 @@ export function useVectorEngine(options: UseVectorEngineOptions | RefObject<HTML
   const canvasRef = 'current' in options ? options : options.canvasRef;
   const recordingCallbackRef = 'current' in options ? undefined : options.recordingCallbackRef;
   const initialTimeOffset = 'current' in options ? 0 : (options.initialTimeOffset || 0);
-  const savedVectorData = 'current' in options ? undefined : options.vectorData;
   const engineRef = useRef<WebGPUEngine | null>(null);
   const initializedRef = useRef(false);
   const mousePositionRef = useRef<{ x: number; y: number; active: boolean }>({ x: 0, y: 0, active: false });

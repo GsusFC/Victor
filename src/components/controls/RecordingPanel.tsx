@@ -41,7 +41,6 @@ export function RecordingPanel({ canvas, onRecordingCallbackChange }: RecordingP
   const {
     state,
     stats,
-    isRecording,
     hasBuffer,
     startRecording,
     stopRecording,
@@ -88,7 +87,6 @@ export function RecordingPanel({ canvas, onRecordingCallbackChange }: RecordingP
   }, [flowState, countdown, startRecording]);
 
   // Estados derivados
-  const isIdle = state === 'idle';
   const isPaused = state === 'paused';
   const isProcessing = state === 'processing';
   const hasError = state === 'error';

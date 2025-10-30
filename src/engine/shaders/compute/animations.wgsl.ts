@@ -820,28 +820,6 @@ fn computeMain(@builtin(global_invocation_id) global_id: vec3u) {
 }
 `;
 
-// ============================================
-// Función helper: Perlin-like noise 2D simplificado (usando hash)
-// ============================================
-
-const PERLIN_NOISE_HELPER = /* wgsl */ `
-// Ruido Perlin 2D simplificado usando interpolación de valores hash
-fn perlin_noise_2d(x: f32, y: f32, seed: f32) -> f32 {
-  let xi = floor(x);
-  let yi = floor(y);
-  let xf = x - xi;
-  let yf = y - yi;
-  let u = xf * xf * (3.0 - 2.0 * xf);
-  let v = yf * yf * (3.0 - 2.0 * yf);
-  let v00 = rand(seed, xi, yi);
-  let v10 = rand(seed, xi + 1.0, yi);
-  let v01 = rand(seed, xi, yi + 1.0);
-  let v11 = rand(seed, xi + 1.0, yi + 1.0);
-  let x1 = mix(v00, v10, u);
-  let x2 = mix(v01, v11, u);
-  return mix(x1, x2, v) * 2.0 - 1.0;
-}
-`;
 
 // FLOW FIELD - Campo de flujo con ruido Perlin
 export const flowFieldShader = /* wgsl */ `
