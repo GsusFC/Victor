@@ -14,6 +14,7 @@ import { bloomBlurShader } from './shaders/render/bloom-blur.wgsl';
 import { bloomCombineShader } from './shaders/render/bloom-combine.wgsl';
 import { ShapeLibrary, type ShapeName } from './ShapeLibrary';
 import { TextureManager } from './core/TextureManager';
+import { PipelineManager } from './core/PipelineManager';
 import {
   noneShader,
   smoothWavesShader,
@@ -70,6 +71,7 @@ export class WebGPUEngine {
 
   // Managers
   private textureManager: TextureManager | null = null;
+  private pipelineManager: PipelineManager | null = null;
 
   private renderPipeline: GPURenderPipeline | null = null;
   private computePipeline: GPUComputePipeline | null = null;
@@ -271,8 +273,125 @@ export class WebGPUEngine {
       this.textureManager = new TextureManager(this.device, canvas);
       console.log('✅ TextureManager inicializado');
 
-      // Crear pipelines
-      await this.createPipelines(canvasFormat);
+      // Crear shader modules
+      const renderShaderModule = this.device.createShaderModule({
+        label: 'Vector Render Shader',
+        code: vectorShader,
+      });
+
+      const fadeShaderModule = this.device.createShaderModule({
+        label: 'Fade Shader',
+        code: fadeShader,
+      });
+
+      const postProcessShaderModule = this.device.createShaderModule({
+        label: 'Post-Process Shader',
+        code: postProcessShader,
+      });
+
+      const blurShaderModule = this.device.createShaderModule({
+        label: 'Blur Shader',
+        code: blurShader,
+      });
+
+      const bloomExtractShaderModule = this.device.createShaderModule({
+        label: 'Bloom Extract Shader',
+        code: bloomExtractShader,
+      });
+
+      const bloomBlurShaderModule = this.device.createShaderModule({
+        label: 'Bloom Blur Shader',
+        code: bloomBlurShader,
+      });
+
+      const bloomCombineShaderModule = this.device.createShaderModule({
+        label: 'Bloom Combine Shader',
+        code: bloomCombineShader,
+      });
+
+      // Crear compute shader modules para cada animación
+      const computeShaderModules = this.createComputeShaderModules();
+
+      // Inicializar PipelineManager
+      this.pipelineManager = new PipelineManager(this.device, canvasFormat);
+      const pipelines = this.pipelineManager.getPipelines(
+        renderShaderModule,
+        fadeShaderModule,
+        postProcessShaderModule,
+        blurShaderModule,
+        bloomExtractShaderModule,
+        bloomBlurShaderModule,
+        bloomCombineShaderModule,
+        computeShaderModules
+      );
+
+      // Asignar pipelines
+      this.renderPipeline = pipelines.render;
+      this.computePipelines = pipelines.compute;
+      this.computePipeline = this.computePipelines.get('smoothWaves') || null;
+      this.fadePipeline = pipelines.fade;
+      this.postProcessPipeline = pipelines.postProcess;
+      this.blurPipeline = pipelines.blur;
+      this.bloomExtractPipeline = pipelines.bloomExtract;
+      this.bloomBlurPipeline = pipelines.bloomBlur;
+      this.bloomCombinePipeline = pipelines.bloomCombine;
+
+      // Obtener bind group layouts
+      const layouts = this.pipelineManager.getBindGroupLayouts();
+      this.computeBindGroupLayout = layouts.compute;
+
+      // Crear uniform buffers para fade
+      this.fadeUniformBuffer = this.device.createBuffer({
+        label: 'Fade Uniform Buffer',
+        size: 16,
+        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+      });
+      this.device.queue.writeBuffer(
+        this.fadeUniformBuffer,
+        0,
+        new Float32Array([this.trailsDecay])
+      );
+
+      // Crear bind group para fade
+      this.fadeBindGroup = this.device.createBindGroup({
+        label: 'Fade Bind Group',
+        layout: layouts.fade,
+        entries: [
+          {
+            binding: 0,
+            resource: { buffer: this.fadeUniformBuffer },
+          },
+        ],
+      });
+
+      // Crear uniform buffers para post-processing
+      this.postProcessUniformBuffer = this.device.createBuffer({
+        size: 16 * Float32Array.BYTES_PER_ELEMENT,
+        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+      });
+
+      this.blurUniformBuffer = this.device.createBuffer({
+        size: 4 * Float32Array.BYTES_PER_ELEMENT,
+        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+      });
+
+      // Crear uniform buffers para bloom
+      this.bloomExtractUniformBuffer = this.device.createBuffer({
+        size: 16,
+        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+      });
+
+      this.bloomBlurUniformBuffer = this.device.createBuffer({
+        size: 16,
+        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+      });
+
+      this.bloomCombineUniformBuffer = this.device.createBuffer({
+        size: 32,
+        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+      });
+
+      console.log(`✅ PipelineManager inicializado (${this.computePipelines.size} animaciones)`);
 
       console.log('✅ WebGPU inicializado correctamente');
       this.isInitialized = true;
@@ -287,16 +406,10 @@ export class WebGPUEngine {
   }
 
   /**
-   * Crea render pipeline y compute pipeline
+   * Crea compute shader modules para todas las animaciones
    */
-  private async createPipelines(canvasFormat: GPUTextureFormat): Promise<void> {
-    if (!this.device) return;
-
-    // Crear shader module de render
-    const renderShaderModule = this.device.createShaderModule({
-      label: 'Vector Render Shader',
-      code: vectorShader,
-    });
+  private createComputeShaderModules(): Map<AnimationType, GPUShaderModule> {
+    if (!this.device) return new Map();
 
     // Mapeo de tipos de animación a shaders (base templates)
     const animationShaderTemplates: Record<AnimationType, string> = {
@@ -346,411 +459,17 @@ export class WebGPUEngine {
       ])
     ) as Record<AnimationType, string>;
 
-    // Layout de bind group para render (vertex shader necesita read-only)
-    const renderBindGroupLayout = this.device.createBindGroupLayout({
-      label: 'Vector Render Bind Group Layout',
-      entries: [
-        {
-          binding: 0,
-          visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
-          buffer: { type: 'uniform' },
-        },
-        {
-          binding: 1,
-          visibility: GPUShaderStage.VERTEX,
-          buffer: { type: 'read-only-storage' }, // Vertex shader DEBE ser read-only
-        },
-      ],
-    });
-
-    // Layout de bind group para compute (puede ser read-write)
-    this.computeBindGroupLayout = this.device.createBindGroupLayout({
-      label: 'Vector Compute Bind Group Layout',
-      entries: [
-        {
-          binding: 0,
-          visibility: GPUShaderStage.COMPUTE,
-          buffer: { type: 'uniform' },
-        },
-        {
-          binding: 1,
-          visibility: GPUShaderStage.COMPUTE,
-          buffer: { type: 'storage' }, // Compute puede ser read-write
-        },
-      ],
-    });
-
-    // Render pipeline layout
-    const renderPipelineLayout = this.device.createPipelineLayout({
-      label: 'Vector Render Pipeline Layout',
-      bindGroupLayouts: [renderBindGroupLayout],
-    });
-
-    // Compute pipeline layout
-    const computePipelineLayout = this.device.createPipelineLayout({
-      label: 'Vector Compute Pipeline Layout',
-      bindGroupLayouts: [this.computeBindGroupLayout],
-    });
-
-    // Render pipeline con MSAA 4x
-    this.renderPipeline = this.device.createRenderPipeline({
-      label: 'Vector Render Pipeline',
-      layout: renderPipelineLayout,
-      vertex: {
-        module: renderShaderModule,
-        entryPoint: 'vertexMain',
-        buffers: [
-          {
-            // Shape vertex buffer (binding 0)
-            arrayStride: 2 * Float32Array.BYTES_PER_ELEMENT, // vec2f = 8 bytes
-            stepMode: 'vertex',
-            attributes: [
-              {
-                shaderLocation: 0,
-                offset: 0,
-                format: 'float32x2',
-              },
-            ],
-          },
-        ],
-      },
-      fragment: {
-        module: renderShaderModule,
-        entryPoint: 'fragmentMain',
-        targets: [
-          {
-            format: canvasFormat,
-            blend: {
-              color: {
-                srcFactor: 'src-alpha',
-                dstFactor: 'one-minus-src-alpha',
-                operation: 'add',
-              },
-              alpha: {
-                srcFactor: 'one',
-                dstFactor: 'one-minus-src-alpha',
-                operation: 'add',
-              },
-            },
-          },
-        ],
-      },
-      primitive: {
-        topology: 'triangle-list',
-      },
-      multisample: {
-        count: this.textureManager?.getMSAASampleCount() || 4, // 4x MSAA para bordes suaves
-      },
-    });
-
-    // Crear compute pipelines para cada tipo de animación
+    // Crear shader modules
+    const shaderModules = new Map<AnimationType, GPUShaderModule>();
     for (const [type, shaderCode] of Object.entries(animationShaders)) {
       const shaderModule = this.device.createShaderModule({
         label: `${type} Compute Shader`,
         code: shaderCode,
       });
-
-      const pipeline = this.device.createComputePipeline({
-        label: `${type} Compute Pipeline`,
-        layout: computePipelineLayout,
-        compute: {
-          module: shaderModule,
-          entryPoint: 'computeMain',
-        },
-      });
-
-      this.computePipelines.set(type as AnimationType, pipeline);
+      shaderModules.set(type as AnimationType, shaderModule);
     }
 
-    // Setear el pipeline activo inicial
-    this.computePipeline = this.computePipelines.get('smoothWaves') || null;
-
-    // Crear fade pipeline para trails
-    const fadeShaderModule = this.device.createShaderModule({
-      label: 'Fade Shader',
-      code: fadeShader,
-    });
-
-    // Crear uniform buffer para fade (solo 1 float: decay)
-    this.fadeUniformBuffer = this.device.createBuffer({
-      label: 'Fade Uniform Buffer',
-      size: 16, // 1 float + padding a 16 bytes
-      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-    });
-
-    // Inicializar con decay por defecto
-    this.device.queue.writeBuffer(
-      this.fadeUniformBuffer,
-      0,
-      new Float32Array([this.trailsDecay])
-    );
-
-    // Crear bind group layout para fade
-    const fadeBindGroupLayout = this.device.createBindGroupLayout({
-      label: 'Fade Bind Group Layout',
-      entries: [
-        {
-          binding: 0,
-          visibility: GPUShaderStage.FRAGMENT,
-          buffer: { type: 'uniform' },
-        },
-      ],
-    });
-
-    // Crear bind group para fade
-    this.fadeBindGroup = this.device.createBindGroup({
-      label: 'Fade Bind Group',
-      layout: fadeBindGroupLayout,
-      entries: [
-        {
-          binding: 0,
-          resource: { buffer: this.fadeUniformBuffer },
-        },
-      ],
-    });
-
-    // Crear fade pipeline
-    const fadePipelineLayout = this.device.createPipelineLayout({
-      label: 'Fade Pipeline Layout',
-      bindGroupLayouts: [fadeBindGroupLayout],
-    });
-
-    this.fadePipeline = this.device.createRenderPipeline({
-      label: 'Fade Render Pipeline',
-      layout: fadePipelineLayout,
-      vertex: {
-        module: fadeShaderModule,
-        entryPoint: 'vertexMain',
-      },
-      fragment: {
-        module: fadeShaderModule,
-        entryPoint: 'fragmentMain',
-        targets: [
-          {
-            format: canvasFormat,
-            blend: {
-              color: {
-                srcFactor: 'src-alpha',
-                dstFactor: 'one-minus-src-alpha',
-                operation: 'add',
-              },
-              alpha: {
-                srcFactor: 'one',
-                dstFactor: 'one-minus-src-alpha',
-                operation: 'add',
-              },
-            },
-          },
-        ],
-      },
-      primitive: {
-        topology: 'triangle-list',
-      },
-      multisample: {
-        count: this.textureManager?.getMSAASampleCount() || 4, // Debe coincidir con MSAA del render principal
-      },
-    });
-
-    // ============================================
-    // POST-PROCESSING PIPELINES
-    // ============================================
-    // Nota: El sampler se obtiene del TextureManager
-
-    // Post-process shader module
-    const postProcessShaderModule = this.device.createShaderModule({
-      label: 'Post-Process Shader',
-      code: postProcessShader,
-    });
-
-    // Post-process bind group layout
-    const postProcessBindGroupLayout = this.device.createBindGroupLayout({
-      label: 'Post-Process Bind Group Layout',
-      entries: [
-        { binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
-        { binding: 1, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float' } },
-        { binding: 2, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } },
-      ],
-    });
-
-    const postProcessPipelineLayout = this.device.createPipelineLayout({
-      label: 'Post-Process Pipeline Layout',
-      bindGroupLayouts: [postProcessBindGroupLayout],
-    });
-
-    this.postProcessPipeline = this.device.createRenderPipeline({
-      label: 'Post-Process Pipeline',
-      layout: postProcessPipelineLayout,
-      vertex: {
-        module: postProcessShaderModule,
-        entryPoint: 'vertexMain',
-      },
-      fragment: {
-        module: postProcessShaderModule,
-        entryPoint: 'fragmentMain',
-        targets: [{ format: canvasFormat }],
-      },
-      primitive: { topology: 'triangle-list' },
-    });
-
-    // Blur shader module
-    const blurShaderModule = this.device.createShaderModule({
-      label: 'Blur Shader',
-      code: blurShader,
-    });
-
-    // Blur usa el mismo layout que post-process
-    this.blurPipeline = this.device.createRenderPipeline({
-      label: 'Blur Pipeline',
-      layout: postProcessPipelineLayout,
-      vertex: {
-        module: blurShaderModule,
-        entryPoint: 'vertexMain',
-      },
-      fragment: {
-        module: blurShaderModule,
-        entryPoint: 'fragmentMain',
-        targets: [{ format: canvasFormat }],
-      },
-      primitive: { topology: 'triangle-list' },
-    });
-
-    // Crear uniform buffers para post-processing
-    this.postProcessUniformBuffer = this.device.createBuffer({
-      size: 16 * Float32Array.BYTES_PER_ELEMENT, // 16 floats para todos los parámetros
-      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-    });
-
-    this.blurUniformBuffer = this.device.createBuffer({
-      size: 4 * Float32Array.BYTES_PER_ELEMENT, // vec2 + 2 floats
-      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-    });
-
-    // ============================================
-    // ADVANCED BLOOM PIPELINES
-    // ============================================
-
-    // 1. Bloom Extract Pipeline (extract bright pass)
-    const bloomExtractShaderModule = this.device.createShaderModule({
-      label: 'Bloom Extract Shader',
-      code: bloomExtractShader,
-    });
-
-    const bloomExtractBindGroupLayout = this.device.createBindGroupLayout({
-      label: 'Bloom Extract Bind Group Layout',
-      entries: [
-        { binding: 0, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float' } },
-        { binding: 1, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } },
-        { binding: 2, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
-      ],
-    });
-
-    const bloomExtractPipelineLayout = this.device.createPipelineLayout({
-      label: 'Bloom Extract Pipeline Layout',
-      bindGroupLayouts: [bloomExtractBindGroupLayout],
-    });
-
-    this.bloomExtractPipeline = this.device.createRenderPipeline({
-      label: 'Bloom Extract Pipeline',
-      layout: bloomExtractPipelineLayout,
-      vertex: {
-        module: bloomExtractShaderModule,
-        entryPoint: 'vertexMain',
-      },
-      fragment: {
-        module: bloomExtractShaderModule,
-        entryPoint: 'fragmentMain',
-        targets: [{ format: canvasFormat }],
-      },
-      primitive: { topology: 'triangle-list' },
-    });
-
-    this.bloomExtractUniformBuffer = this.device.createBuffer({
-      size: 16, // threshold + softKnee + padding (vec4)
-      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-    });
-
-    // 2. Bloom Blur Pipeline (separable gaussian blur)
-    const bloomBlurShaderModule = this.device.createShaderModule({
-      label: 'Bloom Blur Shader',
-      code: bloomBlurShader,
-    });
-
-    const bloomBlurBindGroupLayout = this.device.createBindGroupLayout({
-      label: 'Bloom Blur Bind Group Layout',
-      entries: [
-        { binding: 0, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float' } },
-        { binding: 1, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } },
-        { binding: 2, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
-      ],
-    });
-
-    const bloomBlurPipelineLayout = this.device.createPipelineLayout({
-      label: 'Bloom Blur Pipeline Layout',
-      bindGroupLayouts: [bloomBlurBindGroupLayout],
-    });
-
-    this.bloomBlurPipeline = this.device.createRenderPipeline({
-      label: 'Bloom Blur Pipeline',
-      layout: bloomBlurPipelineLayout,
-      vertex: {
-        module: bloomBlurShaderModule,
-        entryPoint: 'vertexMain',
-      },
-      fragment: {
-        module: bloomBlurShaderModule,
-        entryPoint: 'fragmentMain',
-        targets: [{ format: canvasFormat }],
-      },
-      primitive: { topology: 'triangle-list' },
-    });
-
-    this.bloomBlurUniformBuffer = this.device.createBuffer({
-      size: 16, // direction (vec2) + radius + quality = 4 floats
-      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-    });
-
-    // 3. Bloom Combine Pipeline (combine with original)
-    const bloomCombineShaderModule = this.device.createShaderModule({
-      label: 'Bloom Combine Shader',
-      code: bloomCombineShader,
-    });
-
-    const bloomCombineBindGroupLayout = this.device.createBindGroupLayout({
-      label: 'Bloom Combine Bind Group Layout',
-      entries: [
-        { binding: 0, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float' } },
-        { binding: 1, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float' } },
-        { binding: 2, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } },
-        { binding: 3, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
-      ],
-    });
-
-    const bloomCombinePipelineLayout = this.device.createPipelineLayout({
-      label: 'Bloom Combine Pipeline Layout',
-      bindGroupLayouts: [bloomCombineBindGroupLayout],
-    });
-
-    this.bloomCombinePipeline = this.device.createRenderPipeline({
-      label: 'Bloom Combine Pipeline',
-      layout: bloomCombinePipelineLayout,
-      vertex: {
-        module: bloomCombineShaderModule,
-        entryPoint: 'vertexMain',
-      },
-      fragment: {
-        module: bloomCombineShaderModule,
-        entryPoint: 'fragmentMain',
-        targets: [{ format: canvasFormat }],
-      },
-      primitive: { topology: 'triangle-list' },
-    });
-
-    this.bloomCombineUniformBuffer = this.device.createBuffer({
-      size: 32, // bloomIntensity + padding (WebGPU requires 32 bytes minimum)
-      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-    });
-
-    console.log(`✅ Pipelines creadas (render + fade + post-process + blur + advanced bloom + ${this.computePipelines.size} compute)`);
+    return shaderModules;
   }
 
   /**
@@ -1761,10 +1480,12 @@ export class WebGPUEngine {
     this.vectorBuffer?.destroy();
     this.uniformBuffer?.destroy();
     this.textureManager?.dispose();
+    this.pipelineManager?.dispose();
 
     this.vectorBuffer = null;
     this.uniformBuffer = null;
     this.textureManager = null;
+    this.pipelineManager = null;
     this.renderPipeline = null;
     this.computePipeline = null;
     this.device = null;
