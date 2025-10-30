@@ -5,10 +5,13 @@
 
 import { Recorder } from 'canvas-record';
 import { AVC } from 'media-codecs';
+import { MediaRecorderFallback } from './media-recorder-fallback';
 import type { RecordingConfig, RecordingState, RecordingStats, RecordingError, VideoQuality } from '@/types/recording';
 
 export class VideoRecorder {
   private recorder: Recorder | null = null;
+  private fallbackRecorder: MediaRecorderFallback | null = null;
+  private usingFallback: boolean = false;
   private context: GPUCanvasContext | null = null;
   private device: GPUDevice | null = null;
   private canvas: HTMLCanvasElement | null = null;
@@ -185,13 +188,23 @@ export class VideoRecorder {
     }
 
     // Capturar frames normalmente después del delay
-    if (!this.recorder || this.recorderInitializing) {
-      console.error('❌ Recorder no inicializado');
+    if (this.recorderInitializing) {
+      console.error('❌ Recorder aún inicializando');
       return;
     }
 
     try {
-      await this.recorder.step();
+      if (this.usingFallback && this.fallbackRecorder) {
+        // MediaRecorder captura automáticamente, solo incrementar contador
+        await this.fallbackRecorder.step();
+      } else if (this.recorder) {
+        // canvas-record requiere step() manual
+        await this.recorder.step();
+      } else {
+        console.error('❌ Ningún recorder disponible');
+        return;
+      }
+
       this.frameCount++;
 
       // Actualizar stats cada 30 frames
@@ -213,8 +226,8 @@ export class VideoRecorder {
    * Inicializa el recorder después del warmup
    */
   private async initializeRecorder(): Promise<void> {
-    if (!this.context || !this.canvas) {
-      throw new Error('Canvas o contexto no disponible');
+    if (!this.canvas) {
+      throw new Error('Canvas no disponible');
     }
 
     const canvasWidth = this.canvas.width;
@@ -233,32 +246,91 @@ export class VideoRecorder {
       webCodecs: hasWebCodecs,
     });
 
-    try {
-      this.recorder = new Recorder(this.context, {
-        name: this.config.fileName || 'victor-animation',
-        frameRate: this.config.frameRate,
-        download: false, // No descargar automáticamente - el usuario controla la descarga
-        extension: this.config.format,
-        target: 'in-browser',
-        encoderOptions: codec
-          ? {
-              codec,
-              videoBitsPerSecond: bitrate,
-            }
-          : undefined,
-      });
+    // ESTRATEGIA: Usar MediaRecorder por defecto porque canvas-record tiene problemas con stop()
+    // Solo usar canvas-record si se configura explícitamente (para debugging futuro)
+    const forceMediaRecorder = true; // Cambiar a false para intentar canvas-record
 
-      await this.recorder.start();
-      console.log('✅ Recorder iniciado, comenzando captura');
-    } catch (error) {
-      this.state = 'error';
-      this.errorInfo = {
-        code: 'START_ERROR',
-        message: 'Error iniciando recorder después del warmup',
-        recoverable: false,
-      };
-      console.error('❌ Error iniciando recorder:', error);
-      throw error;
+    if (forceMediaRecorder || !this.context) {
+      // Usar MediaRecorder nativo directamente
+      if (!MediaRecorderFallback.isSupported()) {
+        this.state = 'error';
+        this.errorInfo = {
+          code: 'START_ERROR',
+          message: 'MediaRecorder no está disponible en este navegador',
+          recoverable: false,
+        };
+        throw new Error('Sistema de grabación no disponible');
+      }
+
+      try {
+        console.log('🎥 Usando MediaRecorder nativo (más confiable)...');
+        this.fallbackRecorder = new MediaRecorderFallback(this.canvas, this.config);
+        await this.fallbackRecorder.start();
+        this.usingFallback = true;
+        console.log('✅ MediaRecorder iniciado correctamente');
+      } catch (fallbackError) {
+        this.state = 'error';
+        this.errorInfo = {
+          code: 'START_ERROR',
+          message: 'Error iniciando MediaRecorder',
+          recoverable: false,
+        };
+        console.error('❌ Error iniciando MediaRecorder:', fallbackError);
+        throw fallbackError;
+      }
+    } else {
+      // Intentar canvas-record (solo si forceMediaRecorder = false)
+      try {
+        // FIX: Remover 'target' para permitir que canvas-record use su configuración por defecto
+        // que sí guarda el buffer en memoria correctamente
+        this.recorder = new Recorder(this.context, {
+          name: this.config.fileName || 'victor-animation',
+          frameRate: this.config.frameRate,
+          download: false, // No descargar automáticamente - el usuario controla la descarga
+          extension: this.config.format,
+          // target: 'in-browser', // ← REMOVIDO: Esto causaba que stop() retorne null
+          encoderOptions: codec
+            ? {
+                codec,
+                videoBitsPerSecond: bitrate,
+              }
+            : undefined,
+        });
+
+        await this.recorder.start();
+        this.usingFallback = false;
+        console.log('✅ canvas-record iniciado correctamente');
+      } catch (error) {
+        console.warn('⚠️ canvas-record falló, usando MediaRecorder...', error);
+
+        // Fallback a MediaRecorder nativo
+        if (!MediaRecorderFallback.isSupported()) {
+          this.state = 'error';
+          this.errorInfo = {
+            code: 'START_ERROR',
+            message: 'Ni canvas-record ni MediaRecorder están disponibles',
+            recoverable: false,
+          };
+          throw new Error('Sistema de grabación no disponible');
+        }
+
+        try {
+          console.log('🔄 Usando MediaRecorder fallback...');
+          this.fallbackRecorder = new MediaRecorderFallback(this.canvas, this.config);
+          await this.fallbackRecorder.start();
+          this.usingFallback = true;
+          console.log('✅ MediaRecorder fallback iniciado correctamente');
+        } catch (fallbackError) {
+          this.state = 'error';
+          this.errorInfo = {
+            code: 'START_ERROR',
+            message: 'Error iniciando sistema de grabación',
+            recoverable: false,
+          };
+          console.error('❌ Error iniciando fallback:', fallbackError);
+          throw fallbackError;
+        }
+      }
     }
   }
 
@@ -292,7 +364,7 @@ export class VideoRecorder {
    * Detiene la grabación y guarda el buffer
    */
   async stop(): Promise<void> {
-    if (!this.recorder) {
+    if (!this.recorder && !this.fallbackRecorder) {
       this.state = 'idle';
       return;
     }
@@ -306,19 +378,80 @@ export class VideoRecorder {
       this.state = 'processing';
       console.log('🛑 Deteniendo grabación...');
 
-      // Detener la grabación
       let buffer = null;
-      try {
-        buffer = await this.recorder.stop();
-      } catch (stopError) {
-        console.warn('⚠️ Error al detener recorder:', stopError);
-        // Intentar obtener el buffer de otra forma si recorder tiene método getBuffer
-        if (typeof (this.recorder as any).getBuffer === 'function') {
+
+      // Usar el recorder apropiado
+      if (this.usingFallback && this.fallbackRecorder) {
+        console.log('🛑 Usando MediaRecorder fallback para detener...');
+        try {
+          buffer = await this.fallbackRecorder.stop();
+          console.log('✅ MediaRecorder fallback detenido exitosamente');
+          console.log('📦 Buffer capturado:', buffer.length, 'blobs');
+        } catch (fallbackError) {
+          console.error('❌ Error deteniendo MediaRecorder fallback:', fallbackError);
+        }
+      } else if (this.recorder) {
+        console.log('🛑 Usando canvas-record para detener...');
+
+        // FIX: Intentar flush explícito antes de stop() para asegurar que el encoder finalice
+        if (typeof (this.recorder as any).flush === 'function') {
           try {
-            buffer = (this.recorder as any).getBuffer();
-            console.log('💡 Buffer obtenido alternativamente');
-          } catch (getError) {
-            console.warn('⚠️ No se pudo obtener buffer alternativamente:', getError);
+            console.log('💧 Ejecutando flush() antes de stop()...');
+            await (this.recorder as any).flush();
+            console.log('✅ Flush completado');
+          } catch (flushError) {
+            console.warn('⚠️ Flush error (no crítico):', flushError);
+          }
+        }
+
+        // Detener la grabación
+        try {
+          console.log('🛑 Llamando recorder.stop()...');
+          buffer = await this.recorder.stop();
+          console.log('✅ recorder.stop() completado');
+          console.log('📦 Tipo de buffer:', buffer ? (Array.isArray(buffer) ? 'Blob[]' : buffer.constructor.name) : 'NULL/UNDEFINED');
+
+          if (buffer) {
+            if (Array.isArray(buffer)) {
+              console.log('📦 Buffer es array con', buffer.length, 'elementos');
+            } else if (buffer instanceof ArrayBuffer) {
+              console.log('📦 Buffer es ArrayBuffer de', buffer.byteLength, 'bytes');
+            } else if (buffer instanceof Uint8Array) {
+              console.log('📦 Buffer es Uint8Array de', buffer.byteLength, 'bytes');
+            }
+          }
+        } catch (stopError) {
+          console.warn('⚠️ Error en recorder.stop():', stopError);
+
+          // Intentar métodos alternativos
+          if (typeof (this.recorder as any).render === 'function') {
+            try {
+              console.log('💡 Intentando render()...');
+              await (this.recorder as any).render();
+              console.log('✅ render() completado');
+            } catch (e) {
+              console.warn('⚠️ render() error:', e);
+            }
+          }
+
+          if (typeof (this.recorder as any).getBuffer === 'function') {
+            try {
+              console.log('💡 Intentando getBuffer()...');
+              buffer = (this.recorder as any).getBuffer();
+              console.log('✅ getBuffer() retornó:', buffer ? 'DATOS' : 'NULL');
+            } catch (getError) {
+              console.warn('⚠️ getBuffer() error:', getError);
+            }
+          }
+
+          if (!buffer && typeof (this.recorder as any).finalize === 'function') {
+            try {
+              console.log('💡 Intentando finalize()...');
+              buffer = await (this.recorder as any).finalize();
+              console.log('✅ finalize() retornó:', buffer ? 'DATOS' : 'NULL');
+            } catch (finalizeError) {
+              console.warn('⚠️ finalize() error:', finalizeError);
+            }
           }
         }
       }
@@ -331,25 +464,28 @@ export class VideoRecorder {
         avgFps: this.stats.currentFps.toFixed(1),
         size: this.formatFileSize(this.stats.estimatedSize),
         hasBuffer: !!buffer,
+        usingFallback: this.usingFallback,
       });
 
       // Guardar buffer para descarga manual
       if (buffer) {
         this.savedBuffer = buffer;
-        console.log('💾 Buffer guardado, listo para descargar manualmente');
+        console.log('💾 Buffer guardado exitosamente, listo para descargar');
         this.state = 'idle';
       } else {
-        // Si no hay buffer pero grabamos frames, intentar crear un blob vacío
-        console.warn('⚠️ No se pudo capturar el buffer de canvas-record');
+        console.error('⚠️ No se pudo capturar el buffer - ' + this.frameCount + ' frames grabados sin buffer');
+        console.error('💡 SUGERENCIA: Intenta cambiar el formato a WebM o reducir la calidad');
         this.state = 'idle';
         this.errorInfo = {
           code: 'BUFFER_ERROR',
-          message: 'No se pudo capturar el buffer, intenta de nuevo',
+          message: 'No se pudo capturar el buffer. Intenta cambiar el formato a WebM o reintentar.',
           recoverable: true,
         };
       }
 
+      // Cleanup
       this.recorder = null;
+      this.fallbackRecorder = null;
     } catch (error) {
       this.state = 'error';
       this.errorInfo = {
@@ -561,18 +697,32 @@ export class VideoRecorder {
    * Limpia recursos
    */
   async dispose(): Promise<void> {
-    if (this.recorder) {
+    if (this.recorder || this.fallbackRecorder) {
       if (this.state === 'recording' || this.state === 'paused') {
         await this.stop();
       } else {
-        try {
-          await this.recorder.dispose();
-        } catch (error) {
-          console.error('⚠️ Error liberando recorder:', error);
+        // Limpiar canvas-record
+        if (this.recorder) {
+          try {
+            await this.recorder.dispose();
+          } catch (error) {
+            console.error('⚠️ Error liberando recorder:', error);
+          }
+        }
+
+        // Limpiar fallback
+        if (this.fallbackRecorder) {
+          try {
+            await this.fallbackRecorder.dispose();
+          } catch (error) {
+            console.error('⚠️ Error liberando fallback recorder:', error);
+          }
         }
       }
     }
+
     this.recorder = null;
+    this.fallbackRecorder = null;
     this.context = null;
     this.canvas = null;
   }

@@ -4,11 +4,11 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-// import { getStore } from '@netlify/blobs';  // Producción (Netlify)
-import { getStore } from '@/lib/blobs-mock';  // Desarrollo local
+import { getStore } from '@netlify/blobs';  // Producción (Netlify)
+// import { getStore } from '@/lib/blobs-mock';  // Desarrollo local
 import type { ArtPiece } from '@/types/art';
 
-// export const runtime = 'edge';  // Solo en Netlify
+export const runtime = 'edge';  // Edge Runtime para Netlify
 
 export async function GET(
   request: NextRequest,

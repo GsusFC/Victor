@@ -4,12 +4,12 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-// import { getStore } from '@netlify/blobs';  // Producción (Netlify)
-import { getStore } from '@/lib/blobs-mock';  // Desarrollo local
+import { getStore } from '@netlify/blobs';  // Producción (Netlify)
+// import { getStore } from '@/lib/blobs-mock';  // Desarrollo local
 import type { ArtPiece, ArtIndex, PublishArtRequest, PublishArtResponse } from '@/types/art';
 import { generateArtId, generateArtTitle } from '@/lib/art-utils';
 
-// export const runtime = 'edge';  // Solo en Netlify
+export const runtime = 'edge';  // Edge Runtime para Netlify
 
 export async function POST(request: NextRequest) {
   try {
