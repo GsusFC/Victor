@@ -78,6 +78,9 @@ export class UniformManager {
   }
 
   updateUniforms(data: UniformData, gradientStops: Array<{ color: string; position: number }>): void {
+    // Procesar gradient stops primero para obtener el count correcto
+    const processedStops = this.processGradientStops(gradientStops);
+
     this.uniformData[0] = data.aspect;
     this.uniformData[1] = data.time;
     this.uniformData[2] = data.vectorLength;
@@ -85,7 +88,7 @@ export class UniformManager {
     this.uniformData[4] = data.pixelToISO;
     this.uniformData[5] = data.zoom;
     this.uniformData[6] = data.speed;
-    this.uniformData[7] = data.gradientStopCount;
+    this.uniformData[7] = processedStops.count; // Usar el count procesado, no el del data
     this.uniformData[8] = data.param1;
     this.uniformData[9] = data.param2;
     this.uniformData[10] = data.param3;
@@ -111,7 +114,6 @@ export class UniformManager {
     this.uniformData[30] = 0;
     this.uniformData[31] = 0;
 
-    const processedStops = this.processGradientStops(gradientStops);
     this.uniformData.set(processedStops.data, 32);
 
     let hasChanged = this.uniformsDirty;
