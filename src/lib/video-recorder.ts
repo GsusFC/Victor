@@ -4,10 +4,12 @@
  */
 
 import { Recorder } from 'canvas-record';
-import { AVC } from 'media-codecs';
 import { MediaRecorderFallback } from './media-recorder-fallback';
 import { RECORDING_CONSTANTS } from './recording/constants';
-import type { RecordingConfig, RecordingState, RecordingStats, RecordingError, VideoQuality } from '@/types/recording';
+import { hasWebCodecsSupport, getCodecConfig, getBitrate, getFpsForQuality } from './recording/codec-config';
+import { StatsManager } from './recording/stats-manager';
+import { downloadBuffer, generateFileName } from './recording/download-manager';
+import type { RecordingConfig, RecordingState, RecordingStats, RecordingError } from '@/types/recording';
 
 export class VideoRecorder {
   private recorder: Recorder | null = null;
@@ -18,13 +20,12 @@ export class VideoRecorder {
   private canvas: HTMLCanvasElement | null = null;
   private config: RecordingConfig;
   private stats: RecordingStats;
+  private statsManager: StatsManager;
   private state: RecordingState = 'idle';
-  private startTime: number = 0;
-  private frameCount: number = 0;
   private errorInfo: RecordingError | null = null;
   private savedBuffer: ArrayBuffer | Uint8Array | Blob[] | null = null;
-  private recorderInitializing: boolean = false; // Flag para evitar captura durante inicialización
-  private recorderStartDelayFrames: number = 0; // Frames a esperar después de iniciar recorder
+  private recorderInitializing: boolean = false;
+  private recorderStartDelayFrames: number = 0;
 
   constructor(canvas: HTMLCanvasElement, config?: Partial<RecordingConfig>) {
     this.canvas = canvas;
@@ -55,6 +56,9 @@ export class VideoRecorder {
       currentFps: 0,
     };
 
+    // Inicializar StatsManager
+    this.statsManager = new StatsManager();
+
     if (!this.context) {
       throw new Error('Canvas no tiene contexto WebGPU');
     }
@@ -64,43 +68,6 @@ export class VideoRecorder {
     this.device = contextConfig?.device || null;
   }
 
-  /**
-   * Detecta si WebCodecs está disponible para aceleración por hardware
-   */
-  private hasWebCodecsSupport(): boolean {
-    return typeof VideoEncoder !== 'undefined' && typeof VideoDecoder !== 'undefined';
-  }
-
-  /**
-   * Obtiene el codec apropiado según el formato y calidad
-   */
-  private getCodecConfig(): string | undefined {
-    if (!this.hasWebCodecsSupport()) {
-      return undefined; // Fallback automático a WASM
-    }
-
-    // H.264 High Profile para MP4 (mejor compatibilidad y calidad)
-    if (this.config.format === 'mp4') {
-      return AVC.getCodec({ profile: 'High', level: '5.2' }); // High Profile para mejor calidad
-    }
-
-    // VP9 para WebM (mejor compresión)
-    return 'vp09.00.10.08';
-  }
-
-  /**
-   * Obtiene el bitrate según la calidad configurada
-   */
-  private getBitrate(): number {
-    const presets: Record<VideoQuality, number> = {
-      low: 6_000_000, // 6 Mbps (mejorado)
-      medium: 12_000_000, // 12 Mbps (mejorado)
-      high: 18_000_000, // 18 Mbps (mejorado) - Óptimo para arte
-      max: 30_000_000, // 30 Mbps (mejorado)
-    };
-
-    return presets[this.config.quality];
-  }
 
   /**
    * Inicializa el recorder y comienza la grabación
@@ -133,8 +100,8 @@ export class VideoRecorder {
     }
 
     try {
-      this.frameCount = 0;
-      this.startTime = performance.now();
+      this.statsManager.reset();
+      this.statsManager.start();
       this.errorInfo = null;
       this.savedBuffer = null; // Limpiar buffer anterior
       this.recorderInitializing = false; // Reset flag
@@ -205,11 +172,12 @@ export class VideoRecorder {
         return;
       }
 
-      this.frameCount++;
+      this.statsManager.recordFrame();
 
       // Actualizar stats cada 30 frames
-      if (this.frameCount % 30 === 0) {
-        this.updateStats();
+      const currentStats = this.statsManager.getStats(getBitrate(this.config.quality));
+      if (currentStats.frameCount % 30 === 0) {
+        this.stats = currentStats;
       }
     } catch (error) {
       console.error('❌ Error capturando frame:', error);
@@ -232,9 +200,9 @@ export class VideoRecorder {
 
     const canvasWidth = this.canvas.width;
     const canvasHeight = this.canvas.height;
-    const hasWebCodecs = this.hasWebCodecsSupport();
-    const codec = this.getCodecConfig();
-    const bitrate = this.getBitrate();
+    const hasWebCodecs = hasWebCodecsSupport();
+    const codec = getCodecConfig(this.config.format);
+    const bitrate = getBitrate(this.config.quality);
 
     console.log('🎥 Iniciando recorder:', {
       format: this.config.format,
@@ -456,13 +424,14 @@ export class VideoRecorder {
         }
       }
 
-      this.updateStats();
+      // Actualizar stats finales
+      this.stats = this.statsManager.getStats(getBitrate(this.config.quality));
 
       console.log('✅ Grabación completada:', {
         duration: `${this.stats.duration.toFixed(1)}s`,
-        frames: this.frameCount,
+        frames: this.stats.frameCount,
         avgFps: this.stats.currentFps.toFixed(1),
-        size: this.formatFileSize(this.stats.estimatedSize),
+        size: this.statsManager.formatFileSize(this.stats.estimatedSize),
         hasBuffer: !!buffer,
         usingFallback: this.usingFallback,
       });
@@ -473,7 +442,7 @@ export class VideoRecorder {
         console.log('💾 Buffer guardado exitosamente, listo para descargar');
         this.state = 'idle';
       } else {
-        console.error('⚠️ No se pudo capturar el buffer - ' + this.frameCount + ' frames grabados sin buffer');
+        console.error('⚠️ No se pudo capturar el buffer - ' + this.stats.frameCount + ' frames grabados sin buffer');
         console.error('💡 SUGERENCIA: Intenta cambiar el formato a WebM o reducir la calidad');
         this.state = 'idle';
         this.errorInfo = {
@@ -497,127 +466,6 @@ export class VideoRecorder {
     }
   }
 
-  /**
-   * Descarga el buffer como archivo
-   */
-  private downloadBuffer(buffer: ArrayBuffer | Uint8Array | Blob[]): void {
-    try {
-      console.log('📦 Iniciando descarga del buffer...');
-      console.log('📦 Tipo de buffer:', Array.isArray(buffer) ? 'Blob[]' : buffer.constructor.name);
-
-      let blob: Blob;
-
-      // Convertir el buffer a Blob según su tipo
-      if (Array.isArray(buffer)) {
-        // Si es Blob[], usar directamente
-        console.log('📦 Convirtiendo array de Blobs...');
-        blob = new Blob(buffer);
-      } else if (buffer instanceof ArrayBuffer) {
-        // Si es ArrayBuffer, crear Blob
-        console.log('📦 Convirtiendo ArrayBuffer...');
-        blob = new Blob([buffer]);
-      } else {
-        // Si es Uint8Array, copiar los datos a un nuevo ArrayBuffer estándar
-        console.log('📦 Convirtiendo Uint8Array...');
-        // Crear una copia en un ArrayBuffer nuevo para evitar problemas con SharedArrayBuffer
-        const copy = new Uint8Array(buffer);
-        blob = new Blob([copy]);
-      }
-
-      console.log('📦 Blob creado:', blob.size, 'bytes');
-
-      // Obtener el MIME type correcto
-      const mimeTypes: Record<string, string> = {
-        mp4: 'video/mp4',
-        webm: 'video/webm',
-        gif: 'image/gif',
-      };
-
-      const mimeType = mimeTypes[this.config.format] || 'application/octet-stream';
-      const finalBlob = new Blob([blob], { type: mimeType });
-
-      console.log('📦 Blob final con MIME type:', mimeType, '-', finalBlob.size, 'bytes');
-
-      // Crear URL del objeto
-      const url = URL.createObjectURL(finalBlob);
-      console.log('📦 URL creada:', url.substring(0, 50) + '...');
-
-      // Crear elemento de descarga
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${this.config.fileName}.${this.config.format}`;
-      a.style.display = 'none';
-
-      // Agregar al DOM
-      document.body.appendChild(a);
-      console.log('📦 Elemento <a> agregado al DOM');
-
-      // Intentar la descarga con múltiples métodos para mejor compatibilidad
-      try {
-        // Método 1: Click directo
-        a.click();
-        console.log('✅ Click ejecutado en elemento <a>');
-      } catch (clickError) {
-        console.warn('⚠️ Error con click(), intentando método alternativo:', clickError);
-
-        // Método 2: Disparar evento manualmente
-        const clickEvent = new MouseEvent('click', {
-          view: window,
-          bubbles: true,
-          cancelable: true,
-        });
-        a.dispatchEvent(clickEvent);
-        console.log('✅ Evento de click disparado manualmente');
-      }
-
-      // Cleanup con delay para asegurar que la descarga comience
-      setTimeout(() => {
-        try {
-          document.body.removeChild(a);
-          URL.revokeObjectURL(url);
-          console.log('🧹 Cleanup completado');
-        } catch (cleanupError) {
-          console.warn('⚠️ Error en cleanup:', cleanupError);
-        }
-      }, 1000); // Aumentado a 1 segundo para dar más tiempo
-
-      console.log('📥 Descarga iniciada:', a.download);
-    } catch (error) {
-      console.error('❌ Error en downloadBuffer:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Actualiza las estadísticas de grabación
-   */
-  private updateStats(): void {
-    const elapsed = (performance.now() - this.startTime) / 1000;
-    const currentFps = elapsed > 0 ? this.frameCount / elapsed : 0;
-
-    // Estimar tamaño del archivo
-    // Fórmula: (bitrate / 8) * duración
-    const bitrate = this.getBitrate();
-    const estimatedSize = (bitrate / 8) * elapsed;
-
-    this.stats = {
-      duration: elapsed,
-      frameCount: this.frameCount,
-      estimatedSize,
-      currentFps,
-    };
-  }
-
-  /**
-   * Formatea el tamaño del archivo a formato legible
-   */
-  private formatFileSize(bytes: number): string {
-    if (bytes === 0) return '0 B';
-    const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`;
-  }
 
   /**
    * Obtiene el estado actual
@@ -631,7 +479,7 @@ export class VideoRecorder {
    */
   getStats(): RecordingStats {
     if (this.state === 'recording' || this.state === 'paused') {
-      this.updateStats();
+      this.stats = this.statsManager.getStats(getBitrate(this.config.quality));
     }
     return { ...this.stats };
   }
@@ -680,7 +528,8 @@ export class VideoRecorder {
       throw new Error('No hay video disponible para descargar');
     }
 
-    this.downloadBuffer(this.savedBuffer);
+    const fileName = generateFileName(this.config.fileName || 'victor-animation', this.config.format);
+    downloadBuffer(this.savedBuffer, fileName, this.config.format);
   }
 
   /**

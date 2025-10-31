@@ -5,11 +5,9 @@
 
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import type { AnimationType } from '@/types/engine';
+import type { AnimationType, VectorShape } from '@/types/engine';
 
 // ============= TYPES =============
-
-export type VectorShape = 'line' | 'triangle' | 'arc' | 'circle' | 'star' | 'hexagon' | 'arrow' | 'diamond' | 'semicircle' | 'cross';
 
 export type AnimationCategory = 'natural' | 'energetic' | 'geometric' | 'experimental';
 

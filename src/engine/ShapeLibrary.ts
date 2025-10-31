@@ -3,6 +3,8 @@
  * Sistema de geometry instancing con pre-generación
  */
 
+import { SHAPE_CONFIG } from './shape-constants';
+
 export interface ShapeGeometry {
   vertices: Float32Array; // Posiciones de vértices [x, y, x, y, ...]
   vertexCount: number; // Número total de vértices
@@ -21,13 +23,13 @@ export class ShapeLibrary {
   private generateAllShapes(): void {
     this.shapes.set('line', this.generateLine());
     this.shapes.set('triangle', this.generateTriangle());
-    this.shapes.set('arc', this.generateArc(12)); // 12 segmentos para curva suave
-    this.shapes.set('circle', this.generateCircle(16)); // 16 segmentos para círculo suave
-    this.shapes.set('star', this.generateStar(5, 0.5)); // Estrella de 5 puntas
+    this.shapes.set('arc', this.generateArc(SHAPE_CONFIG.ARC.SEGMENTS));
+    this.shapes.set('circle', this.generateCircle(SHAPE_CONFIG.CIRCLE.SEGMENTS));
+    this.shapes.set('star', this.generateStar(SHAPE_CONFIG.STAR.POINTS, SHAPE_CONFIG.STAR.INNER_RADIUS));
     this.shapes.set('hexagon', this.generateHexagon());
     this.shapes.set('arrow', this.generateArrow());
     this.shapes.set('diamond', this.generateDiamond());
-    this.shapes.set('semicircle', this.generateSemicircle(12)); // 12 segmentos
+    this.shapes.set('semicircle', this.generateSemicircle(SHAPE_CONFIG.SEMICIRCLE.SEGMENTS));
     this.shapes.set('cross', this.generateCross());
   }
 
@@ -88,16 +90,15 @@ export class ShapeLibrary {
    */
   private generateArc(segments: number): ShapeGeometry {
     const vertices: number[] = [];
-    const halfWidth = 0.05; // Ancho de la línea del arco
+    const halfWidth = SHAPE_CONFIG.ARC.HALF_WIDTH;
 
     for (let i = 0; i < segments; i++) {
       const t0 = i / segments;
       const t1 = (i + 1) / segments;
 
       // Calcular posición en la curva (sin(t * π) para arco semicircular)
-      // Aumentamos el factor de curvatura de 0.5 a 0.8 (80% de altura)
       const x0 = t0;
-      const y0 = Math.sin(t0 * Math.PI) * 0.8;
+      const y0 = Math.sin(t0 * Math.PI) * SHAPE_CONFIG.ARC.CURVATURE;
       const x1 = t1;
       const y1 = Math.sin(t1 * Math.PI) * 0.8;
 

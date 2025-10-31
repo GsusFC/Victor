@@ -19,6 +19,14 @@ import { UniformManager } from './core/UniformManager';
 import { ComputePass } from './rendering/ComputePass';
 import { RenderPass } from './rendering/RenderPass';
 import {
+  BLOOM_DEFAULTS,
+  TRAILS_DEFAULTS,
+  POST_PROCESS_DEFAULTS,
+  WEBGPU_DEFAULTS,
+  COMPUTED,
+} from './constants';
+import { validateAnimationParams } from './animation-configs';
+import {
   noneShader,
   smoothWavesShader,
   seaWavesShader,
@@ -69,6 +77,7 @@ export class WebGPUEngine {
   private device: GPUDevice | null = null;
   private context: GPUCanvasContext | null = null;
   private canvas: HTMLCanvasElement | null = null;
+  private canvasFormat: GPUTextureFormat | null = null;
 
   // Managers
   private textureManager: TextureManager | null = null;
@@ -100,6 +109,8 @@ export class WebGPUEngine {
   private fadePipeline: GPURenderPipeline | null = null;
   private fadeBindGroup: GPUBindGroup | null = null;
   private fadeUniformBuffer: GPUBuffer | null = null;
+  private trailsEnabled = false;
+  private trailsDecay: number = TRAILS_DEFAULTS.DECAY;
 
   // Post-Processing system
   private postProcessEnabled = false;
@@ -119,18 +130,23 @@ export class WebGPUEngine {
   private bloomBlurUniformBuffer: GPUBuffer | null = null;
   private bloomCombineUniformBuffer: GPUBuffer | null = null;
   private bloomEnabled = false;
-  private bloomQuality = 9;  // 5, 9, or 13 samples
-  private bloomRadius = 1.5;
-  private bloomThreshold = 0.7;
-  private bloomIntensity = 0.5;
+  private bloomQuality: number = BLOOM_DEFAULTS.QUALITY;
+  private bloomRadius: number = BLOOM_DEFAULTS.RADIUS;
+  private bloomThreshold: number = BLOOM_DEFAULTS.THRESHOLD;
+  private bloomIntensity: number = BLOOM_DEFAULTS.INTENSITY;
+
+  // Bloom bind groups cache
+  private bloomExtractBindGroup: GPUBindGroup | null = null;
+  private bloomHorizontalBlurBindGroup: GPUBindGroup | null = null;
+  private bloomVerticalBlurBindGroup: GPUBindGroup | null = null;
+  private bloomCombineBindGroup: GPUBindGroup | null = null;
+  private bloomBindGroupsNeedUpdate = true;
 
   // Estado
   private isInitialized = false;
   private isInitializing = false;
   private currentAnimationType: AnimationType = 'smoothWaves';
-  private trailsEnabled = false;
-  private trailsDecay = 0.95; // Factor de decay para trails
-  private optimalWorkgroupSize = 64;  // Default, will be calculated based on device limits
+  private optimalWorkgroupSize: number = WEBGPU_DEFAULTS.OPTIMAL_WORKGROUP_SIZE;
   private config: WebGPUEngineConfig = {
     vectorCount: 100,
     vectorLength: 20,
@@ -174,11 +190,10 @@ export class WebGPUEngine {
    * Helper: Obtiene las texturas del TextureManager
    */
   private getTextures() {
-    if (!this.textureManager) {
-      throw new Error('TextureManager no inicializado');
+    if (!this.textureManager || !this.canvasFormat) {
+      throw new Error('TextureManager o canvasFormat no inicializado');
     }
-    const canvasFormat = navigator.gpu.getPreferredCanvasFormat();
-    return this.textureManager.getPostProcessTextures(canvasFormat);
+    return this.textureManager.getPostProcessTextures(this.canvasFormat);
   }
 
   /**
@@ -246,13 +261,14 @@ export class WebGPUEngine {
       }
       console.log('✅ Contexto WebGPU obtenido');
 
-      const canvasFormat = navigator.gpu.getPreferredCanvasFormat();
+      // Cachear canvas format para evitar llamadas repetidas
+      this.canvasFormat = navigator.gpu.getPreferredCanvasFormat();
       this.context.configure({
         device: this.device,
-        format: canvasFormat,
+        format: this.canvasFormat,
         alphaMode: 'premultiplied',
       });
-      console.log(`✅ Contexto configurado (format: ${canvasFormat})`);
+      console.log(`✅ Contexto configurado (format: ${this.canvasFormat})`);
 
       // Inicializar TextureManager
       this.textureManager = new TextureManager(this.device, canvas);
@@ -303,7 +319,7 @@ export class WebGPUEngine {
       const computeShaderModules = this.createComputeShaderModules();
 
       // Inicializar PipelineManager
-      this.pipelineManager = new PipelineManager(this.device, canvasFormat);
+      this.pipelineManager = new PipelineManager(this.device, this.canvasFormat);
       const pipelines = this.pipelineManager.getPipelines(
         renderShaderModule,
         fadeShaderModule,
@@ -486,7 +502,9 @@ export class WebGPUEngine {
     // opacity 1.0 (UI) -> fade rápido -> decay 0.80 (fade del 20% por frame) -> trails cortos
     // opacity 0.1 (UI) -> fade lento -> decay 0.98 (fade del 2% por frame) -> trails largos
     // Fórmula: a mayor opacity en UI, mayor fade (menor decay)
-    this.trailsDecay = enabled ? 0.98 - opacity * 0.18 : 1.0;
+    this.trailsDecay = enabled
+      ? TRAILS_DEFAULTS.OPACITY_TO_DECAY_MAX - opacity * TRAILS_DEFAULTS.OPACITY_RANGE
+      : 1.0;
 
     // Actualizar uniform buffer si ya existe
     if (this.fadeUniformBuffer && this.device) {
@@ -740,10 +758,9 @@ export class WebGPUEngine {
    * Actualiza las dimensiones del canvas y recrea texturas
    */
   updateCanvasDimensions(_width: number, _height: number): void {
-    if (!this.canvas || !this.context || !this.device || !this.textureManager) return;
+    if (!this.canvas || !this.context || !this.device || !this.textureManager || !this.canvasFormat) return;
 
-    const canvasFormat = navigator.gpu.getPreferredCanvasFormat();
-    this.textureManager.updateCanvasDimensions(canvasFormat);
+    this.textureManager.updateCanvasDimensions(this.canvasFormat);
 
     // Invalidar bind groups que usan las texturas
     this.postProcessBindGroupNeedsUpdate = true;
@@ -831,96 +848,12 @@ export class WebGPUEngine {
   ): void {
     if (!this.uniformManager) return;
 
-    // Valores por defecto según tipo de animación
-    const defaults = (type: AnimationType) => {
-      switch (type) {
-        case 'none':
-          return { frequency: 0, amplitude: 0, elasticity: 0, maxLength: 60 };
-        // Naturales/Fluidas
-        case 'smoothWaves':
-          return { frequency: 0.02, amplitude: 20, elasticity: 0.5, maxLength: 90 };
-        case 'seaWaves':
-          return { frequency: 0.02, amplitude: 35, elasticity: 0.8, maxLength: 110 };
-        case 'breathingSoft':
-          return { frequency: 1.1, amplitude: 60, elasticity: 0.4, maxLength: 150 };
-        // Energéticas
-        case 'electricPulse':
-          return { frequency: 0.02, amplitude: 28, elasticity: 0.6, maxLength: 120 };
-        case 'vortex':
-          return { frequency: 1.2, amplitude: 0.45, elasticity: 1.2, maxLength: 130 };
-        case 'directionalFlow':
-          return { frequency: 45, amplitude: 25, elasticity: 0.6, maxLength: 90 };
-        case 'storm':
-          return { frequency: 1.5, amplitude: 1.0, elasticity: 1.2, maxLength: 140 };
-        case 'solarFlare':
-          return { frequency: 1.8, amplitude: 0.5, elasticity: 45, maxLength: 150 };
-        case 'radiation':
-          return { frequency: 1.0, amplitude: 4, elasticity: 0.5, maxLength: 120 };
-        // Geométricas
-        case 'tangenteClasica':
-          return { frequency: 0.6, amplitude: 1, elasticity: 0.5, maxLength: 110 };
-        case 'lissajous':
-          return { frequency: 2.0, amplitude: 3.0, elasticity: 120, maxLength: 90 };
-        case 'geometricPattern':
-          return { frequency: 4, amplitude: 45, elasticity: 0.5, maxLength: 80 };
-        default:
-          return { frequency: 0, amplitude: 0, elasticity: 0, maxLength: 60 };
-      }
-    };
-
-    const baseDefaults = defaults(this.currentAnimationType);
-    let param1 = params.frequency ?? baseDefaults.frequency;
-    let param2 = params.amplitude ?? baseDefaults.amplitude;
-    let param3 = params.elasticity ?? baseDefaults.elasticity;
-    const param4 = params.maxLength ?? baseDefaults.maxLength;
-
-    // Ajustes específicos según animación
-    switch (this.currentAnimationType) {
-      case 'directionalFlow': {
-        param3 = Math.max(0, Math.min(1, param3));
-        break;
-      }
-      case 'tangenteClasica': {
-        param2 = param2 >= 0 ? 1 : -1;
-        param3 = Math.max(0, Math.min(1, param3));
-        break;
-      }
-      case 'geometricPattern': {
-        param3 = Math.max(0, Math.min(1, param3));
-        break;
-      }
-      case 'vortex': {
-        param2 = Math.max(0, Math.min(1, param2));
-        param3 = Math.max(0.01, param3);
-        break;
-      }
-      case 'breathingSoft': {
-        param1 = Math.max(0.05, param1);
-        param2 = Math.max(0, Math.min(360, param2));
-        param3 = Math.max(0, Math.min(1, param3));
-        break;
-      }
-      case 'storm': {
-        param1 = Math.max(0.1, Math.min(3, param1));  // chaos: 0.1-3.0
-        param2 = Math.max(0, Math.min(2, param2));    // vorticity: 0-2.0
-        param3 = Math.max(0.1, param3);               // pulseSpeed: min 0.1
-        break;
-      }
-      case 'solarFlare': {
-        param1 = Math.max(0.5, Math.min(3, param1));  // flareIntensity: 0.5-3.0
-        param2 = param2;                               // rotationSpeed: sin restricción
-        param3 = param3;                               // ejectionAngle: sin restricción
-        break;
-      }
-      case 'radiation': {
-        param1 = Math.max(0.1, param1);                // waveSpeed: min 0.1
-        param2 = Math.max(1, Math.min(8, param2));    // numSources: 1-8
-        param3 = Math.max(0, Math.min(1, param3));    // interference: 0-1
-        break;
-      }
-      default:
-        break;
-    }
+    // Obtener parámetros validados usando configuración centralizada
+    const validated = validateAnimationParams(this.currentAnimationType, params);
+    const param1 = validated.frequency;
+    const param2 = validated.amplitude;
+    const param3 = validated.elasticity;
+    const param4 = validated.maxLength;
 
     // Convertir color hex a RGB
     const hexToRgb = (hex: string) => {
@@ -1084,31 +1017,30 @@ export class WebGPUEngine {
     // Obtener texturas del TextureManager
     const textures = this.getTextures();
 
+    // Crear bind groups solo si es necesario
+    if (this.bloomBindGroupsNeedUpdate || !this.bloomExtractBindGroup) {
+      this.bloomExtractBindGroup = this.device.createBindGroup({
+        layout: this.bloomExtractPipeline.getBindGroupLayout(0),
+        entries: [
+          { binding: 0, resource: textures.resolved.view }, // Input: rendered scene
+          { binding: 1, resource: textures.sampler },
+          { binding: 2, resource: { buffer: this.bloomExtractUniformBuffer! } },
+        ],
+      });
+    }
+
     // Pass 1: Extract bright colors
-    const extractBindGroup = this.device.createBindGroup({
-      layout: this.bloomExtractPipeline.getBindGroupLayout(0),
-      entries: [
-        { binding: 0, resource: textures.resolved.view }, // Input: rendered scene
-        { binding: 1, resource: textures.sampler },
-        { binding: 2, resource: { buffer: this.bloomExtractUniformBuffer! } },
-      ],
+    const extractRenderPass = new RenderPass({
+      label: 'Bloom Extract Pass',
+      colorView: textures.bloomExtract.view,
+      clearColor: { r: 0, g: 0, b: 0, a: 1 },
     });
 
-    const extractPass = commandEncoder.beginRenderPass({
-      colorAttachments: [
-        {
-          view: textures.bloomExtract.view,
-          clearValue: { r: 0, g: 0, b: 0, a: 1 },
-          loadOp: 'clear',
-          storeOp: 'store',
-        },
-      ],
+    extractRenderPass.execute(commandEncoder, (passEncoder) => {
+      passEncoder.setPipeline(this.bloomExtractPipeline!);
+      passEncoder.setBindGroup(0, this.bloomExtractBindGroup!);
+      passEncoder.draw(3, 1, 0, 0);
     });
-
-    extractPass.setPipeline(this.bloomExtractPipeline);
-    extractPass.setBindGroup(0, extractBindGroup);
-    extractPass.draw(3, 1, 0, 0);
-    extractPass.end();
 
     // Pass 2: Horizontal blur
     const horizontalBlurUniforms = new Float32Array([
@@ -1118,30 +1050,28 @@ export class WebGPUEngine {
     ]);
     this.device.queue.writeBuffer(this.bloomBlurUniformBuffer!, 0, horizontalBlurUniforms);
 
-    const horizontalBlurBindGroup = this.device.createBindGroup({
-      layout: this.bloomBlurPipeline.getBindGroupLayout(0),
-      entries: [
-        { binding: 0, resource: textures.bloomExtract.view }, // Input: bright pass
-        { binding: 1, resource: textures.sampler },
-        { binding: 2, resource: { buffer: this.bloomBlurUniformBuffer! } },
-      ],
+    if (this.bloomBindGroupsNeedUpdate || !this.bloomHorizontalBlurBindGroup) {
+      this.bloomHorizontalBlurBindGroup = this.device.createBindGroup({
+        layout: this.bloomBlurPipeline.getBindGroupLayout(0),
+        entries: [
+          { binding: 0, resource: textures.bloomExtract.view }, // Input: bright pass
+          { binding: 1, resource: textures.sampler },
+          { binding: 2, resource: { buffer: this.bloomBlurUniformBuffer! } },
+        ],
+      });
+    }
+
+    const horizontalBlurRenderPass = new RenderPass({
+      label: 'Bloom Horizontal Blur Pass',
+      colorView: textures.bloomBlur1.view,
+      clearColor: { r: 0, g: 0, b: 0, a: 1 },
     });
 
-    const horizontalBlurPass = commandEncoder.beginRenderPass({
-      colorAttachments: [
-        {
-          view: textures.bloomBlur1.view,
-          clearValue: { r: 0, g: 0, b: 0, a: 1 },
-          loadOp: 'clear',
-          storeOp: 'store',
-        },
-      ],
+    horizontalBlurRenderPass.execute(commandEncoder, (passEncoder) => {
+      passEncoder.setPipeline(this.bloomBlurPipeline!);
+      passEncoder.setBindGroup(0, this.bloomHorizontalBlurBindGroup!);
+      passEncoder.draw(3, 1, 0, 0);
     });
-
-    horizontalBlurPass.setPipeline(this.bloomBlurPipeline);
-    horizontalBlurPass.setBindGroup(0, horizontalBlurBindGroup);
-    horizontalBlurPass.draw(3, 1, 0, 0);
-    horizontalBlurPass.end();
 
     // Pass 3: Vertical blur
     const verticalBlurUniforms = new Float32Array([
@@ -1151,57 +1081,54 @@ export class WebGPUEngine {
     ]);
     this.device.queue.writeBuffer(this.bloomBlurUniformBuffer!, 0, verticalBlurUniforms);
 
-    const verticalBlurBindGroup = this.device.createBindGroup({
-      layout: this.bloomBlurPipeline.getBindGroupLayout(0),
-      entries: [
-        { binding: 0, resource: textures.bloomBlur1.view }, // Input: horizontally blurred
-        { binding: 1, resource: textures.sampler },
-        { binding: 2, resource: { buffer: this.bloomBlurUniformBuffer! } },
-      ],
+    if (this.bloomBindGroupsNeedUpdate || !this.bloomVerticalBlurBindGroup) {
+      this.bloomVerticalBlurBindGroup = this.device.createBindGroup({
+        layout: this.bloomBlurPipeline.getBindGroupLayout(0),
+        entries: [
+          { binding: 0, resource: textures.bloomBlur1.view }, // Input: horizontally blurred
+          { binding: 1, resource: textures.sampler },
+          { binding: 2, resource: { buffer: this.bloomBlurUniformBuffer! } },
+        ],
+      });
+    }
+
+    const verticalBlurRenderPass = new RenderPass({
+      label: 'Bloom Vertical Blur Pass',
+      colorView: textures.bloomBlur2.view, // Output to bloomBlur2 (final blurred bloom)
+      clearColor: { r: 0, g: 0, b: 0, a: 1 },
     });
 
-    const verticalBlurPass = commandEncoder.beginRenderPass({
-      colorAttachments: [
-        {
-          view: textures.bloomBlur2.view, // Output to bloomBlur2 (final blurred bloom)
-          clearValue: { r: 0, g: 0, b: 0, a: 1 },
-          loadOp: 'clear',
-          storeOp: 'store',
-        },
-      ],
+    verticalBlurRenderPass.execute(commandEncoder, (passEncoder) => {
+      passEncoder.setPipeline(this.bloomBlurPipeline!);
+      passEncoder.setBindGroup(0, this.bloomVerticalBlurBindGroup!);
+      passEncoder.draw(3, 1, 0, 0);
     });
-
-    verticalBlurPass.setPipeline(this.bloomBlurPipeline);
-    verticalBlurPass.setBindGroup(0, verticalBlurBindGroup);
-    verticalBlurPass.draw(3, 1, 0, 0);
-    verticalBlurPass.end();
 
     // Pass 4: Combine bloom with original (write to blurTexture for final post-process)
-    const combineBindGroup = this.device.createBindGroup({
-      layout: this.bloomCombinePipeline.getBindGroupLayout(0),
-      entries: [
-        { binding: 0, resource: textures.resolved.view }, // Original scene
-        { binding: 1, resource: textures.bloomBlur2.view }, // Blurred bloom
-        { binding: 2, resource: textures.sampler },
-        { binding: 3, resource: { buffer: this.bloomCombineUniformBuffer! } },
-      ],
+    if (this.bloomBindGroupsNeedUpdate || !this.bloomCombineBindGroup) {
+      this.bloomCombineBindGroup = this.device.createBindGroup({
+        layout: this.bloomCombinePipeline.getBindGroupLayout(0),
+        entries: [
+          { binding: 0, resource: textures.resolved.view }, // Original scene
+          { binding: 1, resource: textures.bloomBlur2.view }, // Blurred bloom
+          { binding: 2, resource: textures.sampler },
+          { binding: 3, resource: { buffer: this.bloomCombineUniformBuffer! } },
+        ],
+      });
+      this.bloomBindGroupsNeedUpdate = false; // Reset flag after creating all bind groups
+    }
+
+    const combineRenderPass = new RenderPass({
+      label: 'Bloom Combine Pass',
+      colorView: textures.blur.view, // Write combined result to blurTexture
+      clearColor: { r: 0, g: 0, b: 0, a: 1 },
     });
 
-    const combinePass = commandEncoder.beginRenderPass({
-      colorAttachments: [
-        {
-          view: textures.blur.view, // Write combined result to blurTexture
-          clearValue: { r: 0, g: 0, b: 0, a: 1 },
-          loadOp: 'clear',
-          storeOp: 'store',
-        },
-      ],
+    combineRenderPass.execute(commandEncoder, (passEncoder) => {
+      passEncoder.setPipeline(this.bloomCombinePipeline!);
+      passEncoder.setBindGroup(0, this.bloomCombineBindGroup!);
+      passEncoder.draw(3, 1, 0, 0);
     });
-
-    combinePass.setPipeline(this.bloomCombinePipeline);
-    combinePass.setBindGroup(0, combineBindGroup);
-    combinePass.draw(3, 1, 0, 0);
-    combinePass.end();
 
     // Ahora blurTexture contiene la imagen con bloom aplicado
     // El post-process final debe usar blurTexture en lugar de resolvedTexture
@@ -1229,20 +1156,17 @@ export class WebGPUEngine {
 
     // Si trails están activados, primero aplicar fade
     if (this.trailsEnabled && this.fadePipeline && this.fadeBindGroup && targetView) {
-      const fadePass = commandEncoder.beginRenderPass({
-        colorAttachments: [
-          {
-            view: targetView,
-            loadOp: 'load',
-            storeOp: 'store',
-          },
-        ],
+      const fadeRenderPass = new RenderPass({
+        label: 'Fade Pass',
+        colorView: targetView,
+        loadOp: 'load',
       });
 
-      fadePass.setPipeline(this.fadePipeline);
-      fadePass.setBindGroup(0, this.fadeBindGroup);
-      fadePass.draw(3, 1, 0, 0);
-      fadePass.end();
+      fadeRenderPass.execute(commandEncoder, (passEncoder) => {
+        passEncoder.setPipeline(this.fadePipeline!);
+        passEncoder.setBindGroup(0, this.fadeBindGroup!);
+        passEncoder.draw(3, 1, 0, 0);
+      });
     }
 
     // Render pass principal (vectores)
@@ -1251,27 +1175,24 @@ export class WebGPUEngine {
       return;
     }
 
-    const renderPass = commandEncoder.beginRenderPass({
-      colorAttachments: [
-        {
-          view: targetView,
-          ...(resolveTarget && { resolveTarget }),
-          clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
-          loadOp: this.trailsEnabled ? 'load' : 'clear',
-          storeOp: 'store',
-        },
-      ],
+    const mainRenderPass = new RenderPass({
+      label: 'Main Vector Render Pass',
+      colorView: targetView,
+      colorResolveTarget: resolveTarget,
+      clearColor: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
+      loadOp: this.trailsEnabled ? 'load' : 'clear',
     });
 
-    renderPass.setPipeline(this.renderPipeline);
-    renderPass.setBindGroup(0, this.renderBindGroup);
+    mainRenderPass.execute(commandEncoder, (passEncoder) => {
+      passEncoder.setPipeline(this.renderPipeline!);
+      passEncoder.setBindGroup(0, this.renderBindGroup!);
 
-    if (this.shapeBuffer) {
-      renderPass.setVertexBuffer(0, this.shapeBuffer);
-    }
+      if (this.shapeBuffer) {
+        passEncoder.setVertexBuffer(0, this.shapeBuffer);
+      }
 
-    renderPass.draw(this.currentShapeVertexCount, this.config.vectorCount, 0, 0);
-    renderPass.end();
+      passEncoder.draw(this.currentShapeVertexCount, this.config.vectorCount, 0, 0);
+    });
 
     // Si advanced bloom está activado, aplicar multi-pass bloom
     if (this.bloomEnabled && usePostProcess) {
@@ -1299,21 +1220,18 @@ export class WebGPUEngine {
         this.postProcessBindGroupNeedsUpdate = false;
       }
 
-      const postProcessPass = commandEncoder.beginRenderPass({
-        colorAttachments: [
-          {
-            view: canvasTextureView,
-            clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
-            loadOp: 'clear',
-            storeOp: 'store',
-          },
-        ],
+      const postProcessRenderPass = new RenderPass({
+        label: 'Post Process Pass',
+        colorView: canvasTextureView,
+        clearColor: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
+        loadOp: 'clear',
       });
 
-      postProcessPass.setPipeline(this.postProcessPipeline);
-      postProcessPass.setBindGroup(0, this.postProcessBindGroup);
-      postProcessPass.draw(3, 1, 0, 0); // Fullscreen quad
-      postProcessPass.end();
+      postProcessRenderPass.execute(commandEncoder, (passEncoder) => {
+        passEncoder.setPipeline(this.postProcessPipeline!);
+        passEncoder.setBindGroup(0, this.postProcessBindGroup!);
+        passEncoder.draw(3, 1, 0, 0); // Fullscreen quad
+      });
     }
 
     this.device.queue.submit([commandEncoder.finish()]);
