@@ -8,8 +8,18 @@ import { WebGPUEngine } from '@/engine/WebGPUEngine';
 import { ISOCoordinates } from '@/engine/CoordinateSystem';
 import { useVectorStore, selectGrid, selectAnimation, selectVisual, selectCanvas } from '@/store/vectorStore';
 import type { VectorShape } from '@/types/engine';
-import type { AnimationType } from '@/types/engine';
 import { useAnimationFrame } from './useAnimationFrame';
+
+// ✅ OPTIMIZACIÓN: Animaciones que requieren mouse tracking
+// Movido fuera del componente para evitar recreación en cada render
+const MOUSE_ANIMATIONS = new Set([
+  'flowField',
+  'magneticField',
+  'blackHole',
+  'vortex',
+  'electricPulse',
+  'plasmaBall',
+]);
 
 interface UseVectorEngineOptions {
   canvasRef: RefObject<HTMLCanvasElement | null>;
@@ -97,19 +107,19 @@ export function useVectorEngine(options: UseVectorEngineOptions | RefObject<HTML
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canvasRef, canvasRef.current?.width, canvasRef.current?.height]);
 
-  // Cambiar tipo de animación
+  // ✅ OPTIMIZACIÓN: Consolidar todos los updates del engine en un solo useEffect
+  // Reduce overhead de múltiples re-renders y hace el código más mantenible
   useEffect(() => {
     const engine = engineRef.current;
     if (!engine || !engine.initialized) return;
 
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    // 1. Update animation type
     engine.setAnimationType(animation.type as any);
-  }, [animation.type]);
 
-  // Actualizar configuración cuando cambia el grid o visual
-  useEffect(() => {
-    const engine = engineRef.current;
-    if (!engine || !engine.initialized) return;
-
+    // 2. Update configuration
     engine.updateConfig({
       vectorCount: grid.rows * grid.cols,
       vectorLength: visual.vectorLength,
@@ -119,29 +129,13 @@ export function useVectorEngine(options: UseVectorEngineOptions | RefObject<HTML
       vectorShape: visual.shape as VectorShape,
     });
 
-    // Actualizar forma si cambió
+    // 3. Update shape
     engine.setShape(visual.shape as VectorShape);
 
-    // Regenerar grid normalmente (sin usar savedVectorData)
-    const canvas = canvasRef.current;
-    if (canvas) {
-      generateAndUpdateGrid(engine, canvas);
-    }
-  }, [grid.rows, grid.cols, grid.spacing, grid.mode, visual.vectorLength, visual.vectorWidth, visual.shape, canvasRef]);
-
-  // Actualizar trails cuando cambia la configuración
-  useEffect(() => {
-    const engine = engineRef.current;
-    if (!engine || !engine.initialized) return;
-
+    // 4. Update trails
     engine.setTrails(visual.trails.enabled, visual.trails.opacity);
-  }, [visual.trails.enabled, visual.trails.opacity]);
 
-  // Actualizar post-processing cuando cambia la configuración
-  useEffect(() => {
-    const engine = engineRef.current;
-    if (!engine || !engine.initialized) return;
-
+    // 5. Update post-processing
     const pp = visual.postProcessing;
     engine.setPostProcessing({
       enabled: pp.enabled,
@@ -153,41 +147,48 @@ export function useVectorEngine(options: UseVectorEngineOptions | RefObject<HTML
       saturation: pp.saturation,
       brightness: pp.brightness,
     });
-  }, [
-    visual.postProcessing.enabled,
-    visual.postProcessing.bloom,
-    visual.postProcessing.chromaticAberration,
-    visual.postProcessing.vignette,
-    visual.postProcessing.exposure,
-    visual.postProcessing.contrast,
-    visual.postProcessing.saturation,
-    visual.postProcessing.brightness,
-  ]);
 
-  // Advanced Bloom configuration
-  useEffect(() => {
-    const engine = engineRef.current;
-    if (!engine || !engine.initialized) return;
-
+    // 6. Update advanced bloom (if available)
     const bloom = visual.postProcessing.advancedBloom;
-    // Safety check for backward compatibility
-    if (!bloom) return;
+    if (bloom) {
+      engine.setAdvancedBloom({
+        enabled: bloom.enabled,
+        quality: bloom.quality,
+        radius: bloom.radius,
+        threshold: bloom.threshold,
+        intensity: bloom.intensity,
+      });
+    }
 
-    engine.setAdvancedBloom({
-      enabled: bloom.enabled,
-      quality: bloom.quality,
-      radius: bloom.radius,
-      threshold: bloom.threshold,
-      intensity: bloom.intensity,
-    });
+    // 7. Regenerar grid solo si cambió algo relevante
+    generateAndUpdateGrid(engine, canvas);
   }, [
-    visual.postProcessing.advancedBloom,
+    animation.type,
+    grid.rows,
+    grid.cols,
+    grid.spacing,
+    grid.mode,
+    visual.vectorLength,
+    visual.vectorWidth,
+    visual.shape,
+    visual.trails.enabled,
+    visual.trails.opacity,
+    visual.postProcessing,
+    canvasRef,
   ]);
 
-  // Tracking de mouse en coordenadas ISO
+  // ✅ OPTIMIZACIÓN: Mouse tracking condicional - solo cuando la animación lo necesita
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
+
+    // Solo trackear mouse si la animación actual lo usa
+    const needsMouse = MOUSE_ANIMATIONS.has(animation.type);
+    if (!needsMouse) {
+      // Resetear posición cuando no se necesita
+      mousePositionRef.current = { x: 0, y: 0, active: false };
+      return;
+    }
 
     const handlePointerMove = (event: PointerEvent) => {
       const iso = ISOCoordinates.normalizeMousePosition(event as unknown as MouseEvent, canvas);
@@ -205,7 +206,7 @@ export function useVectorEngine(options: UseVectorEngineOptions | RefObject<HTML
       canvas.removeEventListener('pointermove', handlePointerMove);
       canvas.removeEventListener('pointerleave', handlePointerLeave);
     };
-  }, [canvasRef]);
+  }, [canvasRef, animation.type]);
 
   // Loop de animación
   const frameCountRef = useRef(0);
@@ -222,8 +223,11 @@ export function useVectorEngine(options: UseVectorEngineOptions | RefObject<HTML
       // Guardar tiempo actual para exposición externa
       currentTimeRef.current = totalTime;
 
+      // ✅ OPTIMIZACIÓN: Logs solo en development para evitar overhead en producción
+      const isDev = process.env.NODE_ENV === 'development';
+      
       // Log del primer frame
-      if (frameCountRef.current === 0) {
+      if (isDev && frameCountRef.current === 0) {
         console.log('🎬 Primer frame renderizando...');
       }
 
@@ -256,8 +260,8 @@ export function useVectorEngine(options: UseVectorEngineOptions | RefObject<HTML
 
       frameCountRef.current++;
 
-      // Log cada 60 frames para verificar que el loop está corriendo
-      if (frameCountRef.current % 60 === 0) {
+      // Log cada 60 frames solo en development
+      if (isDev && frameCountRef.current % 60 === 0) {
         console.log(`🎞️ Frame ${frameCountRef.current} renderizado (${totalTime.toFixed(2)}s)`);
       }
     },
