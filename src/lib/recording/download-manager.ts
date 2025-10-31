@@ -46,7 +46,7 @@ export function bufferToBlob(
   }
 
   if (buffer instanceof Uint8Array) {
-    return new Blob([buffer.buffer], { type: mimeType });
+    return new Blob([buffer as BlobPart], { type: mimeType });
   }
 
   throw new Error('Tipo de buffer no soportado');

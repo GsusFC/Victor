@@ -3,7 +3,7 @@
  */
 
 import { nanoid } from 'nanoid';
-import type { AnimationType } from '@/store/vectorStore';
+import type { AnimationType } from '@/types/engine';
 
 /**
  * Genera un ID único corto para una obra de arte

@@ -241,7 +241,7 @@ export class VideoRecorder {
       throw new Error('El buffer no está listo para descarga (tamaño insuficiente)');
     }
 
-    const fileName = generateFileName(this.config.fileName, this.config.format);
+    const fileName = generateFileName(this.config.fileName || 'victor-animation', this.config.format);
     downloadBuffer(buffer, fileName, this.config.format);
     console.log(`📥 Descargando: ${fileName}`);
   }

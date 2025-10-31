@@ -3,7 +3,7 @@
  * Detecta si una animación es periódica y calcula su período
  */
 
-import type { AnimationType } from '@/store/vectorStore';
+import type { AnimationType } from '@/types/engine';
 
 /**
  * Calcula el máximo común divisor
