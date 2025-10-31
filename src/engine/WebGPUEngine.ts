@@ -16,6 +16,8 @@ import { ShapeLibrary, type ShapeName } from './ShapeLibrary';
 import { TextureManager } from './core/TextureManager';
 import { PipelineManager } from './core/PipelineManager';
 import { UniformManager } from './core/UniformManager';
+import { ComputePass } from './rendering/ComputePass';
+import { RenderPass } from './rendering/RenderPass';
 import {
   noneShader,
   smoothWavesShader,
@@ -1050,17 +1052,18 @@ export class WebGPUEngine {
   computeAnimation(_deltaTime: number): void {
     if (!this.device || !this.computePipeline || !this.computeBindGroup) return;
 
-    const commandEncoder = this.device.createCommandEncoder();
-    const computePass = commandEncoder.beginComputePass();
-
-    computePass.setPipeline(this.computePipeline);
-    computePass.setBindGroup(0, this.computeBindGroup);
-
     // Calcular workgroups usando el tamaño óptimo calculado
     const workgroupCount = Math.ceil(this.config.vectorCount / this.optimalWorkgroupSize);
-    computePass.dispatchWorkgroups(workgroupCount);
 
-    computePass.end();
+    const computePass = new ComputePass({
+      label: 'Vector Animation Compute Pass',
+      pipeline: this.computePipeline,
+      bindGroups: [this.computeBindGroup],
+      workgroupSizeX: workgroupCount,
+    });
+
+    const commandEncoder = this.device.createCommandEncoder();
+    computePass.execute(commandEncoder);
     this.device.queue.submit([commandEncoder.finish()]);
   }
 
