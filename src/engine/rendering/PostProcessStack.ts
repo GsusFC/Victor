@@ -11,10 +11,10 @@ export interface PostProcessEffect {
   name: string;
   enabled: boolean;
   execute(
-    commandEncoder: GPUCommandEncoder,
-    pipelineManager: any,
-    textureManager: any,
-    uniformData: any
+    _commandEncoder: GPUCommandEncoder,
+    _pipelineManager: any,
+    _textureManager: any,
+    _uniformData: any
   ): void;
 }
 
@@ -84,14 +84,14 @@ export class PostProcessStack {
    * Ejecuta todos los effects habilitados
    */
   execute(
-    commandEncoder: GPUCommandEncoder,
-    pipelineManager: any,
-    textureManager: any,
-    uniformData: any
+    _commandEncoder: GPUCommandEncoder,
+    _pipelineManager: any,
+    _textureManager: any,
+    _uniformData: any
   ): void {
     for (const effect of this.effects.values()) {
       if (effect.enabled) {
-        effect.execute(commandEncoder, pipelineManager, textureManager, uniformData);
+        effect.execute(_commandEncoder, _pipelineManager, _textureManager, _uniformData);
       }
     }
   }
@@ -141,22 +141,22 @@ export class BloomEffect implements PostProcessEffect {
     this.combine(commandEncoder, pipelineManager, textures, uniformData);
   }
 
-  private extractBright(commandEncoder: GPUCommandEncoder, pipelineManager: any, textures: any, uniformData: any): void {
+  private extractBright(_commandEncoder: GPUCommandEncoder, _pipelineManager: any, _textures: any, _uniformData: any): void {
     // Extract bright pass using threshold
     console.log('🌟 Bloom: extracting bright areas');
   }
 
-  private blurHorizontal(commandEncoder: GPUCommandEncoder, pipelineManager: any, textures: any, uniformData: any): void {
+  private blurHorizontal(_commandEncoder: GPUCommandEncoder, _pipelineManager: any, _textures: any, _uniformData: any): void {
     // Horizontal blur
     console.log('→ Bloom: horizontal blur');
   }
 
-  private blurVertical(commandEncoder: GPUCommandEncoder, pipelineManager: any, textures: any, uniformData: any): void {
+  private blurVertical(_commandEncoder: GPUCommandEncoder, _pipelineManager: any, _textures: any, _uniformData: any): void {
     // Vertical blur
     console.log('↓ Bloom: vertical blur');
   }
 
-  private combine(commandEncoder: GPUCommandEncoder, pipelineManager: any, textures: any, uniformData: any): void {
+  private combine(_commandEncoder: GPUCommandEncoder, _pipelineManager: any, _textures: any, _uniformData: any): void {
     // Combine bloom with original
     console.log('✨ Bloom: combining');
   }
@@ -169,7 +169,7 @@ export class ToneMapEffect implements PostProcessEffect {
   name = 'ToneMap';
   enabled = true;
 
-  execute(commandEncoder: GPUCommandEncoder, pipelineManager: any, textureManager: any, uniformData: any): void {
+  execute(_commandEncoder: GPUCommandEncoder, _pipelineManager: any, _textureManager: any, _uniformData: any): void {
     console.log('🎨 Applying tone mapping');
     // Tone mapping: exposure, contrast, saturation
   }
@@ -182,7 +182,7 @@ export class BlurEffect implements PostProcessEffect {
   name = 'Blur';
   enabled = false;
 
-  execute(commandEncoder: GPUCommandEncoder, pipelineManager: any, textureManager: any, uniformData: any): void {
+  execute(_commandEncoder: GPUCommandEncoder, _pipelineManager: any, _textureManager: any, _uniformData: any): void {
     console.log('🫧 Applying blur');
     // Separable blur implementation
   }

@@ -7,8 +7,6 @@
  * - Normalización de valores
  */
 
-import type { AnimationType } from '@/types/engine';
-
 const MAX_GRADIENT_STOPS = 12;
 
 export interface UniformData {

@@ -12,7 +12,7 @@ import { blurShader } from './shaders/render/blur.wgsl';
 import { bloomExtractShader } from './shaders/render/bloom-extract.wgsl';
 import { bloomBlurShader } from './shaders/render/bloom-blur.wgsl';
 import { bloomCombineShader } from './shaders/render/bloom-combine.wgsl';
-import { ShapeLibrary, type ShapeName } from './ShapeLibrary';
+import { ShapeLibrary } from './ShapeLibrary';
 import { TextureManager } from './core/TextureManager';
 import { PipelineManager } from './core/PipelineManager';
 import { UniformManager } from './core/UniformManager';
@@ -21,9 +21,7 @@ import { RenderPass } from './rendering/RenderPass';
 import {
   BLOOM_DEFAULTS,
   TRAILS_DEFAULTS,
-  POST_PROCESS_DEFAULTS,
   WEBGPU_DEFAULTS,
-  COMPUTED,
 } from './constants';
 import { validateAnimationParams } from './animation-configs';
 import {
