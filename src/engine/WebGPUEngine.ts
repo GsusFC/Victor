@@ -1005,38 +1005,43 @@ export class WebGPUEngine {
     }
 
     // Delegar al UniformManager
-    this.uniformManager.updateUniforms(
-      {
-        aspect,
-        time,
-        vectorLength: this.config.vectorLength,
-        vectorWidth: this.config.vectorWidth,
-        pixelToISO,
-        zoom,
-        speed,
-        gradientStopCount: 0, // Se calculará en el manager
-        param1,
-        param2,
-        param3,
-        maxLength: param4,
-        mouseX: mouseUniform.active ? mouseUniform.x : 0.0,
-        mouseY: mouseUniform.active ? mouseUniform.y : 0.0,
-        mouseActive: mouseUniform.active ? 1.0 : 0.0,
-        colorR: rgb.r,
-        colorG: rgb.g,
-        colorB: rgb.b,
-        gradientEnabled: enabled ? 1.0 : 0.0,
-        gradientMode,
-        gradientType: gradientTypeValue,
-        linearDirX,
-        linearDirY,
-        linearMin,
-        linearMax,
-        radialMax,
-        seed,
-      },
-      enabled ? gradientStopsInput : []
-    );
+    try {
+      this.uniformManager.updateUniforms(
+        {
+          aspect,
+          time,
+          vectorLength: this.config.vectorLength,
+          vectorWidth: this.config.vectorWidth,
+          pixelToISO,
+          zoom,
+          speed,
+          gradientStopCount: 0, // Se calculará en el manager
+          param1,
+          param2,
+          param3,
+          maxLength: param4,
+          mouseX: mouseUniform.active ? mouseUniform.x : 0.0,
+          mouseY: mouseUniform.active ? mouseUniform.y : 0.0,
+          mouseActive: mouseUniform.active ? 1.0 : 0.0,
+          colorR: rgb.r,
+          colorG: rgb.g,
+          colorB: rgb.b,
+          gradientEnabled: enabled ? 1.0 : 0.0,
+          gradientMode,
+          gradientType: gradientTypeValue,
+          linearDirX,
+          linearDirY,
+          linearMin,
+          linearMax,
+          radialMax,
+          seed,
+        },
+        enabled ? gradientStopsInput : []
+      );
+    } catch (error) {
+      console.error('❌ Error updating uniforms:', error);
+      throw error;
+    }
   }
 
   /**
