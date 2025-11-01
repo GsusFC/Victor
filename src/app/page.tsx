@@ -59,7 +59,7 @@ export default function Home() {
         recordingControls={
           <HeaderRecordingControls
             canvas={canvasElement}
-            canvasRef={canvasHandleRef}
+            canvasRef={canvasHandleRef as React.RefObject<VectorCanvasHandle>}
             onRecordingCallbackChange={(callback) => {
               recordingCallbackRef.current = callback;
             }}
