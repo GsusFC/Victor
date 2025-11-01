@@ -1236,6 +1236,48 @@ export class WebGPUEngine {
   }
 
   /**
+   * Renderiza un frame único con transparencia (para captura de imagen)
+   * Renderiza directamente al canvas con fondo transparente
+   */
+  renderTransparentFrame(): void {
+    if (!this.device || !this.context || !this.renderPipeline || !this.renderBindGroup) {
+      console.warn('⚠️ renderTransparentFrame: Recursos no disponibles');
+      return;
+    }
+
+    const textures = this.getTextures();
+    const commandEncoder = this.device.createCommandEncoder();
+    const canvasTextureView = this.context.getCurrentTexture().createView();
+
+    // Para captura transparente: renderizar directamente al canvas sin post-processing
+    // Esto asegura que el alpha channel se preserve
+    const targetView = textures.renderMSAA.view;
+    const resolveTarget = canvasTextureView;
+
+    // Render pass con fondo TRANSPARENTE
+    const mainRenderPass = new RenderPass({
+      label: 'Transparent Capture Pass',
+      colorView: targetView,
+      colorResolveTarget: resolveTarget,
+      clearColor: { r: 0.0, g: 0.0, b: 0.0, a: 0.0 }, // Alpha = 0 = transparente
+      loadOp: 'clear',
+    });
+
+    mainRenderPass.execute(commandEncoder, (passEncoder) => {
+      passEncoder.setPipeline(this.renderPipeline!);
+      passEncoder.setBindGroup(0, this.renderBindGroup!);
+
+      if (this.shapeBuffer) {
+        passEncoder.setVertexBuffer(0, this.shapeBuffer);
+      }
+
+      passEncoder.draw(this.currentShapeVertexCount, this.config.vectorCount, 0, 0);
+    });
+
+    this.device.queue.submit([commandEncoder.finish()]);
+  }
+
+  /**
    * Calcula el tamaño óptimo de workgroup basado en los límites del device
    */
   private calculateOptimalWorkgroupSize(): number {

@@ -225,7 +225,7 @@ export function useVectorEngine(options: UseVectorEngineOptions | RefObject<HTML
 
       // ✅ OPTIMIZACIÓN: Logs solo en development para evitar overhead en producción
       const isDev = process.env.NODE_ENV === 'development';
-      
+
       // Log del primer frame
       if (isDev && frameCountRef.current === 0) {
         console.log('🎬 Primer frame renderizando...');
@@ -245,10 +245,14 @@ export function useVectorEngine(options: UseVectorEngineOptions | RefObject<HTML
         animation.seed
       );
 
-      // Ejecutar compute shader (animación)
-      engine.computeAnimation(deltaTime);
+      // Ejecutar compute shader SOLO si no está pausado
+      // Durante pausa: deltaTime = 0, por lo que no hay cambios en animación
+      if (deltaTime > 0) {
+        engine.computeAnimation(deltaTime);
+      }
 
-      // Renderizar frame
+      // Renderizar frame SIEMPRE (pausado o no)
+      // Esto permite que el zoom y otras interacciones se vean actualizadas
       engine.renderFrame();
 
       // Capturar frame si está grabando

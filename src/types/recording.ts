@@ -56,6 +56,14 @@ export const QUALITY_PRESETS: Record<VideoQuality, QualityPreset> = {
   },
 };
 
+export type RecordingBuffer = ArrayBuffer | Uint8Array | Blob[];
+
+export interface RecordingBufferInfo {
+  hasBuffer: boolean;
+  size: number;
+  formattedSize: string;
+}
+
 export interface RecordingError {
   code: string;
   message: string;

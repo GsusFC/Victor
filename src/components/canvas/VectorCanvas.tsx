@@ -12,6 +12,7 @@ import { useVectorStore, selectCanvas } from '@/store/vectorStore';
 export interface VectorCanvasHandle {
   canvas: HTMLCanvasElement | null;
   captureSnapshot: () => Promise<string>;
+  captureTransparent: () => Promise<string>;
   getCurrentTime: () => number;
   getVectorData: () => Float32Array | null;
   getEngine: () => import('@/engine/WebGPUEngine').WebGPUEngine | null;
@@ -46,6 +47,21 @@ export const VectorCanvas = forwardRef<VectorCanvasHandle, VectorCanvasProps>(
         if (!canvas) {
           throw new Error('Canvas not available');
         }
+        return canvas.toDataURL('image/png', 1.0);
+      },
+      captureTransparent: async () => {
+        const canvas = canvasRef.current;
+        if (!canvas || !engine) {
+          throw new Error('Canvas or engine not available');
+        }
+
+        // Renderizar un frame con fondo transparente
+        engine.renderTransparentFrame();
+
+        // Esperar a que el frame se complete (GPU async)
+        await new Promise(resolve => requestAnimationFrame(resolve));
+
+        // Capturar el canvas con transparencia
         return canvas.toDataURL('image/png', 1.0);
       },
       getCurrentTime: () => getTime(),

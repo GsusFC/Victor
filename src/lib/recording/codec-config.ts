@@ -70,3 +70,85 @@ export const FPS_PRESETS: Record<VideoQuality, number> = {
 export function getFpsForQuality(quality: VideoQuality): number {
   return FPS_PRESETS[quality];
 }
+
+/**
+ * Detecta qué formatos de video están soportados
+ */
+export function getSupportedFormats(): VideoFormat[] {
+  const supported: VideoFormat[] = [];
+
+  // Verificar MP4
+  if (
+    typeof MediaRecorder !== 'undefined' &&
+    (MediaRecorder.isTypeSupported('video/mp4') ||
+      MediaRecorder.isTypeSupported('video/mp4;codecs=h264') ||
+      MediaRecorder.isTypeSupported('video/mp4;codecs=avc1'))
+  ) {
+    supported.push('mp4');
+  }
+
+  // Verificar WebM
+  if (
+    typeof MediaRecorder !== 'undefined' &&
+    (MediaRecorder.isTypeSupported('video/webm') ||
+      MediaRecorder.isTypeSupported('video/webm;codecs=vp9') ||
+      MediaRecorder.isTypeSupported('video/webm;codecs=vp8'))
+  ) {
+    supported.push('webm');
+  }
+
+  // GIF siempre soportado (post-process o fallback)
+  supported.push('gif');
+
+  return supported;
+}
+
+/**
+ * Verifica si un formato específico está soportado
+ */
+export function isFormatSupported(format: VideoFormat): boolean {
+  return getSupportedFormats().includes(format);
+}
+
+/**
+ * Obtiene el formato de fallback si el seleccionado no está disponible
+ */
+export function getFallbackFormat(format: VideoFormat): VideoFormat {
+  if (isFormatSupported(format)) {
+    return format;
+  }
+
+  // Orden de preferencia: webm > mp4 > gif
+  const supported = getSupportedFormats();
+
+  if (supported.includes('webm')) {
+    return 'webm';
+  }
+  if (supported.includes('mp4')) {
+    return 'mp4';
+  }
+
+  return 'gif';
+}
+
+/**
+ * Obtiene el MIME type para un formato
+ */
+export function getMimeType(format: VideoFormat): string {
+  const mimeTypes: Record<VideoFormat, string[]> = {
+    mp4: ['video/mp4', 'video/mp4;codecs=h264', 'video/mp4;codecs=avc1'],
+    webm: ['video/webm', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8'],
+    gif: ['image/gif'],
+  };
+
+  const candidates = mimeTypes[format] || [];
+
+  for (const mimeType of candidates) {
+    if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(mimeType)) {
+      return mimeType;
+    }
+  }
+
+  // Fallback seguro
+  return format === 'mp4' ? 'video/mp4' : format === 'webm' ? 'video/webm' : 'image/gif';
+}

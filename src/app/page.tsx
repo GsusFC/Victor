@@ -11,7 +11,7 @@ import { ResponsiveLayout } from '@/components/layout/ResponsiveLayout';
 import { AnimationPanel } from '@/components/controls/AnimationPanel';
 import { GridControls } from '@/components/controls/GridControls';
 import { VisualControls } from '@/components/controls/VisualControls';
-import { RecordingPanel } from '@/components/controls/RecordingPanel';
+import { HeaderRecordingControls } from '@/components/controls/HeaderRecordingControls';
 import { CollapsibleCard } from '@/components/ui/collapsible-card';
 import { PostProcessingControls } from '@/components/controls/PostProcessingControls';
 import { FPSCounter } from '@/components/debug/FPSCounter';
@@ -56,6 +56,15 @@ export default function Home() {
         position="top-left"
       />
       <ResponsiveLayout
+        recordingControls={
+          <HeaderRecordingControls
+            canvas={canvasElement}
+            canvasRef={canvasHandleRef}
+            onRecordingCallbackChange={(callback) => {
+              recordingCallbackRef.current = callback;
+            }}
+          />
+        }
         leftSidebar={
           <div className="space-y-4">
             <CollapsibleCard title="Animación" defaultExpanded={true}>
@@ -80,14 +89,6 @@ export default function Home() {
           </CollapsibleCard>
           <CollapsibleCard title="Post-Processing" defaultExpanded={false}>
             <PostProcessingControls />
-          </CollapsibleCard>
-          <CollapsibleCard title="Grabación" defaultExpanded={true}>
-            <RecordingPanel
-              canvas={canvasElement}
-              onRecordingCallbackChange={(callback) => {
-                recordingCallbackRef.current = callback;
-              }}
-            />
           </CollapsibleCard>
           <CollapsibleCard title="📤 Publicar Arte" defaultExpanded={true}>
             <div className="space-y-3">

@@ -4,10 +4,11 @@
 
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { useVideoRecorder } from '@/hooks/useVideoRecorder';
 import { Button } from '@/components/ui/button';
-import { Circle, Square, Pause, Play, Download, Video } from 'lucide-react';
+import { Circle, Square, Pause, Play, Download, Video, Camera } from 'lucide-react';
+import type { VectorCanvasHandle } from '@/components/canvas/VectorCanvas';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,14 +22,16 @@ import type { VideoFormat, VideoQuality, RecordingConfig } from '@/types/recordi
 
 interface HeaderRecordingControlsProps {
   canvas: HTMLCanvasElement | null;
+  canvasRef?: React.RefObject<VectorCanvasHandle>;
   onRecordingCallbackChange?: (callback: (() => Promise<void>) | null) => void;
 }
 
-export function HeaderRecordingControls({ canvas, onRecordingCallbackChange }: HeaderRecordingControlsProps) {
+export function HeaderRecordingControls({ canvas, canvasRef, onRecordingCallbackChange }: HeaderRecordingControlsProps) {
   // Estado de configuración
   const [format, setFormat] = useState<VideoFormat>('mp4');
   const [quality, setQuality] = useState<VideoQuality>('high');
   const fileName = 'victor-animation';
+  const [isCapturing, setIsCapturing] = useState(false);
 
   // Config para el hook
   const config: RecordingConfig = useMemo(
@@ -80,6 +83,42 @@ export function HeaderRecordingControls({ canvas, onRecordingCallbackChange }: H
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // Capturar imagen con fondo negro
+  const captureImage = async () => {
+    if (!canvasRef?.current) return;
+    setIsCapturing(true);
+    try {
+      const dataUrl = await canvasRef.current.captureSnapshot();
+      downloadImage(dataUrl, 'victor-capture.png');
+    } catch (error) {
+      console.error('❌ Error capturando imagen:', error);
+    } finally {
+      setIsCapturing(false);
+    }
+  };
+
+  // Capturar imagen con fondo transparente
+  const captureTransparentImage = async () => {
+    if (!canvasRef?.current) return;
+    setIsCapturing(true);
+    try {
+      const dataUrl = await canvasRef.current.captureTransparent();
+      downloadImage(dataUrl, 'victor-transparent.png');
+    } catch (error) {
+      console.error('❌ Error capturando imagen transparente:', error);
+    } finally {
+      setIsCapturing(false);
+    }
+  };
+
+  // Helper para descargar imagen
+  const downloadImage = (dataUrl: string, filename: string) => {
+    const link = document.createElement('a');
+    link.download = filename;
+    link.href = dataUrl;
+    link.click();
   };
 
   // Si está grabando o hay buffer, mostrar controles expandidos
@@ -145,18 +184,47 @@ export function HeaderRecordingControls({ canvas, onRecordingCallbackChange }: H
 
   // Modo idle: mostrar botón de inicio con menú de configuración
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          size="sm"
-          variant="outline"
-          disabled={!canvas}
-          className="h-8 gap-2 px-3"
-        >
-          <Video className="w-4 h-4" />
-          <span className="hidden sm:inline text-xs">Grabar</span>
-        </Button>
-      </DropdownMenuTrigger>
+    <div className="flex items-center gap-2">
+      {/* Botones de captura de imagen */}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={!canvasRef?.current || isCapturing}
+            className="h-8 gap-2 px-3"
+          >
+            <Camera className="w-4 h-4" />
+            <span className="hidden sm:inline text-xs">Captura</span>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-56">
+          <DropdownMenuLabel className="text-xs">Captura de Imagen</DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={captureImage} className="text-xs">
+            <Circle className="w-3 h-3 mr-2 fill-current" />
+            PNG con fondo negro
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={captureTransparentImage} className="text-xs">
+            <Circle className="w-3 h-3 mr-2" />
+            PNG transparente
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      {/* Botón de grabación de video */}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={!canvas}
+            className="h-8 gap-2 px-3"
+          >
+            <Video className="w-4 h-4" />
+            <span className="hidden sm:inline text-xs">Grabar</span>
+          </Button>
+        </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
         <DropdownMenuLabel className="text-xs">Configuración</DropdownMenuLabel>
         <DropdownMenuSeparator />
@@ -204,6 +272,7 @@ export function HeaderRecordingControls({ canvas, onRecordingCallbackChange }: H
           Iniciar grabación
         </DropdownMenuItem>
       </DropdownMenuContent>
-    </DropdownMenu>
+      </DropdownMenu>
+    </div>
   );
 }
