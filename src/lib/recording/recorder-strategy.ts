@@ -7,8 +7,7 @@
  */
 
 import { Recorder } from 'canvas-record';
-import type { RecordingConfig } from '@/types/recording';
-import type { RecordingBuffer } from './buffer-manager';
+import type { RecordingConfig, RecordingBuffer } from '@/types/recording';
 import { hasWebCodecsSupport, getCodecConfig, getBitrate } from './codec-config';
 import { RECORDING_CONSTANTS } from './constants';
 
