@@ -31,6 +31,7 @@ export class VideoRecorder {
   // Configuration
   private config: RecordingConfig;
   private canvas: HTMLCanvasElement;
+  private recordedFormat: string | null = null; // Guardar formato de la grabación actual
 
   constructor(canvas: HTMLCanvasElement, config?: Partial<RecordingConfig>) {
     this.canvas = canvas;
@@ -106,6 +107,9 @@ export class VideoRecorder {
       this.bufferManager.clear();
       this.statsManager.reset();
 
+      // Guardar el formato de esta grabación
+      this.recordedFormat = this.config.format;
+
       // Inicializar strategy
       await this.strategy.initialize(this.canvas, this.config);
 
@@ -116,7 +120,7 @@ export class VideoRecorder {
       // Iniciar strategy
       await this.strategy.start();
 
-      console.log(`🎬 Grabación iniciada (${this.strategy.getName()})`);
+      console.log(`🎬 Grabación iniciada (${this.strategy.getName()}) - Formato: ${this.recordedFormat}`);
     } catch (error) {
       this.stateMachine.transition('error');
       this.errorHandler.setError(
@@ -241,9 +245,11 @@ export class VideoRecorder {
       throw new Error('El buffer no está listo para descarga (tamaño insuficiente)');
     }
 
-    const fileName = generateFileName(this.config.fileName || 'victor-animation', this.config.format);
-    downloadBuffer(buffer, fileName, this.config.format);
-    console.log(`📥 Descargando: ${fileName}`);
+    // Usar el formato guardado durante la grabación (no el config actual)
+    const format = this.recordedFormat || this.config.format;
+    const fileName = generateFileName(this.config.fileName || 'victor-animation', format as any);
+    downloadBuffer(buffer, fileName, format as any);
+    console.log(`📥 Descargando: ${fileName} (${format})`);
   }
 
   /**
