@@ -7,7 +7,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useVideoRecorder } from '@/hooks/useVideoRecorder';
 import { Button } from '@/components/ui/button';
-import { Circle, Square, Pause, Play, Download, Video, Camera } from 'lucide-react';
+import { Circle, Square, Pause, Play, Download, Video, Camera, RotateCcw } from 'lucide-react';
 import type { VectorCanvasHandle } from '@/components/canvas/VectorCanvas';
 import {
   DropdownMenu,
@@ -31,6 +31,7 @@ export function HeaderRecordingControls({ canvas, canvasRef, onRecordingCallback
   const [format, setFormat] = useState<VideoFormat>('mp4');
   const [quality, setQuality] = useState<VideoQuality>('high');
   const [isCapturing, setIsCapturing] = useState(false);
+  const [hasDownloaded, setHasDownloaded] = useState(false);
   const fileName = 'victor-animation';
 
   // Config para el hook
@@ -55,6 +56,7 @@ export function HeaderRecordingControls({ canvas, canvasRef, onRecordingCallback
     pauseRecording,
     resumeRecording,
     downloadVideo,
+    resetRecorder,
     captureFrameCallback,
   } = useVideoRecorder({
     canvas,
@@ -166,17 +168,50 @@ export function HeaderRecordingControls({ canvas, canvasRef, onRecordingCallback
         )}
 
         {/* Descargar (cuando hay buffer) */}
-        {hasBuffer && isIdle && (
+        {hasBuffer && isIdle && !hasDownloaded && (
           <Button
             size="sm"
             variant="default"
-            onClick={downloadVideo}
+            onClick={() => {
+              downloadVideo();
+              setHasDownloaded(true);
+            }}
             className="h-8 gap-2 px-3"
             title="Descargar video"
           >
             <Download className="w-4 h-4" />
             <span className="hidden sm:inline text-xs">Descargar</span>
           </Button>
+        )}
+
+        {/* Después de descargar: opciones para descargar de nuevo o nueva grabación */}
+        {hasBuffer && isIdle && hasDownloaded && (
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => downloadVideo()}
+              className="h-8 gap-2 px-3 text-xs"
+              title="Descargar video nuevamente"
+            >
+              <Download className="w-4 h-4" />
+              <span className="hidden sm:inline">Descargar</span>
+            </Button>
+
+            <Button
+              size="sm"
+              variant="default"
+              onClick={() => {
+                resetRecorder();
+                setHasDownloaded(false);
+              }}
+              className="h-8 gap-2 px-3 text-xs"
+              title="Nueva grabación"
+            >
+              <RotateCcw className="w-4 h-4" />
+              <span className="hidden sm:inline">Nueva</span>
+            </Button>
+          </div>
         )}
       </div>
     );
