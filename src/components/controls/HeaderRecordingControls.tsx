@@ -4,7 +4,7 @@
 
 'use client';
 
-import { useEffect, useMemo, useState, useRef } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useVideoRecorder } from '@/hooks/useVideoRecorder';
 import { Button } from '@/components/ui/button';
 import { Circle, Square, Pause, Play, Download, Video, Camera } from 'lucide-react';
@@ -30,8 +30,8 @@ export function HeaderRecordingControls({ canvas, canvasRef, onRecordingCallback
   // Estado de configuración
   const [format, setFormat] = useState<VideoFormat>('mp4');
   const [quality, setQuality] = useState<VideoQuality>('high');
-  const fileName = 'victor-animation';
   const [isCapturing, setIsCapturing] = useState(false);
+  const fileName = 'victor-animation';
 
   // Config para el hook
   const config: RecordingConfig = useMemo(
