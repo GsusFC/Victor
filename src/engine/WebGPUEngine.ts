@@ -350,10 +350,11 @@ export class WebGPUEngine {
         size: 16,
         usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
       });
+      const fadeData = new Float32Array([this.trailsDecay]);
       this.device.queue.writeBuffer(
         this.fadeUniformBuffer,
         0,
-        new Float32Array([this.trailsDecay])
+        new Uint8Array(fadeData.buffer, fadeData.byteOffset, fadeData.byteLength)
       );
 
       // Crear bind group para fade
@@ -504,14 +505,15 @@ export class WebGPUEngine {
       ? TRAILS_DEFAULTS.OPACITY_TO_DECAY_MAX - opacity * TRAILS_DEFAULTS.OPACITY_RANGE
       : 1.0;
 
-    // Actualizar uniform buffer si ya existe
-    if (this.fadeUniformBuffer && this.device) {
-      this.device.queue.writeBuffer(
-        this.fadeUniformBuffer,
-        0,
-        new Float32Array([this.trailsDecay])
-      );
-    }
+      // Actualizar uniform buffer si ya existe
+      if (this.fadeUniformBuffer && this.device) {
+        const fadeData = new Float32Array([this.trailsDecay]);
+        this.device.queue.writeBuffer(
+          this.fadeUniformBuffer,
+          0,
+          new Uint8Array(fadeData.buffer, fadeData.byteOffset, fadeData.byteLength)
+        );
+      }
   }
 
   /**
@@ -558,7 +560,11 @@ export class WebGPUEngine {
       uniforms[13] = config.brightness ?? 1.0;
       uniforms[14] = 0.0; // padding
 
-      this.device.queue.writeBuffer(this.postProcessUniformBuffer, 0, uniforms);
+      this.device.queue.writeBuffer(
+        this.postProcessUniformBuffer,
+        0,
+        new Uint8Array(uniforms.buffer, uniforms.byteOffset, uniforms.byteLength)
+      );
     }
   }
 
@@ -592,19 +598,21 @@ export class WebGPUEngine {
     if (this.device) {
       // Extract uniforms: threshold + softKnee
       if (this.bloomExtractUniformBuffer) {
+        const extractData = new Float32Array([this.bloomThreshold, 0.5, 0.0, 0.0]);
         this.device.queue.writeBuffer(
           this.bloomExtractUniformBuffer,
           0,
-          new Float32Array([this.bloomThreshold, 0.5, 0.0, 0.0]) // threshold, softKnee, padding
+          new Uint8Array(extractData.buffer, extractData.byteOffset, extractData.byteLength)
         );
       }
 
       // Combine uniforms: intensity
       if (this.bloomCombineUniformBuffer) {
+        const combineData = new Float32Array([this.bloomIntensity, 0.0, 0.0, 0.0]);
         this.device.queue.writeBuffer(
           this.bloomCombineUniformBuffer,
           0,
-          new Float32Array([this.bloomIntensity, 0.0, 0.0, 0.0]) // intensity, padding
+          new Uint8Array(combineData.buffer, combineData.byteOffset, combineData.byteLength)
         );
       }
     }
@@ -815,7 +823,11 @@ export class WebGPUEngine {
     }
 
     console.log(`📝 Actualizando vector buffer con ${vectorCount} vectores (ordenados por profundidad)`);
-    this.device.queue.writeBuffer(this.vectorBuffer, 0, sortedData);
+    this.device.queue.writeBuffer(
+      this.vectorBuffer,
+      0,
+      new Uint8Array(sortedData.buffer, sortedData.byteOffset, sortedData.byteLength)
+    );
 
     // Guardar copia para exportación (datos ANTES de ordenar, para mantener posiciones originales)
     this.currentVectorData = new Float32Array(data);
@@ -1046,7 +1058,11 @@ export class WebGPUEngine {
       this.bloomRadius,          // radius
       this.bloomQuality,         // quality
     ]);
-    this.device.queue.writeBuffer(this.bloomBlurUniformBuffer!, 0, horizontalBlurUniforms);
+    this.device.queue.writeBuffer(
+      this.bloomBlurUniformBuffer!,
+      0,
+      new Uint8Array(horizontalBlurUniforms.buffer, horizontalBlurUniforms.byteOffset, horizontalBlurUniforms.byteLength)
+    );
 
     if (this.bloomBindGroupsNeedUpdate || !this.bloomHorizontalBlurBindGroup) {
       this.bloomHorizontalBlurBindGroup = this.device.createBindGroup({
@@ -1077,7 +1093,11 @@ export class WebGPUEngine {
       this.bloomRadius,          // radius
       this.bloomQuality,         // quality
     ]);
-    this.device.queue.writeBuffer(this.bloomBlurUniformBuffer!, 0, verticalBlurUniforms);
+    this.device.queue.writeBuffer(
+      this.bloomBlurUniformBuffer!,
+      0,
+      new Uint8Array(verticalBlurUniforms.buffer, verticalBlurUniforms.byteOffset, verticalBlurUniforms.byteLength)
+    );
 
     if (this.bloomBindGroupsNeedUpdate || !this.bloomVerticalBlurBindGroup) {
       this.bloomVerticalBlurBindGroup = this.device.createBindGroup({

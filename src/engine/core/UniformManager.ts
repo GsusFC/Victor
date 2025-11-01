@@ -125,7 +125,8 @@ export class UniformManager {
     }
 
     if (hasChanged) {
-      this.device.queue.writeBuffer(this.uniformBuffer, 0, this.uniformData);
+      const bytes = new Uint8Array(this.uniformData.buffer, this.uniformData.byteOffset, this.uniformData.byteLength);
+      this.device.queue.writeBuffer(this.uniformBuffer, 0, bytes);
       this.lastUniformData.set(this.uniformData);
       this.uniformsDirty = false;
     }
