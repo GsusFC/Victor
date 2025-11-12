@@ -17,37 +17,60 @@ ${commonChunks}
 
 const MAX_GRADIENT_STOPS: u32 = 12u;
 
+// Uniform buffer layout (shared with 2D render and 3D):
+// Offsets 0-31:   Basic uniforms (aspect, time, vectorLength, etc.)
+// Offsets 32-47:  viewProjMatrix (16 floats, mat4x4) - Camera 3D (unused in 2D)
+// Offsets 48-50:  cameraPos (3 floats, vec3f) - Camera 3D (unused in 2D)
+// Offsets 51-55:  renderMode + padding (5 floats)
+// Offsets 56-103: gradientStops[12] (48 floats, 12×vec4f)
 struct Uniforms {
-  aspect: f32,
-  time: f32,
-  vectorLength: f32,
-  vectorWidth: f32,
-  pixelToISO: f32,
-  zoom: f32,
-  speed: f32,
-  gradientStopCount: f32,
-  param1: f32,  // Parámetro genérico 1 (frequency, elasticity, etc)
-  param2: f32,  // Parámetro genérico 2 (amplitude, maxLength, etc)
-  param3: f32,  // Parámetro genérico 3
-  param4: f32,  // Parámetro genérico 4
-  mouseX: f32,
-  mouseY: f32,
-  mouseActive: f32,
-  colorR: f32,
-  colorG: f32,
-  colorB: f32,
-  gradientEnabled: f32,
-  shapeType: f32,
-  gradientMode: f32,
-  gradientType: f32,
-  gradientLinearX: f32,
-  gradientLinearY: f32,
-  gradientLinearMin: f32,
-  gradientLinearMax: f32,
-  gradientRadialMax: f32,
-  seed: f32,  // Seed para generación pseudo-aleatoria reproducible
-  padding1: f32,  // Padding para alineación
-  gradientStops: array<vec4f, MAX_GRADIENT_STOPS>,
+  aspect: f32,              // 0
+  time: f32,                // 1
+  vectorLength: f32,        // 2
+  vectorWidth: f32,         // 3
+  pixelToISO: f32,          // 4
+  zoom: f32,                // 5
+  speed: f32,               // 6
+  gradientStopCount: f32,   // 7
+  param1: f32,              // 8  (frequency, elasticity, etc)
+  param2: f32,              // 9  (amplitude, maxLength, etc)
+  param3: f32,              // 10
+  param4: f32,              // 11
+  mouseX: f32,              // 12
+  mouseY: f32,              // 13
+  mouseActive: f32,         // 14
+  colorR: f32,              // 15
+  colorG: f32,              // 16
+  colorB: f32,              // 17
+  gradientEnabled: f32,     // 18
+  shapeType: f32,           // 19
+  gradientMode: f32,        // 20
+  gradientType: f32,        // 21
+  gradientLinearX: f32,     // 22
+  gradientLinearY: f32,     // 23
+  gradientLinearMin: f32,   // 24
+  gradientLinearMax: f32,   // 25
+  gradientRadialMax: f32,   // 26
+  seed: f32,                // 27
+  padding1: f32,            // 28
+  // Padding for vec4f alignment (29-31)
+  padding2: f32,            // 29
+  padding3: f32,            // 30
+  padding4: f32,            // 31
+  // Camera 3D data (unused in 2D, but needed for offset alignment)
+  viewProjMatrix0: vec4f,   // 32-35 - Camera 3D (unused)
+  viewProjMatrix1: vec4f,   // 36-39 - Camera 3D (unused)
+  viewProjMatrix2: vec4f,   // 40-43 - Camera 3D (unused)
+  viewProjMatrix3: vec4f,   // 44-47 - Camera 3D (unused)
+  cameraPos: vec3f,         // 48-50 - Camera 3D (unused)
+  renderMode: f32,          // 51 (0 = 2D, 1 = 3D)
+  // Padding (52-55) for next vec4f alignment
+  padding5: f32,            // 52
+  padding6: f32,            // 53
+  padding7: f32,            // 54
+  padding8: f32,            // 55
+  // Gradient stops start at offset 56
+  gradientStops: array<vec4f, MAX_GRADIENT_STOPS>,  // 56-103
 }
 
 struct Vector {

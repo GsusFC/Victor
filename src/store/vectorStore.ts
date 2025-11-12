@@ -146,6 +146,13 @@ const animationParamsDefaults: Record<AnimationType, AnimationParamSet> = {
   mandalas: { frequency: 6, amplitude: 1.5, elasticity: 0.4, maxLength: 95 },
   kaleidoscope: { frequency: 3, amplitude: 1.0, elasticity: 1.0, maxLength: 100 },
   springMesh: { frequency: 1.0, amplitude: 0.8, elasticity: 0.6, maxLength: 100 },
+  // 3D Animations (valores aumentados para que sean visibles con los multiplicadores del shader)
+  // smoothWaves3D: param1 * 0.05 (frequency), param2 (amplitude)
+  // vortex3D: param1 * 0.5 (strength)
+  // sphericalWaves3D: param1 * 0.05 (frequency), param2 (amplitude)
+  smoothWaves3D: { frequency: 100, amplitude: 2.0, elasticity: 0, maxLength: 80 },
+  vortex3D: { frequency: 50, amplitude: 2.0, elasticity: 0, maxLength: 80 },
+  sphericalWaves3D: { frequency: 100, amplitude: 2.0, elasticity: 0, maxLength: 80 },
 };
 
 const ensureGradientConfig = (input?: any): GradientConfig => {
@@ -676,6 +683,10 @@ export const getAnimationCategory = (type: AnimationType): AnimationCategory => 
     mandalas: 'geometric',
     kaleidoscope: 'geometric',
     springMesh: 'experimental',
+    // 3D Animations
+    smoothWaves3D: 'natural',
+    vortex3D: 'energetic',
+    sphericalWaves3D: 'natural',
   };
   return categoryMap[type] || 'experimental';
 };

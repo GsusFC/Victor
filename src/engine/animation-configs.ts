@@ -77,6 +77,11 @@ export const ANIMATION_DEFAULTS: Record<AnimationType, AnimationDefaults> = {
 
   // EXPERIMENTALES
   springMesh: { frequency: 1.0, amplitude: 0.8, elasticity: 0.5, maxLength: 110 },
+
+  // 3D ANIMATIONS
+  smoothWaves3D: { frequency: 0.1, amplitude: 1.0, elasticity: 0, maxLength: 80 },
+  vortex3D: { frequency: 1.0, amplitude: 1.0, elasticity: 0, maxLength: 80 },
+  sphericalWaves3D: { frequency: 2.0, amplitude: 1.0, elasticity: 0, maxLength: 80 },
 };
 
 /**

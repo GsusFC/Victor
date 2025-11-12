@@ -13,6 +13,12 @@ import { bloomExtractShader } from './shaders/render/bloom-extract.wgsl';
 import { bloomBlurShader } from './shaders/render/bloom-blur.wgsl';
 import { bloomCombineShader } from './shaders/render/bloom-combine.wgsl';
 import { ShapeLibrary } from './ShapeLibrary';
+import { Camera3D } from './Camera3D';
+import { CoordinateSystem3D } from './CoordinateSystem3D';
+import { ShapeLibrary3D } from './ShapeLibrary3D';
+import { vector3DShader } from './shaders/render/vector3d.wgsl';
+import { get3DAnimationShader } from './shaders/compute/animations3d.wgsl';
+import type { RenderMode } from './types/engine';
 import { TextureManager } from './core/TextureManager';
 import { PipelineManager } from './core/PipelineManager';
 import { UniformManager } from './core/UniformManager';
@@ -153,6 +159,25 @@ export class WebGPUEngine {
     gridCols: 10,
     vectorShape: 'line',
   };
+
+  // 3D System
+  private renderMode: RenderMode = '2D';
+  private camera3D: Camera3D | null = null;
+  private coordinateSystem3D: CoordinateSystem3D | null = null;
+  private shapeLibrary3D: ShapeLibrary3D = new ShapeLibrary3D();
+
+  // 3D Buffers
+  private vector3DBuffer: GPUBuffer | null = null;
+  private vector3DCount: number = 0; // Actual count of 3D vectors (from grid)
+  private shape3DBuffer: GPUBuffer | null = null;
+
+  // 3D Pipelines
+  private render3DPipeline: GPURenderPipeline | null = null;
+  private compute3DPipeline: GPUComputePipeline | null = null;
+  private compute3DPipelines: Map<string, GPUComputePipeline> = new Map();
+
+  // 3D Shape
+  private currentShape3DVertexCount: number = 2; // Line by default
 
   // GPU Timing (profiling)
   private timingEnabled = false;
@@ -398,6 +423,10 @@ export class WebGPUEngine {
 
       console.log(`✅ PipelineManager inicializado (${this.computePipelines.size} animaciones)`);
 
+      // Inicializar sistema 3D
+      await this.initialize3DSystem();
+      console.log('✅ Sistema 3D inicializado');
+
       console.log('✅ WebGPU inicializado correctamente');
       this.isInitialized = true;
       this.isInitializing = false;
@@ -408,6 +437,155 @@ export class WebGPUEngine {
       this.isInitializing = false;
       return false;
     }
+  }
+
+  /**
+   * Initialize 3D rendering system
+   */
+  private async initialize3DSystem(): Promise<void> {
+    if (!this.device || !this.canvas) return;
+
+    // Initialize Camera3D
+    const aspect = this.canvas.width / this.canvas.height;
+
+    // Calculate optimal distance for the grid (will be set after grid creation)
+    this.camera3D = new Camera3D({
+      distance: 500, // Temporary, will be updated after grid
+      fov: 60,
+      aspect,
+      near: 1.0,
+      far: 3000,
+    });
+    this.camera3D.setPreset('isometric');
+
+    // Initialize CoordinateSystem3D
+    const grid3DSize = 15; // 15x15x15 = 3375 vectors (close to 3540)
+    this.coordinateSystem3D = new CoordinateSystem3D({
+      rows: grid3DSize,
+      cols: grid3DSize,
+      layers: grid3DSize,
+      spacing: 20, // Reduced spacing for denser grid
+      aspect,
+    });
+
+    // Update camera distance based on grid size
+    const optimalDistance = this.coordinateSystem3D.getOptimalCameraDistance(this.camera3D.fov);
+    this.camera3D.distance = optimalDistance;
+    this.camera3D.applyTargetsImmediately();
+    console.log(`📷 Camera distance set to ${optimalDistance.toFixed(1)} for grid ${grid3DSize}x${grid3DSize}x${grid3DSize}`);
+
+    // Create 3D vector buffer with grid size (not config.vectorCount)
+    this.vector3DCount = this.coordinateSystem3D.getCount();
+    console.log(`🎯 3D System: Creating buffer for ${this.vector3DCount} vectors (${grid3DSize}³ grid)`);
+
+    this.vector3DBuffer = this.createVector3DBuffer(this.vector3DCount);
+    if (!this.vector3DBuffer) {
+      console.error('❌ Failed to create 3D vector buffer');
+      return;
+    }
+    console.log(`✅ 3D vector buffer created successfully`);
+
+    // Camera uniforms are now in the shared uniform buffer (managed by UniformManager)
+    // Offsets 32-55 reserved for: viewProjMatrix (32-47), cameraPos (48-50), renderMode (51)
+
+    // Create 3D shape buffer
+    const shape = this.shapeLibrary3D.getShape('line');
+    if (shape) {
+      this.shape3DBuffer = this.device.createBuffer({
+        label: '3D Shape Vertex Buffer',
+        size: shape.vertices.byteLength,
+        usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+      });
+      this.device.queue.writeBuffer(
+        this.shape3DBuffer,
+        0,
+        shape.vertices.buffer,
+        shape.vertices.byteOffset,
+        shape.vertices.byteLength
+      );
+      this.currentShape3DVertexCount = shape.vertexCount;
+    }
+
+    // Create 3D shader modules
+    const render3DShaderModule = this.device.createShaderModule({
+      label: '3D Vector Render Shader',
+      code: vector3DShader,
+    });
+
+    const compute3DShaderModule = this.device.createShaderModule({
+      label: '3D Smooth Waves Compute Shader',
+      code: get3DAnimationShader('smoothWaves3D'),
+    });
+
+    // Create 3D render pipeline
+    this.render3DPipeline = this.device.createRenderPipeline({
+      label: '3D Vector Render Pipeline',
+      layout: 'auto',
+      vertex: {
+        module: render3DShaderModule,
+        entryPoint: 'vertexMain',
+        buffers: [
+          {
+            arrayStride: 12, // 3 floats (x, y, z)
+            attributes: [
+              {
+                shaderLocation: 0,
+                offset: 0,
+                format: 'float32x3',
+              },
+            ],
+          },
+        ],
+      },
+      fragment: {
+        module: render3DShaderModule,
+        entryPoint: 'fragmentMain',
+        targets: [
+          {
+            format: this.canvasFormat || 'bgra8unorm',
+          },
+        ],
+      },
+      primitive: {
+        topology: 'line-list',
+        cullMode: 'none',
+      },
+      multisample: {
+        count: 4,
+      },
+    });
+
+    // Create 3D compute pipeline
+    this.compute3DPipeline = this.device.createComputePipeline({
+      label: '3D Compute Pipeline',
+      layout: 'auto',
+      compute: {
+        module: compute3DShaderModule,
+        entryPoint: 'computeMain',
+      },
+    });
+
+    // Store in map for animation switching
+    this.compute3DPipelines.set('smoothWaves3D', this.compute3DPipeline);
+
+    // Create other 3D animation pipelines
+    const vortex3DModule = this.device.createShaderModule({
+      code: get3DAnimationShader('vortex3D'),
+    });
+    const vortex3DPipeline = this.device.createComputePipeline({
+      layout: 'auto',
+      compute: { module: vortex3DModule, entryPoint: 'computeMain' },
+    });
+    this.compute3DPipelines.set('vortex3D', vortex3DPipeline);
+
+    const spherical3DModule = this.device.createShaderModule({
+      code: get3DAnimationShader('sphericalWaves3D'),
+    });
+    const spherical3DPipeline = this.device.createComputePipeline({
+      layout: 'auto',
+      compute: { module: spherical3DModule, entryPoint: 'computeMain' },
+    });
+    this.compute3DPipelines.set('sphericalWaves3D', spherical3DPipeline);
   }
 
   /**
@@ -454,6 +632,10 @@ export class WebGPUEngine {
       kaleidoscope: kaleidoscopeShader,
       // Experimentales
       springMesh: springMeshShader,
+      // 3D Animations (placeholders, not used in 2D pipeline)
+      smoothWaves3D: noneShader,
+      vortex3D: noneShader,
+      sphericalWaves3D: noneShader,
     };
 
     // Apply dynamic workgroup size to all shaders
@@ -481,13 +663,38 @@ export class WebGPUEngine {
    * Cambia el tipo de animación
    */
   setAnimationType(type: AnimationType): void {
-    const pipeline = this.computePipelines.get(type);
-    if (pipeline) {
-      this.computePipeline = pipeline;
-      this.currentAnimationType = type;
-      console.log(`🎨 Animación cambiada a: ${type}`);
+    // Check if it's a 3D animation
+    const is3DAnimation = type.endsWith('3D');
+
+    if (is3DAnimation) {
+      // Use 3D pipeline
+      const pipeline3D = this.compute3DPipelines.get(type);
+      if (pipeline3D) {
+        this.compute3DPipeline = pipeline3D;
+        this.currentAnimationType = type;
+        console.log(`🎨 Animación 3D cambiada a: ${type}`, {
+          pipelineExists: !!pipeline3D,
+          vectorCount: this.vector3DCount,
+          renderMode: this.renderMode,
+        });
+
+        // IMPORTANT: Set reasonable default parameters for 3D animations if they are 0
+        // 3D shaders need non-zero param1/param2 to produce visible motion
+        // param1 is typically frequency/strength, param2 is amplitude
+        console.warn(`⚠️ NOTA: Si los vectores 3D no se mueven, asegúrate de que los parámetros param1 y param2 tengan valores > 0 (ej: param1=20, param2=1)`);
+      } else {
+        console.warn(`⚠️ Animación 3D ${type} no encontrada. Pipelines disponibles:`, Array.from(this.compute3DPipelines.keys()));
+      }
     } else {
-      console.warn(`⚠️ Animación ${type} no encontrada`);
+      // Use 2D pipeline
+      const pipeline = this.computePipelines.get(type);
+      if (pipeline) {
+        this.computePipeline = pipeline;
+        this.currentAnimationType = type;
+        console.log(`🎨 Animación cambiada a: ${type}`);
+      } else {
+        console.warn(`⚠️ Animación ${type} no encontrada`);
+      }
     }
   }
 
@@ -680,6 +887,60 @@ export class WebGPUEngine {
     return buffer;
   }
 
+  /**
+   * Create 3D vector buffer
+   */
+  private createVector3DBuffer(count: number): GPUBuffer | null {
+    if (!this.device || !this.coordinateSystem3D) return null;
+
+    // Each 3D vector: [baseX, baseY, baseZ, dirX, dirY, dirZ, length, _padding]
+    // Total: 8 floats per vector (32 bytes)
+    const vectorSize = 8 * Float32Array.BYTES_PER_ELEMENT;
+    const bufferSize = count * vectorSize;
+
+    const buffer = this.device.createBuffer({
+      size: bufferSize,
+      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+      mappedAtCreation: false,
+    });
+
+    // Initialize with grid positions
+    const positions = this.coordinateSystem3D.getPositions();
+    const vectorData = new Float32Array(count * 8);
+
+    for (let i = 0; i < Math.min(count, positions.length); i++) {
+      const pos = positions[i];
+      const offset = i * 8;
+
+      // Base position
+      vectorData[offset + 0] = pos.x;
+      vectorData[offset + 1] = pos.y;
+      vectorData[offset + 2] = pos.z;
+
+      // Initial direction (pointing up)
+      vectorData[offset + 3] = 0.0;
+      vectorData[offset + 4] = 1.0;
+      vectorData[offset + 5] = 0.0;
+
+      // Length
+      vectorData[offset + 6] = 1.0;
+
+      // Padding
+      vectorData[offset + 7] = 0.0;
+    }
+
+    this.device.queue.writeBuffer(
+      buffer,
+      0,
+      vectorData.buffer,
+      vectorData.byteOffset,
+      vectorData.byteLength
+    );
+
+    console.log(`✅ 3D Vector buffer created: ${count} vectors`);
+
+    return buffer;
+  }
 
   /**
    * Recrea buffers cuando cambia la configuración
@@ -1004,6 +1265,13 @@ export class WebGPUEngine {
    * Ejecuta compute shader para animación
    */
   computeAnimation(_deltaTime: number): void {
+    // Route to 3D compute if in 3D mode
+    if (this.renderMode === '3D') {
+      this.computeAnimation3D();
+      return;
+    }
+
+    // 2D compute (original code)
     if (!this.device || !this.computePipeline || !this.computeBindGroup) return;
 
     // Calcular workgroups usando el tamaño óptimo calculado
@@ -1013,6 +1281,50 @@ export class WebGPUEngine {
       label: 'Vector Animation Compute Pass',
       pipeline: this.computePipeline,
       bindGroups: [this.computeBindGroup],
+      workgroupSizeX: workgroupCount,
+    });
+
+    const commandEncoder = this.device.createCommandEncoder();
+    computePass.execute(commandEncoder);
+    this.device.queue.submit([commandEncoder.finish()]);
+  }
+
+  /**
+   * Compute animation in 3D mode
+   */
+  private computeAnimation3D(): void {
+    if (!this.device || !this.compute3DPipeline || !this.vector3DBuffer || !this.uniformBuffer) {
+      console.warn('⚠️ computeAnimation3D: Missing resources', {
+        device: !!this.device,
+        pipeline: !!this.compute3DPipeline,
+        vectorBuffer: !!this.vector3DBuffer,
+        uniformBuffer: !!this.uniformBuffer,
+      });
+      return;
+    }
+
+    // Validate vector count
+    if (this.vector3DCount === 0) {
+      console.error('❌ computeAnimation3D: vector3DCount is 0');
+      return;
+    }
+
+    // Create compute bind group for 3D (recreate each frame to avoid device mismatch)
+    const compute3DBindGroup = this.device.createBindGroup({
+      layout: this.compute3DPipeline.getBindGroupLayout(0),
+      entries: [
+        { binding: 0, resource: { buffer: this.uniformBuffer } },
+        { binding: 1, resource: { buffer: this.vector3DBuffer } },
+      ],
+    });
+
+    // Calculate workgroups (use 3D vector count, not 2D config)
+    const workgroupCount = Math.ceil(this.vector3DCount / this.optimalWorkgroupSize);
+
+    const computePass = new ComputePass({
+      label: '3D Vector Animation Compute Pass',
+      pipeline: this.compute3DPipeline,
+      bindGroups: [compute3DBindGroup],
       workgroupSizeX: workgroupCount,
     });
 
@@ -1171,6 +1483,13 @@ export class WebGPUEngine {
    * Renderiza un frame
    */
   renderFrame(): void {
+    // Route to 3D rendering if in 3D mode
+    if (this.renderMode === '3D') {
+      this.renderFrame3D();
+      return;
+    }
+
+    // 2D rendering (original code)
     if (!this.device || !this.context || !this.renderPipeline || !this.renderBindGroup) {
       console.warn('⚠️ renderFrame: Recursos no disponibles');
       return;
@@ -1314,6 +1633,87 @@ export class WebGPUEngine {
   }
 
   /**
+   * Render frame in 3D mode
+   */
+  private renderFrame3D(): void {
+    if (
+      !this.device ||
+      !this.context ||
+      !this.render3DPipeline ||
+      !this.vector3DBuffer ||
+      !this.shape3DBuffer ||
+      !this.camera3D ||
+      !this.uniformManager
+    ) {
+      console.warn('⚠️ renderFrame3D: 3D resources not available');
+      return;
+    }
+
+    // Update camera
+    this.camera3D.update(16); // ~60fps
+
+    // Update camera uniforms in the shared uniform buffer (offsets 32-55)
+    const viewProjMatrix = this.camera3D.getViewProjectionMatrix();
+    this.uniformManager.updateCamera3D(
+      viewProjMatrix.data,
+      this.camera3D.position,
+      '3D'
+    );
+
+    // NOTE: computeAnimation3D() is called in the main render loop (computeAnimation method)
+    // to avoid duplicate execution. Do NOT call it here.
+
+    // Create bind group for 3D rendering (recreate each frame to avoid device mismatch)
+    if (!this.uniformBuffer || !this.vector3DBuffer) {
+      console.warn('⚠️ renderFrame3D: buffers not available');
+      return;
+    }
+
+    const render3DBindGroup = this.device.createBindGroup({
+      layout: this.render3DPipeline.getBindGroupLayout(0),
+      entries: [
+        { binding: 0, resource: { buffer: this.uniformBuffer } },
+        { binding: 1, resource: { buffer: this.vector3DBuffer } },
+      ],
+    });
+
+    const commandEncoder = this.device.createCommandEncoder();
+    const canvasTextureView = this.context.getCurrentTexture().createView();
+
+    // Get textures for MSAA
+    const textures = this.getTextures();
+
+    // Simple 3D render pass (no depth for now, no post-processing)
+    const renderPassDescriptor: GPURenderPassDescriptor = {
+      colorAttachments: [
+        {
+          view: textures.renderMSAA.view,
+          resolveTarget: canvasTextureView,
+          clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
+          loadOp: 'clear',
+          storeOp: 'store',
+        },
+      ],
+    };
+
+    const passEncoder = commandEncoder.beginRenderPass(renderPassDescriptor);
+    passEncoder.setPipeline(this.render3DPipeline);
+    passEncoder.setBindGroup(0, render3DBindGroup);
+    passEncoder.setVertexBuffer(0, this.shape3DBuffer);
+
+    // Draw instanced vectors (use 3D vector count, not 2D config)
+    passEncoder.draw(
+      this.currentShape3DVertexCount,
+      this.vector3DCount,
+      0,
+      0
+    );
+
+    passEncoder.end();
+    this.device.queue.submit([commandEncoder.finish()]);
+  }
+
+  /**
    * Calcula el tamaño óptimo de workgroup basado en los límites del device
    */
   private calculateOptimalWorkgroupSize(): number {
@@ -1406,5 +1806,73 @@ export class WebGPUEngine {
         height: this.canvas.height,
       },
     };
+  }
+
+  // ============================================
+  // 3D MODE PUBLIC API
+  // ============================================
+
+  /**
+   * Set render mode (2D or 3D)
+   */
+  setRenderMode(mode: RenderMode): void {
+    this.renderMode = mode;
+    console.log(`🎨 Render mode changed to: ${mode}`);
+
+    // Clear canvas when switching modes to remove residual render data
+    if (this.context && this.device) {
+      try {
+        const commandEncoder = this.device.createCommandEncoder();
+        const canvasTextureView = this.context.getCurrentTexture().createView();
+
+        const clearPass = commandEncoder.beginRenderPass({
+          colorAttachments: [
+            {
+              view: canvasTextureView,
+              clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
+              loadOp: 'clear',
+              storeOp: 'store',
+            },
+          ],
+        });
+        clearPass.end();
+        this.device.queue.submit([commandEncoder.finish()]);
+        console.log(`🧹 Canvas cleared for mode: ${mode}`);
+      } catch (error) {
+        console.warn('⚠️ Failed to clear canvas on mode switch:', error);
+      }
+    }
+  }
+
+  /**
+   * Get current render mode
+   */
+  getRenderMode(): RenderMode {
+    return this.renderMode;
+  }
+
+  /**
+   * Get Camera3D instance (for UI controls)
+   */
+  getCamera3D(): Camera3D | null {
+    return this.camera3D;
+  }
+
+  /**
+   * Update camera (called from event handlers)
+   */
+  updateCamera3D(deltaTime: number): void {
+    if (this.camera3D) {
+      this.camera3D.update(deltaTime);
+    }
+  }
+
+  /**
+   * Update camera aspect ratio on canvas resize
+   */
+  updateCameraAspect(aspect: number): void {
+    if (this.camera3D) {
+      this.camera3D.setAspect(aspect);
+    }
   }
 }

@@ -194,6 +194,20 @@ export class Camera3D {
     this.targetAzimuth = config.azimuth;
     this.targetElevation = config.elevation;
     this.targetDistance = config.distance;
+
+    // Apply immediately for UI controls
+    this.applyTargetsImmediately();
+  }
+
+  /**
+   * Apply target values immediately (skip damping)
+   */
+  applyTargetsImmediately(): void {
+    this.azimuth = this.targetAzimuth;
+    this.elevation = this.targetElevation;
+    this.distance = this.targetDistance;
+    this.target.copy(this.targetPosition);
+    this.updatePosition();
   }
 
   /**

@@ -53,6 +53,10 @@ export function generateArtTitle(animationType: AnimationType): string {
     kaleidoscope: ['Caleidoscopio', 'Reflejo Espejo', 'Simetría Múltiple'],
     // Experimentales
     springMesh: ['Malla Elástica', 'Red de Resortes', 'Tejido Dinámico'],
+    // 3D Animations
+    smoothWaves3D: ['Ondas Suaves 3D', 'Olas Tridimensionales', 'Flujo Espacial'],
+    vortex3D: ['Vórtice 3D', 'Torbellino Espacial', 'Espiral Helicoidal'],
+    sphericalWaves3D: ['Ondas Esféricas', 'Pulso Radial 3D', 'Expansión Esférica'],
   };
 
   const options = titles[animationType] || ['Obra Sin Título'];
