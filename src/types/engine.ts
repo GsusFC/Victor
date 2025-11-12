@@ -38,7 +38,11 @@ export type AnimationType =
   | 'mandalas'
   | 'kaleidoscope'
   // Experimentales
-  | 'springMesh';
+  | 'springMesh'
+  // 3D Animations
+  | 'smoothWaves3D'
+  | 'vortex3D'
+  | 'sphericalWaves3D';
 
 export type VectorShape = 'line' | 'triangle' | 'arc' | 'circle' | 'star' | 'hexagon' | 'arrow' | 'diamond' | 'semicircle' | 'cross';
 

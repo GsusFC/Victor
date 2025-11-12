@@ -161,7 +161,11 @@ export function useVectorEngine(options: UseVectorEngineOptions | RefObject<HTML
     }
 
     // 7. Regenerar grid solo si cambió algo relevante
-    generateAndUpdateGrid(engine, canvas);
+    // IMPORTANTE: Solo en modo 2D (3D usa su propio sistema de grid)
+    const currentRenderMode = engine.getRenderMode();
+    if (currentRenderMode === '2D') {
+      generateAndUpdateGrid(engine, canvas);
+    }
   }, [
     animation.type,
     grid.rows,
