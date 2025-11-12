@@ -5,6 +5,7 @@
 
 'use client';
 
+import { useState, useEffect } from 'react';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { Button } from '@/components/ui/button';
@@ -17,6 +18,18 @@ interface CameraControls3DProps {
 }
 
 export function CameraControls3D({ camera, onUpdate }: CameraControls3DProps) {
+  // Track camera values in state to trigger re-renders
+  const [fov, setFov] = useState(60);
+  const [distance, setDistance] = useState(300);
+
+  // Sync state with camera when camera changes
+  useEffect(() => {
+    if (camera) {
+      setFov(camera.fov);
+      setDistance(camera.distance);
+    }
+  }, [camera]);
+
   if (!camera) {
     return (
       <div className="text-sm text-muted-foreground">
@@ -27,18 +40,25 @@ export function CameraControls3D({ camera, onUpdate }: CameraControls3DProps) {
 
   const handlePreset = (preset: 'top' | 'side' | 'isometric' | 'front' | 'corner') => {
     camera.setPreset(preset);
+    setFov(camera.fov);
+    setDistance(camera.distance);
     onUpdate?.();
   };
 
   const handleFOVChange = (value: number[]) => {
-    camera.fov = value[0];
+    const newFov = value[0];
+    camera.fov = newFov;
+    setFov(newFov);
     // FOV affects projection matrix, mark as dirty
     camera.applyTargetsImmediately();
     onUpdate?.();
   };
 
   const handleDistanceChange = (value: number[]) => {
-    camera.distance = value[0];
+    const newDistance = value[0];
+    camera.distance = newDistance;
+    camera.targetDistance = newDistance; // Also update target to prevent damping revert
+    setDistance(newDistance);
     // Distance affects camera position
     camera.applyTargetsImmediately();
     onUpdate?.();
@@ -49,6 +69,8 @@ export function CameraControls3D({ camera, onUpdate }: CameraControls3DProps) {
     camera.distance = 300;
     camera.fov = 60;
     camera.applyTargetsImmediately();
+    setFov(60);
+    setDistance(300);
     onUpdate?.();
   };
 
@@ -113,7 +135,7 @@ export function CameraControls3D({ camera, onUpdate }: CameraControls3DProps) {
         </Label>
         <div className="flex items-center gap-3">
           <Slider
-            value={[camera.fov]}
+            value={[fov]}
             onValueChange={handleFOVChange}
             min={30}
             max={120}
@@ -121,7 +143,7 @@ export function CameraControls3D({ camera, onUpdate }: CameraControls3DProps) {
             className="flex-1"
           />
           <span className="text-xs font-mono text-muted-foreground w-12 text-right">
-            {Math.round(camera.fov)}°
+            {Math.round(fov)}°
           </span>
         </div>
       </div>
@@ -134,7 +156,7 @@ export function CameraControls3D({ camera, onUpdate }: CameraControls3DProps) {
         </Label>
         <div className="flex items-center gap-3">
           <Slider
-            value={[camera.distance]}
+            value={[distance]}
             onValueChange={handleDistanceChange}
             min={100}
             max={1000}
@@ -142,7 +164,7 @@ export function CameraControls3D({ camera, onUpdate }: CameraControls3DProps) {
             className="flex-1"
           />
           <span className="text-xs font-mono text-muted-foreground w-12 text-right">
-            {Math.round(camera.distance)}
+            {Math.round(distance)}
           </span>
         </div>
       </div>

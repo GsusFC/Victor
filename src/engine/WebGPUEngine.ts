@@ -476,11 +476,14 @@ export class WebGPUEngine {
 
     // Create 3D vector buffer with grid size (not config.vectorCount)
     this.vector3DCount = this.coordinateSystem3D.getCount();
+    console.log(`🎯 3D System: Creating buffer for ${this.vector3DCount} vectors (${grid3DSize}³ grid)`);
+
     this.vector3DBuffer = this.createVector3DBuffer(this.vector3DCount);
     if (!this.vector3DBuffer) {
       console.error('❌ Failed to create 3D vector buffer');
       return;
     }
+    console.log(`✅ 3D vector buffer created successfully`);
 
     // Camera uniforms are now in the shared uniform buffer (managed by UniformManager)
     // Offsets 32-55 reserved for: viewProjMatrix (32-47), cameraPos (48-50), renderMode (51)
@@ -669,9 +672,18 @@ export class WebGPUEngine {
       if (pipeline3D) {
         this.compute3DPipeline = pipeline3D;
         this.currentAnimationType = type;
-        console.log(`🎨 Animación 3D cambiada a: ${type}`);
+        console.log(`🎨 Animación 3D cambiada a: ${type}`, {
+          pipelineExists: !!pipeline3D,
+          vectorCount: this.vector3DCount,
+          renderMode: this.renderMode,
+        });
+
+        // IMPORTANT: Set reasonable default parameters for 3D animations if they are 0
+        // 3D shaders need non-zero param1/param2 to produce visible motion
+        // param1 is typically frequency/strength, param2 is amplitude
+        console.warn(`⚠️ NOTA: Si los vectores 3D no se mueven, asegúrate de que los parámetros param1 y param2 tengan valores > 0 (ej: param1=20, param2=1)`);
       } else {
-        console.warn(`⚠️ Animación 3D ${type} no encontrada`);
+        console.warn(`⚠️ Animación 3D ${type} no encontrada. Pipelines disponibles:`, Array.from(this.compute3DPipelines.keys()));
       }
     } else {
       // Use 2D pipeline
@@ -1270,7 +1282,21 @@ export class WebGPUEngine {
    * Compute animation in 3D mode
    */
   private computeAnimation3D(): void {
-    if (!this.device || !this.compute3DPipeline || !this.vector3DBuffer || !this.uniformBuffer) return;
+    if (!this.device || !this.compute3DPipeline || !this.vector3DBuffer || !this.uniformBuffer) {
+      console.warn('⚠️ computeAnimation3D: Missing resources', {
+        device: !!this.device,
+        pipeline: !!this.compute3DPipeline,
+        vectorBuffer: !!this.vector3DBuffer,
+        uniformBuffer: !!this.uniformBuffer,
+      });
+      return;
+    }
+
+    // Validate vector count
+    if (this.vector3DCount === 0) {
+      console.error('❌ computeAnimation3D: vector3DCount is 0');
+      return;
+    }
 
     // Create compute bind group for 3D (recreate each frame to avoid device mismatch)
     const compute3DBindGroup = this.device.createBindGroup({
@@ -1617,6 +1643,9 @@ export class WebGPUEngine {
       this.camera3D.position,
       '3D'
     );
+
+    // NOTE: computeAnimation3D() is called in the main render loop (computeAnimation method)
+    // to avoid duplicate execution. Do NOT call it here.
 
     // Create bind group for 3D rendering (recreate each frame to avoid device mismatch)
     if (!this.uniformBuffer || !this.vector3DBuffer) {
