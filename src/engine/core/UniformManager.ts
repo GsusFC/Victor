@@ -55,7 +55,13 @@ export class UniformManager {
   constructor(device: GPUDevice) {
     this.device = device;
 
-    const uniformFloats = 32 + MAX_GRADIENT_STOPS * 4;
+    // Estructura de uniforms:
+    // 0-31:   Uniforms básicos (32 floats)
+    // 32-47:  viewProjMatrix (16 floats, 4×vec4f) - Para cámara 3D
+    // 48-50:  cameraPos (3 floats, vec3f) - Para cámara 3D
+    // 51-55:  renderMode + padding (5 floats)
+    // 56-103: gradientStops[12] (48 floats, 12×vec4f)
+    const uniformFloats = 32 + 24 + MAX_GRADIENT_STOPS * 4; // 32 + 24 (camera) + 48 (gradients) = 104
     const uniformBytes = uniformFloats * Float32Array.BYTES_PER_ELEMENT;
     const paddedSize = Math.ceil(uniformBytes / 16) * 16;
 
@@ -68,7 +74,7 @@ export class UniformManager {
     this.uniformData = new Float32Array(uniformFloats);
     this.lastUniformData = new Float32Array(uniformFloats);
 
-    console.log(`✅ UniformManager creado (${paddedSize} bytes)`);
+    console.log(`✅ UniformManager creado (${paddedSize} bytes, offsets: basic[0-31], camera3D[32-55], gradients[56-103])`);
   }
 
   getBuffer(): GPUBuffer {
@@ -107,12 +113,14 @@ export class UniformManager {
     this.uniformData[25] = data.linearMax;
     this.uniformData[26] = data.radialMax;
     this.uniformData[27] = data.seed;
-    this.uniformData[28] = 0;
-    this.uniformData[29] = 0;
-    this.uniformData[30] = 0;
-    this.uniformData[31] = 0;
+    this.uniformData[28] = 0; // padding1
+    this.uniformData[29] = 0; // padding (alineación vec4f)
+    this.uniformData[30] = 0; // padding
+    this.uniformData[31] = 0; // padding
 
-    this.uniformData.set(processedStops.data, 32);
+    // Offsets 32-55 reservados para datos de cámara 3D (se escriben en updateCamera3D)
+    // Gradient stops ahora en offset 56
+    this.uniformData.set(processedStops.data, 56);
 
     let hasChanged = this.uniformsDirty;
     if (!hasChanged) {
@@ -195,6 +203,34 @@ export class UniformManager {
           b: parseInt(result[3], 16) / 255,
         }
       : { r: 1, g: 1, b: 1 };
+  }
+
+  /**
+   * Update camera 3D uniforms (viewProjMatrix, cameraPos, renderMode)
+   * Writes to offsets 32-55
+   */
+  updateCamera3D(viewProjMatrix: Float32Array, cameraPos: { x: number; y: number; z: number }, renderMode: '2D' | '3D'): void {
+    // viewProjMatrix: 16 floats (mat4x4) at offset 32-47
+    for (let i = 0; i < 16; i++) {
+      this.uniformData[32 + i] = viewProjMatrix[i];
+    }
+
+    // cameraPos: 3 floats (vec3f) at offset 48-50
+    this.uniformData[48] = cameraPos.x;
+    this.uniformData[49] = cameraPos.y;
+    this.uniformData[50] = cameraPos.z;
+
+    // renderMode: 1 float at offset 51
+    this.uniformData[51] = renderMode === '3D' ? 1.0 : 0.0;
+
+    // Padding at offsets 52-55 (for vec4f alignment)
+    this.uniformData[52] = 0;
+    this.uniformData[53] = 0;
+    this.uniformData[54] = 0;
+    this.uniformData[55] = 0;
+
+    // Mark as dirty to force write
+    this.uniformsDirty = true;
   }
 
   markDirty(): void {

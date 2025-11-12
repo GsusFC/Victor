@@ -15,6 +15,7 @@ import { HeaderRecordingControls } from '@/components/controls/HeaderRecordingCo
 import { CollapsibleCard } from '@/components/ui/collapsible-card';
 import { PostProcessingControls } from '@/components/controls/PostProcessingControls';
 import { RenderPanel } from '@/components/controls/RenderPanel';
+import { Animation3DSelector } from '@/components/controls/Animation3DSelector';
 import { FPSCounter } from '@/components/debug/FPSCounter';
 import { PerformanceOverlay } from '@/components/debug/PerformanceOverlay';
 import { PublishButton } from '@/components/art/PublishButton';
@@ -25,8 +26,32 @@ export default function Home() {
   const canvasHandleRef = useRef<VectorCanvasHandle>(null);
   const recordingCallbackRef = useRef<(() => Promise<void>) | null>(null);
   const [canvasElement, setCanvasElement] = useState<HTMLCanvasElement | null>(null);
+  const [engine, setEngine] = useState<import('@/engine/WebGPUEngine').WebGPUEngine | null>(null);
+  const [renderMode, setRenderMode] = useState<'2D' | '3D'>('2D');
   const [showFPS, setShowFPS] = useState(false);  // FPS counter hidden by default (press F)
   const [showPerfOverlay, setShowPerfOverlay] = useState(false);  // Performance overlay hidden (press P)
+
+  // Poll for engine availability
+  useEffect(() => {
+    const checkEngine = () => {
+      if (canvasHandleRef.current) {
+        const eng = canvasHandleRef.current.getEngine();
+        if (eng && eng !== engine) {
+          console.log('✅ page.tsx: Engine detected and set to state');
+          setEngine(eng);
+        }
+      }
+    };
+
+    // Check immediately
+    checkEngine();
+
+    // Poll every 100ms until engine is available
+    if (!engine) {
+      const interval = setInterval(checkEngine, 100);
+      return () => clearInterval(interval);
+    }
+  }, [engine]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -68,15 +93,41 @@ export default function Home() {
         }
         leftSidebar={
           <div className="space-y-4">
-            <CollapsibleCard title="Renderizado" defaultExpanded={true}>
-              <RenderPanel />
+            <CollapsibleCard title="Render" defaultExpanded={true}>
+              <RenderPanel
+                engine={engine}
+                mode={renderMode}
+                onModeChange={setRenderMode}
+              />
             </CollapsibleCard>
-            <CollapsibleCard title="Animación" defaultExpanded={true}>
-              <AnimationPanel />
-            </CollapsibleCard>
-            <CollapsibleCard title="Grid" defaultExpanded={true}>
-              <GridControls />
-            </CollapsibleCard>
+
+            {/* 2D Controls */}
+            {renderMode === '2D' && (
+              <>
+                <CollapsibleCard title="Animación" defaultExpanded={true}>
+                  <AnimationPanel />
+                </CollapsibleCard>
+                <CollapsibleCard title="Grid" defaultExpanded={true}>
+                  <GridControls />
+                </CollapsibleCard>
+              </>
+            )}
+
+            {/* 3D Controls */}
+            {renderMode === '3D' && (
+              <>
+                <CollapsibleCard title="Animaciones 3D" defaultExpanded={true}>
+                  <Animation3DSelector engine={engine} />
+                </CollapsibleCard>
+                <CollapsibleCard title="Grid 3D" defaultExpanded={true}>
+                  <div className="space-y-2">
+                    <p className="text-xs text-muted-foreground">
+                      El grid 3D usa 10×10×10 vectores espaciados uniformemente en el espacio tridimensional.
+                    </p>
+                  </div>
+                </CollapsibleCard>
+              </>
+            )}
           </div>
         }
         canvas={

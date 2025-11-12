@@ -106,19 +106,29 @@ export const VectorCanvas = forwardRef<VectorCanvasHandle, VectorCanvasProps>(
       };
     }, [onCanvasReady]);
 
-    // Zoom con rueda del ratón
+    // Zoom con rueda del ratón (2D) o control de cámara (3D)
     useEffect(() => {
       const container = containerRef.current;
-      if (!container) return;
+      if (!container || !engine) return;
 
       const handleWheel = (e: WheelEvent) => {
         e.preventDefault();
 
-        // Calcular nuevo zoom (deltaY negativo = zoom in, positivo = zoom out)
-        const zoomDelta = -e.deltaY * 0.001;
-        const newZoom = Math.max(0.1, Math.min(5, canvasConfig.zoom + zoomDelta));
+        const renderMode = engine.getRenderMode();
 
-        setCanvas({ zoom: newZoom });
+        if (renderMode === '3D') {
+          // 3D mode: zoom camera
+          const camera = engine.getCamera3D();
+          if (camera) {
+            const zoomDelta = e.deltaY * 0.5;
+            camera.zoom(zoomDelta);
+          }
+        } else {
+          // 2D mode: zoom canvas
+          const zoomDelta = -e.deltaY * 0.001;
+          const newZoom = Math.max(0.1, Math.min(5, canvasConfig.zoom + zoomDelta));
+          setCanvas({ zoom: newZoom });
+        }
       };
 
       container.addEventListener('wheel', handleWheel, { passive: false });
@@ -126,7 +136,90 @@ export const VectorCanvas = forwardRef<VectorCanvasHandle, VectorCanvasProps>(
       return () => {
         container.removeEventListener('wheel', handleWheel);
       };
-    }, [canvasConfig.zoom, setCanvas]);
+    }, [canvasConfig.zoom, setCanvas, engine]);
+
+    // Mouse controls for 3D camera (orbit and pan)
+    useEffect(() => {
+      const container = containerRef.current;
+      if (!container || !engine) return;
+
+      let isDragging = false;
+      let isRightDragging = false;
+      let lastX = 0;
+      let lastY = 0;
+
+      const handleMouseDown = (e: MouseEvent) => {
+        const renderMode = engine.getRenderMode();
+        if (renderMode !== '3D') return;
+
+        if (e.button === 0) {
+          // Left button: orbit
+          isDragging = true;
+          lastX = e.clientX;
+          lastY = e.clientY;
+        } else if (e.button === 2) {
+          // Right button: pan
+          isRightDragging = true;
+          lastX = e.clientX;
+          lastY = e.clientY;
+          e.preventDefault();
+        }
+      };
+
+      const handleMouseMove = (e: MouseEvent) => {
+        const renderMode = engine.getRenderMode();
+        if (renderMode !== '3D') return;
+
+        const camera = engine.getCamera3D();
+        if (!camera) return;
+
+        if (isDragging) {
+          // Orbit
+          const deltaX = e.clientX - lastX;
+          const deltaY = e.clientY - lastY;
+
+          camera.orbit(deltaX * 0.5, deltaY * 0.5);
+
+          lastX = e.clientX;
+          lastY = e.clientY;
+        } else if (isRightDragging) {
+          // Pan
+          const deltaX = e.clientX - lastX;
+          const deltaY = e.clientY - lastY;
+
+          camera.pan(deltaX * 0.5, deltaY * 0.5);
+
+          lastX = e.clientX;
+          lastY = e.clientY;
+        }
+      };
+
+      const handleMouseUp = () => {
+        isDragging = false;
+        isRightDragging = false;
+      };
+
+      const handleContextMenu = (e: MouseEvent) => {
+        const renderMode = engine.getRenderMode();
+        if (renderMode === '3D') {
+          e.preventDefault();
+        }
+      };
+
+      container.addEventListener('mousedown', handleMouseDown);
+      container.addEventListener('mousemove', handleMouseMove);
+      container.addEventListener('mouseup', handleMouseUp);
+      container.addEventListener('mouseleave', handleMouseUp);
+      container.addEventListener('contextmenu', handleContextMenu);
+
+      return () => {
+        container.removeEventListener('mousedown', handleMouseDown);
+        container.removeEventListener('mousemove', handleMouseMove);
+        container.removeEventListener('mouseup', handleMouseUp);
+        container.removeEventListener('mouseleave', handleMouseUp);
+        container.removeEventListener('contextmenu', handleContextMenu);
+      };
+    }, [engine]);
 
     // Actualizar MSAA texture cuando cambien las dimensiones
     useEffect(() => {

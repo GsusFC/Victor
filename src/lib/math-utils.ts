@@ -7,7 +7,7 @@
  */
 
 // Re-export math library classes and constants
-export { Vec2, Vec3, Quat, DEG_TO_RAD, RAD_TO_DEG, EPSILON } from './math';
+export { Vec2, Vec3, Quat, Mat4, DEG_TO_RAD, RAD_TO_DEG, EPSILON } from './math';
 
 /**
  * Normaliza un ángulo al rango [0, 360)
