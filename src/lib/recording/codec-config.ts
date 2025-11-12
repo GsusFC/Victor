@@ -39,12 +39,13 @@ export function getCodecConfig(format: VideoFormat): string | undefined {
 
 /**
  * Bitrate presets por calidad
+ * Optimizados para canvas típico de ~1366x1264px @ 30-60fps
  */
 export const BITRATE_PRESETS: Record<VideoQuality, number> = {
-  low: 6_000_000,     // 6 Mbps
-  medium: 12_000_000, // 12 Mbps
-  high: 18_000_000,   // 18 Mbps - Óptimo para arte
-  max: 30_000_000,    // 30 Mbps
+  low: 8_000_000,     // 8 Mbps  - Compartir web/móvil, archivos pequeños
+  medium: 15_000_000, // 15 Mbps - Redes sociales (Instagram, TikTok)
+  high: 35_000_000,   // 35 Mbps - Alta calidad, sin compresión visible
+  max: 60_000_000,    // 60 Mbps - Máxima calidad, archivos grandes
 };
 
 /**

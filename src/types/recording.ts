@@ -31,27 +31,27 @@ export interface QualityPreset {
 
 export const QUALITY_PRESETS: Record<VideoQuality, QualityPreset> = {
   low: {
-    label: 'Baja (1080p30)',
+    label: 'Baja (8 Mbps)',
     resolution: '1080p',
-    bitrate: 6_000_000, // 6 Mbps
+    bitrate: 8_000_000, // 8 Mbps
     fps: 30,
   },
   medium: {
-    label: 'Redes Sociales (1080p30)',
+    label: 'Media (15 Mbps)',
     resolution: '1080p',
-    bitrate: 8_000_000, // 8 Mbps - Optimizado para Instagram, TikTok, YouTube
+    bitrate: 15_000_000, // 15 Mbps - Optimizado para Instagram, TikTok, YouTube
     fps: 30,
   },
   high: {
-    label: 'Alta (1080p60)',
+    label: 'Alta (35 Mbps)',
     resolution: '1080p',
-    bitrate: 18_000_000, // 18 Mbps - Óptimo para arte
+    bitrate: 35_000_000, // 35 Mbps - Sin compresión visible
     fps: 60,
   },
   max: {
-    label: 'Máxima (1080p60)',
+    label: 'Máxima (60 Mbps)',
     resolution: '1080p',
-    bitrate: 30_000_000, // 30 Mbps
+    bitrate: 60_000_000, // 60 Mbps - Calidad profesional
     fps: 60,
   },
 };

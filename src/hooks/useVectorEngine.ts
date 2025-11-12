@@ -95,7 +95,7 @@ export function useVectorEngine(options: UseVectorEngineOptions | RefObject<HTML
 
     initEngine();
 
-    // Cleanup
+    // Cleanup solo cuando se desmonta el componente completamente
     return () => {
       if (engineRef.current && initializedRef.current) {
         engineRef.current.destroy();
@@ -105,7 +105,23 @@ export function useVectorEngine(options: UseVectorEngineOptions | RefObject<HTML
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canvasRef, canvasRef.current?.width, canvasRef.current?.height]);
+  }, [canvasRef]); // Solo depende del canvasRef, NO del width/height
+
+  // Actualizar dimensiones del canvas sin destruir el engine
+  useEffect(() => {
+    const engine = engineRef.current;
+    const canvas = canvasRef.current;
+
+    if (!engine || !engine.initialized || !canvas) return;
+
+    // Solo actualizar si las dimensiones son válidas
+    if (canvas.width > 0 && canvas.height > 0) {
+      engine.updateCanvasDimensions(canvas.width, canvas.height);
+
+      // Regenerar grid con las nuevas dimensiones
+      generateAndUpdateGrid(engine, canvas);
+    }
+  }, [canvasRef.current?.width, canvasRef.current?.height, canvasRef]);
 
   // ✅ OPTIMIZACIÓN: Consolidar todos los updates del engine en un solo useEffect
   // Reduce overhead de múltiples re-renders y hace el código más mantenible

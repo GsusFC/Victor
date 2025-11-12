@@ -766,11 +766,22 @@ export class WebGPUEngine {
   updateCanvasDimensions(_width: number, _height: number): void {
     if (!this.canvas || !this.context || !this.device || !this.textureManager || !this.canvasFormat) return;
 
+    console.log(`🔄 Actualizando dimensiones del canvas: ${_width}x${_height}`);
     this.textureManager.updateCanvasDimensions(this.canvasFormat);
 
-    // Invalidar bind groups que usan las texturas
+    // Invalidar TODOS los bind groups que usan las texturas
     this.postProcessBindGroupNeedsUpdate = true;
+    this.bloomBindGroupsNeedUpdate = true;
+
+    // Limpiar bind groups para forzar recreación
     this.postProcessBindGroup = null;
+    this.blurBindGroup = null;
+    this.bloomExtractBindGroup = null;
+    this.bloomHorizontalBlurBindGroup = null;
+    this.bloomVerticalBlurBindGroup = null;
+    this.bloomCombineBindGroup = null;
+
+    console.log('✅ Bind groups invalidados, se recrearán en el siguiente frame');
   }
 
   /**
@@ -1030,6 +1041,7 @@ export class WebGPUEngine {
     // Crear bind groups solo si es necesario
     if (this.bloomBindGroupsNeedUpdate || !this.bloomExtractBindGroup) {
       this.bloomExtractBindGroup = this.device.createBindGroup({
+        label: 'Bloom Extract Bind Group',
         layout: this.bloomExtractPipeline.getBindGroupLayout(0),
         entries: [
           { binding: 0, resource: textures.resolved.view }, // Input: rendered scene
@@ -1066,6 +1078,7 @@ export class WebGPUEngine {
 
     if (this.bloomBindGroupsNeedUpdate || !this.bloomHorizontalBlurBindGroup) {
       this.bloomHorizontalBlurBindGroup = this.device.createBindGroup({
+        label: 'Bloom Horizontal Blur Bind Group',
         layout: this.bloomBlurPipeline.getBindGroupLayout(0),
         entries: [
           { binding: 0, resource: textures.bloomExtract.view }, // Input: bright pass
@@ -1101,6 +1114,7 @@ export class WebGPUEngine {
 
     if (this.bloomBindGroupsNeedUpdate || !this.bloomVerticalBlurBindGroup) {
       this.bloomVerticalBlurBindGroup = this.device.createBindGroup({
+        label: 'Bloom Vertical Blur Bind Group',
         layout: this.bloomBlurPipeline.getBindGroupLayout(0),
         entries: [
           { binding: 0, resource: textures.bloomBlur1.view }, // Input: horizontally blurred
@@ -1125,6 +1139,7 @@ export class WebGPUEngine {
     // Pass 4: Combine bloom with original (write to blurTexture for final post-process)
     if (this.bloomBindGroupsNeedUpdate || !this.bloomCombineBindGroup) {
       this.bloomCombineBindGroup = this.device.createBindGroup({
+        label: 'Bloom Combine Bind Group',
         layout: this.bloomCombinePipeline.getBindGroupLayout(0),
         entries: [
           { binding: 0, resource: textures.resolved.view }, // Original scene
@@ -1228,6 +1243,7 @@ export class WebGPUEngine {
       // NOTA: El bind group debe recrearse si cambia la textura de input
       if (this.postProcessBindGroupNeedsUpdate || !this.postProcessBindGroup) {
         this.postProcessBindGroup = this.device.createBindGroup({
+          label: 'Post Process Bind Group',
           layout: this.postProcessPipeline.getBindGroupLayout(0),
           entries: [
             { binding: 0, resource: { buffer: this.postProcessUniformBuffer } },
