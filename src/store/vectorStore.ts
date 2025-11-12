@@ -150,9 +150,9 @@ const animationParamsDefaults: Record<AnimationType, AnimationParamSet> = {
   // smoothWaves3D: param1 * 0.05 (frequency), param2 (amplitude)
   // vortex3D: param1 * 0.5 (strength)
   // sphericalWaves3D: param1 * 0.05 (frequency), param2 (amplitude)
-  smoothWaves3D: { frequency: 100, amplitude: 2.0, elasticity: 0, maxLength: 80 },
-  vortex3D: { frequency: 50, amplitude: 2.0, elasticity: 0, maxLength: 80 },
-  sphericalWaves3D: { frequency: 100, amplitude: 2.0, elasticity: 0, maxLength: 80 },
+  smoothWaves3D: { frequency: 100, amplitude: 20.0, elasticity: 0, maxLength: 200 },
+  vortex3D: { frequency: 50, amplitude: 15.0, elasticity: 0, maxLength: 200 },
+  sphericalWaves3D: { frequency: 100, amplitude: 20.0, elasticity: 0, maxLength: 200 },
 };
 
 const ensureGradientConfig = (input?: any): GradientConfig => {
