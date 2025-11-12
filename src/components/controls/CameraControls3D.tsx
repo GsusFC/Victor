@@ -57,7 +57,6 @@ export function CameraControls3D({ camera, onUpdate }: CameraControls3DProps) {
   const handleDistanceChange = (value: number[]) => {
     const newDistance = value[0];
     camera.distance = newDistance;
-    camera.targetDistance = newDistance; // Also update target to prevent damping revert
     setDistance(newDistance);
     // Distance affects camera position
     camera.applyTargetsImmediately();
