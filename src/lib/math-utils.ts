@@ -1,7 +1,13 @@
 /**
  * math-utils.ts
  * Utilidades matemáticas compartidas para Victor
+ *
+ * Re-exports enhanced math library from PlayCanvas
+ * and provides additional utility functions
  */
+
+// Re-export math library classes and constants
+export { Vec2, Vec3, Quat, DEG_TO_RAD, RAD_TO_DEG, EPSILON } from './math';
 
 /**
  * Normaliza un ángulo al rango [0, 360)
@@ -61,4 +67,47 @@ export const degToRad = (degrees: number): number => {
  */
 export const radToDeg = (radians: number): number => {
   return (radians * 180) / Math.PI;
+};
+
+/**
+ * Smoothstep interpolation (Hermite)
+ * @param edge0 Lower edge
+ * @param edge1 Upper edge
+ * @param x Value to interpolate
+ * @returns Smoothly interpolated value
+ */
+export const smoothstep = (edge0: number, edge1: number, x: number): number => {
+  const t = clamp((x - edge0) / (edge1 - edge0), 0, 1);
+  return t * t * (3 - 2 * t);
+};
+
+/**
+ * Smootherstep interpolation (Ken Perlin's improved version)
+ * @param edge0 Lower edge
+ * @param edge1 Upper edge
+ * @param x Value to interpolate
+ * @returns Very smoothly interpolated value
+ */
+export const smootherstep = (edge0: number, edge1: number, x: number): number => {
+  const t = clamp((x - edge0) / (edge1 - edge0), 0, 1);
+  return t * t * t * (t * (t * 6 - 15) + 10);
+};
+
+/**
+ * Map value from one range to another
+ * @param value Input value
+ * @param inMin Input range minimum
+ * @param inMax Input range maximum
+ * @param outMin Output range minimum
+ * @param outMax Output range maximum
+ * @returns Mapped value
+ */
+export const mapRange = (
+  value: number,
+  inMin: number,
+  inMax: number,
+  outMin: number,
+  outMax: number
+): number => {
+  return outMin + (outMax - outMin) * ((value - inMin) / (inMax - inMin));
 };

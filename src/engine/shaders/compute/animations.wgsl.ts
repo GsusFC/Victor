@@ -1,15 +1,20 @@
 /**
  * Shaders de compute para diferentes animaciones
- * Sistema modular de animaciones WebGPU - LIMPIEZA Y REORGANIZACIÓN
+ * Sistema modular de animaciones WebGPU
+ * Refactorizado para usar sistema de shader chunks
  */
+
+import { commonChunks } from '../chunks';
 
 // Helper: Generar shader con workgroup size dinámico
 export function createShaderWithWorkgroupSize(shaderCode: string, workgroupSize: number): string {
   return shaderCode.replace(/@workgroup_size\(64\)/g, `@workgroup_size(${workgroupSize})`);
 }
 
-// Estructura común
+// Estructura común - usa chunks para funciones matemáticas
 const COMMON_STRUCTS = /* wgsl */ `
+${commonChunks}
+
 const MAX_GRADIENT_STOPS: u32 = 12u;
 
 struct Uniforms {
@@ -55,79 +60,24 @@ struct Vector {
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
 @group(0) @binding(1) var<storage, read_write> vectors: array<Vector>;
 
-const PI: f32 = 3.14159265359;
-const TWO_PI: f32 = 6.28318530718;
-
-fn normalize_angle(angle: f32) -> f32 {
-  var a = angle;
-  while (a > PI) { a = a - TWO_PI; }
-  while (a < -PI) { a = a + TWO_PI; }
-  return a;
-}
-
-// Lerp para suavizado temporal de ángulos
-fn lerp_angle(current: f32, targetAngle: f32, factor: f32) -> f32 {
-  // Normalizar ambos ángulos
-  let a = normalize_angle(current);
-  let b = normalize_angle(targetAngle);
-
-  // Calcular la diferencia más corta
-  var diff = b - a;
-  if (diff > PI) { diff = diff - TWO_PI; }
-  if (diff < -PI) { diff = diff + TWO_PI; }
-
-  // Interpolar
-  return normalize_angle(a + diff * factor);
-}
-
-// ============================================
-// PRNG (Pseudo-Random Number Generator)
-// Usando PCG Hash - muy eficiente en GPU
-// ============================================
-
-// PCG Hash: hash un u32 a otro u32
-fn pcg_hash(input: u32) -> u32 {
-  var state = input * 747796405u + 2891336453u;
-  let word = ((state >> ((state >> 28u) + 4u)) ^ state) * 277803737u;
-  return (word >> 22u) ^ word;
-}
-
-// Convierte u32 a f32 en rango [0, 1)
-fn u32_to_f32(x: u32) -> f32 {
-  return f32(x) / 4294967296.0; // 2^32
-}
-
-// Genera número pseudo-aleatorio en [0, 1) basado en seed y posición
+// Helper functions using chunk functions
 fn rand(seed: f32, x: f32, y: f32) -> f32 {
   let s = u32(seed);
   let ix = u32(x * 1000.0);
   let iy = u32(y * 1000.0);
-  let hash_input = s ^ (ix * 374761393u) ^ (iy * 668265263u);
-  return u32_to_f32(pcg_hash(hash_input));
+  return random_f32(s, ix, iy);
 }
 
-// Genera número pseudo-aleatorio en [0, 1) basado en seed, posición y tiempo
-// Mejorado para evitar patrones simétricos de cuadrantes
 fn rand_time(seed: f32, x: f32, y: f32, t: f32) -> f32 {
   let s = u32(seed);
-  // Usar más resolución y offsets asimétricos para romper simetría
   let ix = u32((x + 0.123456) * 1234.567);
   let iy = u32((y + 0.789012) * 2345.678);
   let it = u32(t * 100.0);
-  // XOR con números primos grandes para mejor distribución
-  let hash_input = s ^ (ix * 374761393u) ^ (iy * 668265263u) ^ (it * 1103515245u);
-  return u32_to_f32(pcg_hash(hash_input));
+  return random_f32(s ^ it, ix, iy);
 }
 
-// Genera número pseudo-aleatorio en rango [min, max)
 fn rand_range(seed: f32, x: f32, y: f32, min: f32, max: f32) -> f32 {
-  return min + rand(seed, x, y) * (max - min);
-}
-
-// Smoothstep equivalent para WGSL
-fn smoothstep(edge0: f32, edge1: f32, x: f32) -> f32 {
-  let t = clamp((x - edge0) / (edge1 - edge0), 0.0, 1.0);
-  return t * t * (3.0 - 2.0 * t);
+  return random_range(u32(seed), u32(x * 1000.0), u32(y * 1000.0), min, max);
 }
 `;
 
