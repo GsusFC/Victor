@@ -14,6 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Video, Circle, Square, Pause, Play, AlertCircle, Download, RotateCcw, CheckCircle } from 'lucide-react';
 import type { VideoFormat, VideoQuality, RecordingConfig } from '@/types/recording';
+import { QUALITY_PRESETS } from '@/types/recording';
 import type { VectorCanvasHandle } from '@/components/canvas/VectorCanvas';
 
 type FlowState = 'config' | 'countdown' | 'recording' | 'paused' | 'processing' | 'ready';
@@ -180,10 +181,10 @@ export function RecordingPanel({ canvas, onRecordingCallbackChange }: RecordingP
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="low">Baja (1080p30 - 6 Mbps)</SelectItem>
-                <SelectItem value="medium">Redes Sociales (1080p30 - 8 Mbps)</SelectItem>
-                <SelectItem value="high">Alta (1080p60 - 18 Mbps)</SelectItem>
-                <SelectItem value="max">Máxima (1080p60 - 30 Mbps)</SelectItem>
+                <SelectItem value="low">{QUALITY_PRESETS.low.label}</SelectItem>
+                <SelectItem value="medium">{QUALITY_PRESETS.medium.label}</SelectItem>
+                <SelectItem value="high">{QUALITY_PRESETS.high.label}</SelectItem>
+                <SelectItem value="max">{QUALITY_PRESETS.max.label}</SelectItem>
               </SelectContent>
             </Select>
           </div>
