@@ -14,6 +14,7 @@ import { VisualControls } from '@/components/controls/VisualControls';
 import { HeaderRecordingControls } from '@/components/controls/HeaderRecordingControls';
 import { CollapsibleCard } from '@/components/ui/collapsible-card';
 import { PostProcessingControls } from '@/components/controls/PostProcessingControls';
+import { RenderPanel } from '@/components/controls/RenderPanel';
 import { FPSCounter } from '@/components/debug/FPSCounter';
 import { PerformanceOverlay } from '@/components/debug/PerformanceOverlay';
 import { PublishButton } from '@/components/art/PublishButton';
@@ -67,6 +68,9 @@ export default function Home() {
         }
         leftSidebar={
           <div className="space-y-4">
+            <CollapsibleCard title="Renderizado" defaultExpanded={true}>
+              <RenderPanel />
+            </CollapsibleCard>
             <CollapsibleCard title="Animación" defaultExpanded={true}>
               <AnimationPanel />
             </CollapsibleCard>

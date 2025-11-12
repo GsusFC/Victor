@@ -6,7 +6,7 @@
 import { useEffect, useRef, RefObject, MutableRefObject } from 'react';
 import { WebGPUEngine } from '@/engine/WebGPUEngine';
 import { ISOCoordinates } from '@/engine/CoordinateSystem';
-import { useVectorStore, selectGrid, selectAnimation, selectVisual, selectCanvas } from '@/store/vectorStore';
+import { useVectorStore, selectGrid, selectAnimation, selectVisual, selectCanvas, selectCamera3D } from '@/store/vectorStore';
 import type { VectorShape } from '@/types/engine';
 import { useAnimationFrame } from './useAnimationFrame';
 
@@ -42,6 +42,7 @@ export function useVectorEngine(options: UseVectorEngineOptions | RefObject<HTML
   const animation = useVectorStore(selectAnimation);
   const visual = useVectorStore(selectVisual);
   const canvasConfig = useVectorStore(selectCanvas);
+  const camera3d = useVectorStore(selectCamera3D);
 
   // Inicialización del engine
   useEffect(() => {
@@ -223,6 +224,35 @@ export function useVectorEngine(options: UseVectorEngineOptions | RefObject<HTML
       canvas.removeEventListener('pointerleave', handlePointerLeave);
     };
   }, [canvasRef, animation.type]);
+
+  // Sincronizar configuración de cámara 3D
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine || !engine.initialized) return;
+
+    // Habilitar/deshabilitar modo 3D
+    engine.setCamera3DEnabled(camera3d.enabled);
+
+    // Si está habilitado, actualizar configuración
+    if (camera3d.enabled) {
+      engine.updateCamera3D({
+        azimuth: camera3d.azimuth,
+        elevation: camera3d.elevation,
+        distance: camera3d.distance,
+        fov: camera3d.fov,
+        projectionType: camera3d.projectionType,
+        target: camera3d.target,
+      });
+    }
+  }, [
+    camera3d.enabled,
+    camera3d.azimuth,
+    camera3d.elevation,
+    camera3d.distance,
+    camera3d.fov,
+    camera3d.projectionType,
+    camera3d.target,
+  ]);
 
   // Loop de animación
   const frameCountRef = useRef(0);

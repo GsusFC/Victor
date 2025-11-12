@@ -18,6 +18,8 @@ import { PipelineManager } from './core/PipelineManager';
 import { UniformManager } from './core/UniformManager';
 import { ComputePass } from './rendering/ComputePass';
 import { RenderPass } from './rendering/RenderPass';
+import { Camera3D } from './Camera3D';
+import type { Camera3DConfig } from './Camera3D';
 import {
   BLOOM_DEFAULTS,
   TRAILS_DEFAULTS,
@@ -90,6 +92,11 @@ export class WebGPUEngine {
   private vectorBuffer: GPUBuffer | null = null;
   private uniformBuffer: GPUBuffer | null = null;
   private shapeBuffer: GPUBuffer | null = null; // Nuevo: geometría de la forma actual
+  private camera3DBuffer: GPUBuffer | null = null; // Buffer para matrices de cámara 3D
+
+  // Camera 3D
+  private camera3D: Camera3D | null = null;
+  private camera3DEnabled: boolean = false;
 
   // Vector data cache (para exportación)
   private currentVectorData: Float32Array | null = null;
@@ -1019,6 +1026,115 @@ export class WebGPUEngine {
     const commandEncoder = this.device.createCommandEncoder();
     computePass.execute(commandEncoder);
     this.device.queue.submit([commandEncoder.finish()]);
+  }
+
+  /**
+   * Inicializa la cámara 3D con la configuración proporcionada
+   */
+  initCamera3D(config?: Partial<Camera3DConfig>): void {
+    if (!this.camera3D) {
+      this.camera3D = new Camera3D(config);
+    }
+
+    // Crear buffer para matrices de cámara si no existe
+    if (!this.device) {
+      console.warn('⚠️ Device no inicializado, no se puede crear camera3DBuffer');
+      return;
+    }
+
+    if (!this.camera3DBuffer) {
+      // Buffer para: viewProjectionMatrix (16 floats) + cameraPosition (3 floats) + enabled (1 float) = 20 floats
+      const bufferSize = 20 * Float32Array.BYTES_PER_ELEMENT;
+      const paddedSize = Math.ceil(bufferSize / 16) * 16;
+
+      this.camera3DBuffer = this.device.createBuffer({
+        size: paddedSize,
+        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+        mappedAtCreation: false,
+      });
+
+      console.log(`✅ Camera3D buffer creado (${paddedSize} bytes)`);
+    }
+  }
+
+  /**
+   * Habilita o deshabilita el modo 3D
+   */
+  setCamera3DEnabled(enabled: boolean): void {
+    this.camera3DEnabled = enabled;
+    if (enabled && !this.camera3D) {
+      this.initCamera3D();
+    }
+  }
+
+  /**
+   * Actualiza la configuración de la cámara 3D
+   */
+  updateCamera3D(config: Partial<Camera3DConfig>): void {
+    if (!this.camera3D) {
+      this.initCamera3D(config);
+      return;
+    }
+
+    // Actualizar propiedades de la cámara
+    if (config.azimuth !== undefined || config.elevation !== undefined) {
+      const azimuth = config.azimuth ?? this.camera3D.getAzimuth();
+      const elevation = config.elevation ?? this.camera3D.getElevation();
+      this.camera3D.rotate(0, 0); // Reset rotation deltas
+      // Establecer valores absolutos
+      const currentAzimuth = this.camera3D.getAzimuth();
+      const currentElevation = this.camera3D.getElevation();
+      this.camera3D.rotate(azimuth - currentAzimuth, elevation - currentElevation);
+    }
+
+    if (config.distance !== undefined) {
+      this.camera3D.setDistance(config.distance);
+    }
+
+    if (config.fov !== undefined) {
+      this.camera3D.setFov(config.fov);
+    }
+
+    if (config.projectionType !== undefined) {
+      this.camera3D.setProjectionType(config.projectionType);
+    }
+
+    if (config.target !== undefined) {
+      this.camera3D.setTarget(config.target);
+    }
+
+    // Actualizar matrices
+    this.updateCamera3DMatrices();
+  }
+
+  /**
+   * Actualiza las matrices de la cámara 3D y escribe al buffer
+   */
+  private updateCamera3DMatrices(): void {
+    if (!this.camera3D || !this.device || !this.camera3DBuffer || !this.canvas) return;
+
+    const aspect = this.canvas.width / this.canvas.height;
+    this.camera3D.updateMatrices(aspect);
+
+    const viewProjectionMatrix = this.camera3D.getViewProjectionMatrix();
+    const position = this.camera3D.getPosition();
+
+    // Datos: [viewProjectionMatrix (16), cameraPosition (3), enabled (1)]
+    const cameraData = new Float32Array(20);
+    cameraData.set(viewProjectionMatrix, 0);
+    cameraData[16] = position.x;
+    cameraData[17] = position.y;
+    cameraData[18] = position.z;
+    cameraData[19] = this.camera3DEnabled ? 1.0 : 0.0;
+
+    this.device.queue.writeBuffer(this.camera3DBuffer, 0, cameraData);
+  }
+
+  /**
+   * Obtiene la instancia de la cámara 3D
+   */
+  getCamera3D(): Camera3D | null {
+    return this.camera3D;
   }
 
   /**
