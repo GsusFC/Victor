@@ -133,8 +133,6 @@ export class Camera3D {
    * Aplicar preset de cámara
    */
   applyPreset(preset: CameraPreset): void {
-    const distance = this.config.distance;
-
     switch (preset) {
       case 'front':
         this.config.azimuth = 0;
