@@ -65,6 +65,14 @@ import {
   kaleidoscopeShader,
   dnaHelixShader,
   springMeshShader,
+  interferenceWavesShader,
+  particleFlowShader,
+  animatedFractalsShader,
+  crystallizationShader,
+  shockWavesShader,
+  gravityFieldShader,
+  coupledOscillatorsShader,
+  dynamicMazeShader,
   createShaderWithWorkgroupSize,
 } from './shaders/compute/animations.wgsl';
 
@@ -614,6 +622,8 @@ export class WebGPUEngine {
       organicGrowth: organicGrowthShader,
       fluidDynamics: fluidDynamicsShader,
       aurora: auroraShader,
+      particleFlow: particleFlowShader,
+      crystallization: crystallizationShader,
       // Energéticas
       electricPulse: electricPulseShader,
       vortex: vortexShader,
@@ -627,6 +637,8 @@ export class WebGPUEngine {
       blackHole: blackHoleShader,
       lightningStorm: lightningStormShader,
       quantumField: quantumFieldShader,
+      shockWaves: shockWavesShader,
+      interferenceWaves: interferenceWavesShader,
       // Geométricas
       tangenteClasica: tangenteClasicaShader,
       lissajous: lissajousShader,
@@ -637,8 +649,12 @@ export class WebGPUEngine {
       voronoiDiagram: voronoiDiagramShader,
       mandalas: mandalasShader,
       kaleidoscope: kaleidoscopeShader,
+      animatedFractals: animatedFractalsShader,
       // Experimentales
       springMesh: springMeshShader,
+      gravityField: gravityFieldShader,
+      coupledOscillators: coupledOscillatorsShader,
+      dynamicMaze: dynamicMazeShader,
       // 3D Animations (placeholders, not used in 2D pipeline)
       smoothWaves3D: noneShader,
       vortex3D: noneShader,

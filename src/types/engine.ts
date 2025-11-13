@@ -14,6 +14,8 @@ export type AnimationType =
   | 'organicGrowth'
   | 'fluidDynamics'
   | 'aurora'
+  | 'particleFlow'
+  | 'crystallization'
   // Energéticas
   | 'electricPulse'
   | 'vortex'
@@ -27,6 +29,8 @@ export type AnimationType =
   | 'blackHole'
   | 'lightningStorm'
   | 'quantumField'
+  | 'shockWaves'
+  | 'interferenceWaves'
   // Geométricas
   | 'tangenteClasica'
   | 'lissajous'
@@ -37,8 +41,12 @@ export type AnimationType =
   | 'voronoiDiagram'
   | 'mandalas'
   | 'kaleidoscope'
+  | 'animatedFractals'
   // Experimentales
   | 'springMesh'
+  | 'gravityField'
+  | 'coupledOscillators'
+  | 'dynamicMaze'
   // 3D Animations
   | 'smoothWaves3D'
   | 'vortex3D'

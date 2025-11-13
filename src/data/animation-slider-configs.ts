@@ -218,6 +218,56 @@ export const ANIMATION_SLIDER_CONFIGS: Partial<Record<AnimationType, SliderConfi
     { label: 'Frec. perturbaciones', param: 'elasticity', min: 0.1, max: 1, step: 0.05, formatter: defaultFormatter },
     { label: 'Longitud máx.', param: 'maxLength', min: 50, max: 1920, step: 5, suffix: ' px', formatter: intFormatter },
   ],
+  gravityField: [
+    { label: 'Número de masas', param: 'frequency', min: 1, max: 5, step: 1, formatter: intFormatter },
+    { label: 'Fuerza gravitacional', param: 'amplitude', min: 0.5, max: 3, step: 0.1, formatter: defaultFormatter },
+    { label: 'Velocidad orbital', param: 'elasticity', min: 0.2, max: 1.5, step: 0.1, formatter: defaultFormatter },
+    { label: 'Longitud máx.', param: 'maxLength', min: 50, max: 1920, step: 5, suffix: ' px', formatter: intFormatter },
+  ],
+  coupledOscillators: [
+    { label: 'Frecuencia natural', param: 'frequency', min: 0.5, max: 3, step: 0.1, formatter: defaultFormatter },
+    { label: 'Fuerza acoplamiento', param: 'amplitude', min: 0.1, max: 1, step: 0.05, formatter: defaultFormatter },
+    { label: 'Damping', param: 'elasticity', min: 0, max: 1, step: 0.05, formatter: defaultFormatter },
+    { label: 'Longitud máx.', param: 'maxLength', min: 50, max: 1920, step: 5, suffix: ' px', formatter: intFormatter },
+  ],
+  dynamicMaze: [
+    { label: 'Velocidad cambio', param: 'frequency', min: 0.1, max: 1, step: 0.05, formatter: defaultFormatter },
+    { label: 'Complejidad', param: 'amplitude', min: 2, max: 8, step: 1, formatter: intFormatter },
+    { label: 'Densidad', param: 'elasticity', min: 0.3, max: 1, step: 0.05, formatter: defaultFormatter },
+    { label: 'Longitud máx.', param: 'maxLength', min: 50, max: 1920, step: 5, suffix: ' px', formatter: intFormatter },
+  ],
+
+  // NUEVAS ANIMACIONES
+  interferenceWaves: [
+    { label: 'Número de fuentes', param: 'frequency', min: 1, max: 4, step: 1, formatter: intFormatter },
+    { label: 'Amplitud', param: 'amplitude', min: 10, max: 60, step: 5, suffix: '°', formatter: intFormatter },
+    { label: 'Diferencia de fase', param: 'elasticity', min: 0, max: 4, step: 0.1, formatter: defaultFormatter },
+    { label: 'Longitud máx.', param: 'maxLength', min: 50, max: 1920, step: 5, suffix: ' px', formatter: intFormatter },
+  ],
+  particleFlow: [
+    { label: 'Velocidad flujo', param: 'frequency', min: 0.2, max: 2, step: 0.1, formatter: defaultFormatter },
+    { label: 'Viscosidad', param: 'amplitude', min: 0.5, max: 2, step: 0.1, formatter: defaultFormatter },
+    { label: 'Turbulencia', param: 'elasticity', min: 0, max: 1, step: 0.05, formatter: defaultFormatter },
+    { label: 'Longitud máx.', param: 'maxLength', min: 50, max: 1920, step: 5, suffix: ' px', formatter: intFormatter },
+  ],
+  animatedFractals: [
+    { label: 'Velocidad zoom', param: 'frequency', min: 0.1, max: 1, step: 0.05, formatter: defaultFormatter },
+    { label: 'Velocidad rotación', param: 'amplitude', min: 0.5, max: 3, step: 0.1, formatter: defaultFormatter },
+    { label: 'Iteraciones', param: 'elasticity', min: 2, max: 8, step: 1, formatter: intFormatter },
+    { label: 'Longitud máx.', param: 'maxLength', min: 50, max: 1920, step: 5, suffix: ' px', formatter: intFormatter },
+  ],
+  crystallization: [
+    { label: 'Velocidad crecimiento', param: 'frequency', min: 0.2, max: 2, step: 0.1, formatter: defaultFormatter },
+    { label: 'Ejes de simetría', param: 'amplitude', min: 3, max: 12, step: 1, formatter: intFormatter },
+    { label: 'Ramificación', param: 'elasticity', min: 0.2, max: 1, step: 0.05, formatter: defaultFormatter },
+    { label: 'Longitud máx.', param: 'maxLength', min: 50, max: 1920, step: 5, suffix: ' px', formatter: intFormatter },
+  ],
+  shockWaves: [
+    { label: 'Frecuencia impactos', param: 'frequency', min: 0.5, max: 3, step: 0.1, formatter: defaultFormatter },
+    { label: 'Número de ondas', param: 'amplitude', min: 2, max: 8, step: 1, formatter: intFormatter },
+    { label: 'Velocidad decay', param: 'elasticity', min: 0.3, max: 1.5, step: 0.1, formatter: defaultFormatter },
+    { label: 'Longitud máx.', param: 'maxLength', min: 50, max: 1920, step: 5, suffix: ' px', formatter: intFormatter },
+  ],
 };
 
 /**
