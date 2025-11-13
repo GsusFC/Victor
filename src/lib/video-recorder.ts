@@ -236,7 +236,7 @@ export class VideoRecorder {
    */
   download(): void {
     const buffer = this.bufferManager.retrieve();
-    
+
     if (!buffer) {
       throw new Error('No hay video disponible para descargar');
     }
@@ -247,9 +247,13 @@ export class VideoRecorder {
 
     // Usar el formato guardado durante la grabación (no el config actual)
     const format = this.recordedFormat || this.config.format;
+
+    // CRITICAL FIX: Obtener el mime type REAL usado durante la grabación
+    const actualMimeType = this.strategy.getActualMimeType();
+
     const fileName = generateFileName(this.config.fileName || 'victor-animation', format as any);
-    downloadBuffer(buffer, fileName, format as any);
-    console.log(`📥 Descargando: ${fileName} (${format})`);
+    downloadBuffer(buffer, fileName, format as any, actualMimeType);
+    console.log(`📥 Descargando: ${fileName} (formato: ${format}, mime: ${actualMimeType})`);
   }
 
   /**
