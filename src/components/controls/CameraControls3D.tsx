@@ -56,7 +56,9 @@ export function CameraControls3D({ camera, onUpdate }: CameraControls3DProps) {
 
   const handleDistanceChange = (value: number[]) => {
     const newDistance = value[0];
+    // Update both current and target distance
     camera.distance = newDistance;
+    (camera as any).targetDistance = newDistance;  // targetDistance is private but we need to update it
     setDistance(newDistance);
     // Distance affects camera position
     camera.applyTargetsImmediately();
@@ -66,6 +68,7 @@ export function CameraControls3D({ camera, onUpdate }: CameraControls3DProps) {
   const handleReset = () => {
     camera.setPreset('isometric');
     camera.distance = 300;
+    (camera as any).targetDistance = 300;  // Update target too
     camera.fov = 60;
     camera.applyTargetsImmediately();
     setFov(60);

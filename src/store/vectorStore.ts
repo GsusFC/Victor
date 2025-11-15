@@ -6,10 +6,21 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import type { AnimationType, VectorShape } from '@/types/engine';
+import type { ProjectionType } from '@/engine/Camera3D';
 
 // ============= TYPES =============
 
 export type AnimationCategory = 'natural' | 'energetic' | 'geometric' | 'experimental';
+
+export interface Camera3DState {
+  enabled: boolean; // Toggle entre modo 2D y 3D
+  azimuth: number; // radianes
+  elevation: number; // radianes
+  distance: number;
+  fov: number;
+  projectionType: ProjectionType;
+  target: { x: number; y: number; z: number };
+}
 
 
 export type SpacingMode = 'fixed' | 'dynamic';
@@ -150,9 +161,9 @@ const animationParamsDefaults: Record<AnimationType, AnimationParamSet> = {
   // smoothWaves3D: param1 * 0.05 (frequency), param2 (amplitude)
   // vortex3D: param1 * 0.5 (strength)
   // sphericalWaves3D: param1 * 0.05 (frequency), param2 (amplitude)
-  smoothWaves3D: { frequency: 100, amplitude: 2.0, elasticity: 0, maxLength: 80 },
-  vortex3D: { frequency: 50, amplitude: 2.0, elasticity: 0, maxLength: 80 },
-  sphericalWaves3D: { frequency: 100, amplitude: 2.0, elasticity: 0, maxLength: 80 },
+  smoothWaves3D: { frequency: 100, amplitude: 20.0, elasticity: 0, maxLength: 200 },
+  vortex3D: { frequency: 50, amplitude: 15.0, elasticity: 0, maxLength: 200 },
+  sphericalWaves3D: { frequency: 100, amplitude: 20.0, elasticity: 0, maxLength: 200 },
 };
 
 const ensureGradientConfig = (input?: any): GradientConfig => {
@@ -266,6 +277,7 @@ export interface VectorState {
     zoom: number;
     backgroundColor: string;
   };
+  camera3d: Camera3DState;
   gradients: GradientLibraryState;
 }
 
@@ -289,6 +301,9 @@ export interface VectorActions {
   generateNewSeed: () => void;
   toggleAutoSeed: () => void;
   setCanvas: (config: Partial<VectorState['canvas']>) => void;
+  setCamera3D: (config: Partial<Camera3DState>) => void;
+  toggleCamera3D: () => void;
+  resetCamera3D: () => void;
   importConfig: (config: Pick<VectorState, 'animation' | 'grid' | 'visual' | 'gradients'>) => void;
   reset: () => void;
 }
@@ -359,6 +374,15 @@ const defaultState: VectorState = {
     height: 600,
     zoom: 1,
     backgroundColor: '#000000',
+  },
+  camera3d: {
+    enabled: false,
+    azimuth: 0,
+    elevation: Math.PI / 6, // 30 grados
+    distance: 10,
+    fov: 45,
+    projectionType: 'perspective',
+    target: { x: 0, y: 0, z: 0 },
   },
   gradients: defaultGradientLibrary,
 };
@@ -558,6 +582,24 @@ export const useVectorStore = create<VectorStore>()(
           set((state) => ({
             canvas: { ...state.canvas, ...config },
           })),
+        setCamera3D: (config) =>
+          set((state) => ({
+            camera3d: { ...state.camera3d, ...config },
+          })),
+        toggleCamera3D: () =>
+          set((state) => ({
+            camera3d: { ...state.camera3d, enabled: !state.camera3d.enabled },
+          })),
+        resetCamera3D: () =>
+          set((state) => ({
+            camera3d: {
+              ...state.camera3d,
+              azimuth: 0,
+              elevation: Math.PI / 6,
+              distance: 10,
+              target: { x: 0, y: 0, z: 0 },
+            },
+          })),
         importConfig: (config) =>
           set((state) => ({
             animation: { ...state.animation, ...config.animation, paused: false },
@@ -583,6 +625,7 @@ export const useVectorStore = create<VectorStore>()(
           ...state.animation,
           paused: false,
         },
+        camera3d: state.camera3d,
         gradients: state.gradients,
       }),
       merge: (persistedState: unknown, currentState) => {
@@ -628,6 +671,7 @@ export const useVectorStore = create<VectorStore>()(
           visual: mergedVisual,
           grid: { ...currentState.grid, ...pState.grid },
           animation: mergedAnimation,
+          camera3d: { ...currentState.camera3d, ...pState.camera3d },
           gradients: { ...currentState.gradients, ...pState.gradients },
         };
       },
@@ -639,6 +683,7 @@ export const selectVisual = (state: VectorStore) => state.visual;
 export const selectGrid = (state: VectorStore) => state.grid;
 export const selectAnimation = (state: VectorStore) => state.animation;
 export const selectCanvas = (state: VectorStore) => state.canvas;
+export const selectCamera3D = (state: VectorStore) => state.camera3d;
 export const selectActions = (state: VectorStore) => state.actions;
 export const selectGradientLibrary = (state: VectorStore) => state.gradients;
 

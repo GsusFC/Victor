@@ -24,6 +24,7 @@ export interface RecorderStrategy {
   dispose(): Promise<void>;
   isSupported(): boolean;
   getName(): string;
+  getActualMimeType(): string; // NUEVO: Obtener el mime type real usado durante la grabación
 }
 
 /**
@@ -37,9 +38,14 @@ export class CanvasRecordStrategy implements RecorderStrategy {
   private config: RecordingConfig | null = null;
   private frameDelayCounter: number = 0;
   private isInitialized: boolean = false;
+  private actualMimeType: string = ''; // NUEVO: Guardar el mime type real usado
 
   getName(): string {
     return 'CanvasRecord';
+  }
+
+  getActualMimeType(): string {
+    return this.actualMimeType;
   }
 
   isSupported(): boolean {
@@ -60,6 +66,9 @@ export class CanvasRecordStrategy implements RecorderStrategy {
 
     const codec = getCodecConfig(config.format);
     const bitrate = getBitrate(config.quality);
+
+    // Guardar el mime type basado en el formato
+    this.actualMimeType = config.format === 'mp4' ? 'video/mp4' : config.format === 'webm' ? 'video/webm' : 'image/gif';
 
     console.log('🎥 Inicializando CanvasRecordStrategy:', {
       format: config.format,
@@ -197,9 +206,14 @@ export class MediaRecorderStrategy implements RecorderStrategy {
   private config: RecordingConfig | null = null;
   private chunks: Blob[] = [];
   private isRecording: boolean = false;
+  private actualMimeType: string = ''; // NUEVO: Guardar el mime type real usado
 
   getName(): string {
     return 'MediaRecorder';
+  }
+
+  getActualMimeType(): string {
+    return this.actualMimeType;
   }
 
   isSupported(): boolean {
@@ -224,6 +238,7 @@ export class MediaRecorderStrategy implements RecorderStrategy {
 
     // Determinar mime type
     const mimeType = this.getMimeType(config.format);
+    this.actualMimeType = mimeType; // GUARDAR el mime type real usado
     const bitrate = getBitrate(config.quality);
 
     console.log('🎥 Inicializando MediaRecorderStrategy:', {

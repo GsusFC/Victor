@@ -23,6 +23,9 @@ const animationsByCategory: Record<AnimationCategory, Array<{ value: string; lab
   experimental: [
     { value: 'none', label: 'Sin animación' },
     { value: 'springMesh', label: 'Malla de resortes' },
+    { value: 'gravityField', label: 'Campo gravitacional' },
+    { value: 'coupledOscillators', label: 'Osciladores acoplados' },
+    { value: 'dynamicMaze', label: 'Laberinto dinámico' },
   ],
   natural: [
     { value: 'smoothWaves', label: 'Olas suaves' },
@@ -34,6 +37,8 @@ const animationsByCategory: Record<AnimationCategory, Array<{ value: string; lab
     { value: 'organicGrowth', label: 'Crecimiento Orgánico' },
     { value: 'fluidDynamics', label: 'Dinámica de Fluidos' },
     { value: 'aurora', label: 'Aurora Boreal' },
+    { value: 'particleFlow', label: 'Flujo de partículas' },
+    { value: 'crystallization', label: 'Cristalización' },
   ],
   energetic: [
     { value: 'electricPulse', label: 'Pulso eléctrico' },
@@ -48,6 +53,8 @@ const animationsByCategory: Record<AnimationCategory, Array<{ value: string; lab
     { value: 'blackHole', label: 'Agujero Negro' },
     { value: 'lightningStorm', label: 'Tormenta de Rayos' },
     { value: 'quantumField', label: 'Campo Cuántico' },
+    { value: 'shockWaves', label: 'Ondas de choque' },
+    { value: 'interferenceWaves', label: 'Ondas de interferencia' },
   ],
   geometric: [
     { value: 'tangenteClasica', label: 'Tangente clásica' },
@@ -59,6 +66,7 @@ const animationsByCategory: Record<AnimationCategory, Array<{ value: string; lab
     { value: 'voronoiDiagram', label: 'Diagrama Voronoi' },
     { value: 'mandalas', label: 'Mandalas' },
     { value: 'kaleidoscope', label: 'Caleidoscopio' },
+    { value: 'animatedFractals', label: 'Fractales animados' },
   ],
 };
 

@@ -31,9 +31,11 @@ export function generateFileName(baseName: string, format: VideoFormat): string 
  */
 export function bufferToBlob(
   buffer: ArrayBuffer | Uint8Array | Blob[],
-  format: VideoFormat
+  format: VideoFormat,
+  customMimeType?: string // NUEVO: mime type opcional (el real usado durante grabación)
 ): Blob {
-  const mimeType = MIME_TYPES[format];
+  // CRITICAL FIX: Usar el mime type real si está disponible
+  const mimeType = customMimeType || MIME_TYPES[format];
 
   // Si ya es un array de Blobs, combinarlos
   if (Array.isArray(buffer)) {
@@ -84,8 +86,9 @@ export function downloadBlob(blob: Blob, fileName: string): void {
 export function downloadBuffer(
   buffer: ArrayBuffer | Uint8Array | Blob[],
   fileName: string,
-  format: VideoFormat
+  format: VideoFormat,
+  customMimeType?: string // NUEVO: mime type opcional
 ): void {
-  const blob = bufferToBlob(buffer, format);
+  const blob = bufferToBlob(buffer, format, customMimeType);
   downloadBlob(blob, fileName);
 }

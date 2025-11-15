@@ -86,7 +86,7 @@ fn computeMain(@builtin(global_invocation_id) global_id: vec3u) {
 
   let time = uniforms.time * uniforms.speed * 0.001; // Scale down time
   let frequency = uniforms.param1 * 0.05;  // Reduce frequency for slower movement
-  let amplitude = uniforms.param2;  // 1.0
+  let amplitude = uniforms.param2;  // Affects length variation
 
   let pos = vec3f(vector.baseX, vector.baseY, vector.baseZ);
 
@@ -95,14 +95,18 @@ fn computeMain(@builtin(global_invocation_id) global_id: vec3u) {
   let waveY = sin(time + pos.y * frequency);
   let waveZ = cos(time + (pos.x + pos.y) * frequency * 0.5);
 
-  // Direction vector
-  let dir = vec3f(waveX, waveY, waveZ) * amplitude;
+  // Direction vector (normalized)
+  let dir = vec3f(waveX, waveY, waveZ);
   let normalized = normalize(dir);
+
+  // Use amplitude to modulate vector length for visual impact
+  let wave = (waveX + waveY + waveZ) / 3.0; // Average wave value
+  let lengthMod = 1.0 + wave * amplitude * 0.05; // amplitude affects length variation
 
   vector.dirX = normalized.x;
   vector.dirY = normalized.y;
   vector.dirZ = normalized.z;
-  vector.length = uniforms.vectorLength;
+  vector.length = uniforms.vectorLength * lengthMod;
 
   vectors[index] = vector;
 }
@@ -120,7 +124,8 @@ fn computeMain(@builtin(global_invocation_id) global_id: vec3u) {
   var vector = vectors[index];
 
   let time = uniforms.time * uniforms.speed * 0.001; // Scale down time
-  let strength = uniforms.param1 * 0.5;  // Reduce strength
+  let strength = uniforms.param1 * 0.5;  // Vortex strength
+  let amplitude = uniforms.param2;  // Length modulation
 
   let pos = vec3f(vector.baseX, vector.baseY, vector.baseZ);
 
@@ -146,7 +151,10 @@ fn computeMain(@builtin(global_invocation_id) global_id: vec3u) {
   vector.dirX = normalized.x;
   vector.dirY = normalized.y;
   vector.dirZ = normalized.z;
-  vector.length = uniforms.vectorLength;
+
+  // Modulate length with amplitude for visual variation
+  let lengthMod = 1.0 + sin(time + dist3D * 0.1) * amplitude * 0.05;
+  vector.length = uniforms.vectorLength * lengthMod;
 
   vectors[index] = vector;
 }
@@ -165,7 +173,7 @@ fn computeMain(@builtin(global_invocation_id) global_id: vec3u) {
 
   let time = uniforms.time * uniforms.speed * 0.001; // Scale down time
   let frequency = uniforms.param1 * 0.05;  // Reduce frequency
-  let amplitude = uniforms.param2;  // 1.0
+  let amplitude = uniforms.param2;  // Affects wave strength
 
   let pos = vec3f(vector.baseX, vector.baseY, vector.baseZ);
 
@@ -176,16 +184,15 @@ fn computeMain(@builtin(global_invocation_id) global_id: vec3u) {
   let radial = normalize(pos + vec3f(0.001)); // Avoid zero vector
 
   // Wave based on distance and time
-  let wave = sin(dist * frequency - time) * amplitude;
+  let wave = sin(dist * frequency - time);
 
-  // Direction: radial with wave modulation
-  let dir = radial * (1.0 + wave * 0.3); // Reduce wave impact
-  let normalized = normalize(dir);
+  // Direction: radial (stays normalized for direction)
+  vector.dirX = radial.x;
+  vector.dirY = radial.y;
+  vector.dirZ = radial.z;
 
-  vector.dirX = normalized.x;
-  vector.dirY = normalized.y;
-  vector.dirZ = normalized.z;
-  vector.length = uniforms.vectorLength * (1.0 + wave * 0.2); // Less length variation
+  // Use amplitude to modulate length significantly
+  vector.length = uniforms.vectorLength * (1.0 + wave * amplitude * 0.1);
 
   vectors[index] = vector;
 }

@@ -1859,3 +1859,538 @@ fn computeMain(@builtin(global_invocation_id) global_id: vec3u) {
   vectors[index] = vector;
 }
 `;
+
+// =========================================================
+// NUEVAS ANIMACIONES
+// =========================================================
+
+/**
+ * Interference Waves - Ondas de interferencia constructiva/destructiva
+ * Múltiples fuentes de ondas que crean patrones de interferencia
+ */
+export const interferenceWavesShader = /* wgsl */ `
+${COMMON_STRUCTS}
+
+@compute @workgroup_size(64)
+fn computeMain(@builtin(global_invocation_id) global_id: vec3u) {
+  let index = global_id.x;
+  var vector = vectors[index];
+
+  let numSources = max(1.0, floor(uniforms.param1));
+  let amplitude = uniforms.param2 * PI / 180.0;
+  let phaseDiff = uniforms.param3;
+  let maxLengthPx = uniforms.param4;
+
+  let time = uniforms.time * uniforms.speed;
+  let scaleFactor = 1.0 / uniforms.pixelToISO;
+  let normX = vector.baseX * scaleFactor;
+  let normY = vector.baseY * scaleFactor;
+
+  // Calcular interferencia de múltiples fuentes distribuidas en círculo
+  var totalWave: f32 = 0.0;
+  for (var i = 0; i < i32(numSources); i = i + 1) {
+    let angle = f32(i) * TWO_PI / numSources;
+    let sourceX = cos(angle) * 200.0;
+    let sourceY = sin(angle) * 200.0;
+
+    let dx = normX - sourceX;
+    let dy = normY - sourceY;
+    let dist = sqrt(dx * dx + dy * dy);
+
+    let phase = f32(i) * phaseDiff;
+    let wave = sin(dist * 0.05 - time * 0.5 + phase);
+    totalWave += wave;
+  }
+
+  // Normalizar y aplicar amplitud
+  totalWave = totalWave / numSources;
+  let targetAngle = totalWave * amplitude;
+  vector.angle = normalize_angle(targetAngle);
+
+  // Modulación de longitud basada en interferencia
+  let lengthMod = 1.0 + abs(totalWave) * 0.5;
+  vector.length = min(
+    uniforms.vectorLength * uniforms.pixelToISO * lengthMod,
+    maxLengthPx * uniforms.pixelToISO
+  );
+
+  vectors[index] = vector;
+}
+`;
+
+/**
+ * Particle Flow - Simulación de flujo de partículas en fluido viscoso
+ * Combina flujo laminar y turbulento
+ */
+export const particleFlowShader = /* wgsl */ `
+${COMMON_STRUCTS}
+
+@compute @workgroup_size(64)
+fn computeMain(@builtin(global_invocation_id) global_id: vec3u) {
+  let index = global_id.x;
+  var vector = vectors[index];
+
+  let flowSpeed = uniforms.param1;
+  let viscosity = uniforms.param2;
+  let turbulence = uniforms.param3;
+  let maxLengthPx = uniforms.param4;
+
+  let time = uniforms.time * uniforms.speed;
+  let scaleFactor = 1.0 / uniforms.pixelToISO;
+  let normX = vector.baseX * scaleFactor;
+  let normY = vector.baseY * scaleFactor;
+
+  // Flujo laminar base (dirección general)
+  let flowAngle = PI * 0.25; // 45 grados
+  let flowX = cos(flowAngle) * flowSpeed;
+  let flowY = sin(flowAngle) * flowSpeed;
+
+  // Componente de vorticidad (efecto viscoso)
+  let vortexCenterX = sin(time * 0.3) * 100.0;
+  let vortexCenterY = cos(time * 0.3) * 100.0;
+  let toVortexX = normX - vortexCenterX;
+  let toVortexY = normY - vortexCenterY;
+  let vortexDist = sqrt(toVortexX * toVortexX + toVortexY * toVortexY);
+  let vortexAngle = atan2(toVortexY, toVortexX) + PI * 0.5;
+  let vortexStrength = exp(-vortexDist * 0.005) * viscosity;
+  let vortexX = cos(vortexAngle) * vortexStrength;
+  let vortexY = sin(vortexAngle) * vortexStrength;
+
+  // Turbulencia usando noise
+  let noiseScale = 0.02;
+  let turbX = (perlin2d(normX * noiseScale, normY * noiseScale, uniforms.seed) * 2.0 - 1.0) * turbulence;
+  let turbY = (perlin2d(normX * noiseScale + 100.0, normY * noiseScale, uniforms.seed) * 2.0 - 1.0) * turbulence;
+
+  // Combinar todas las componentes
+  let totalX = flowX + vortexX + turbX;
+  let totalY = flowY + vortexY + turbY;
+  let targetAngle = atan2(totalY, totalX);
+
+  vector.angle = lerp_angle(vector.angle, targetAngle, 0.1);
+
+  // Longitud basada en velocidad local
+  let speed = sqrt(totalX * totalX + totalY * totalY);
+  let lengthMod = 0.5 + speed * 0.5;
+  vector.length = min(
+    uniforms.vectorLength * uniforms.pixelToISO * lengthMod,
+    maxLengthPx * uniforms.pixelToISO
+  );
+
+  vectors[index] = vector;
+}
+`;
+
+/**
+ * Animated Fractals - Patrones fractales animados (Julia set)
+ * Visualización de conjuntos de Julia en movimiento
+ */
+export const animatedFractalsShader = /* wgsl */ `
+${COMMON_STRUCTS}
+
+@compute @workgroup_size(64)
+fn computeMain(@builtin(global_invocation_id) global_id: vec3u) {
+  let index = global_id.x;
+  var vector = vectors[index];
+
+  let zoomSpeed = uniforms.param1;
+  let rotationSpeed = uniforms.param2;
+  let maxIterations = max(2.0, floor(uniforms.param3));
+  let maxLengthPx = uniforms.param4;
+
+  let time = uniforms.time * uniforms.speed;
+  let scaleFactor = 1.0 / uniforms.pixelToISO;
+
+  // Zoom oscilante
+  let zoom = 0.003 * (1.0 + sin(time * zoomSpeed) * 0.5);
+  let normX = vector.baseX * scaleFactor * zoom;
+  let normY = vector.baseY * scaleFactor * zoom;
+
+  // Parámetro de Julia que se mueve en círculo
+  let cX = cos(time * rotationSpeed * 0.5) * 0.7;
+  let cY = sin(time * rotationSpeed * 0.5) * 0.27;
+
+  // Calcular iteraciones de Julia set
+  var zX = normX;
+  var zY = normY;
+  var iteration: f32 = 0.0;
+
+  for (var i = 0; i < i32(maxIterations); i = i + 1) {
+    let xTemp = zX * zX - zY * zY + cX;
+    zY = 2.0 * zX * zY + cY;
+    zX = xTemp;
+
+    if (zX * zX + zY * zY > 4.0) {
+      break;
+    }
+    iteration += 1.0;
+  }
+
+  // Ángulo basado en escape
+  let escapeAngle = atan2(zY, zX);
+  let mixFactor = iteration / maxIterations;
+
+  // Combinar con posición original para continuidad
+  let originalAngle = atan2(normY, normX);
+  let targetAngle = mix(escapeAngle, originalAngle, mixFactor);
+
+  vector.angle = normalize_angle(targetAngle);
+
+  // Longitud basada en velocidad de escape
+  let lengthMod = 0.3 + (1.0 - mixFactor) * 1.2;
+  vector.length = min(
+    uniforms.vectorLength * uniforms.pixelToISO * lengthMod,
+    maxLengthPx * uniforms.pixelToISO
+  );
+
+  vectors[index] = vector;
+}
+`;
+
+/**
+ * Crystallization - Patrones de cristalización con crecimiento ramificado
+ * Simula formación de cristales como copos de nieve
+ */
+export const crystallizationShader = /* wgsl */ `
+${COMMON_STRUCTS}
+
+@compute @workgroup_size(64)
+fn computeMain(@builtin(global_invocation_id) global_id: vec3u) {
+  let index = global_id.x;
+  var vector = vectors[index];
+
+  let growthSpeed = uniforms.param1;
+  let symmetry = max(3.0, floor(uniforms.param2));
+  let branching = uniforms.param3;
+  let maxLengthPx = uniforms.param4;
+
+  let time = uniforms.time * uniforms.speed;
+  let scaleFactor = 1.0 / uniforms.pixelToISO;
+  let normX = vector.baseX * scaleFactor;
+  let normY = vector.baseY * scaleFactor;
+
+  let radius = sqrt(normX * normX + normY * normY);
+  let angle = atan2(normY, normX);
+
+  // Aplicar simetría radial
+  let symmetryAngle = TWO_PI / symmetry;
+  let sectorAngle = fract(angle / symmetryAngle) * symmetryAngle;
+
+  // Reflejar para simetría bilateral
+  var reflectedAngle = sectorAngle;
+  if (sectorAngle > symmetryAngle * 0.5) {
+    reflectedAngle = symmetryAngle - sectorAngle;
+  }
+
+  // Frente de cristalización que avanza con el tiempo
+  let growthFront = time * growthSpeed * 50.0;
+  let distToFront = abs(radius - growthFront);
+
+  // Ramificación dendrítica usando ruido
+  let branchNoise = perlin2d(
+    normX * 0.05 + time * 0.2,
+    normY * 0.05,
+    uniforms.seed
+  );
+
+  let branchAngle = branchNoise * branching * PI * 0.5;
+
+  // Dirección de crecimiento radial con ramificación
+  let growthAngle = reflectedAngle + branchAngle;
+
+  // Modulación por distancia al frente
+  let frontInfluence = exp(-distToFront * 0.01);
+  let targetAngle = mix(angle, growthAngle, frontInfluence);
+
+  vector.angle = normalize_angle(targetAngle);
+
+  // Longitud mayor en el frente de crecimiento
+  let lengthMod = 0.5 + frontInfluence * 1.0 + abs(branchNoise) * 0.5;
+  vector.length = min(
+    uniforms.vectorLength * uniforms.pixelToISO * lengthMod,
+    maxLengthPx * uniforms.pixelToISO
+  );
+
+  vectors[index] = vector;
+}
+`;
+
+/**
+ * Shock Waves - Ondas de choque expansivas desde múltiples puntos
+ * Simula impactos y ondas de choque concéntricas
+ */
+export const shockWavesShader = /* wgsl */ `
+${COMMON_STRUCTS}
+
+@compute @workgroup_size(64)
+fn computeMain(@builtin(global_invocation_id) global_id: vec3u) {
+  let index = global_id.x;
+  var vector = vectors[index];
+
+  let impactFreq = uniforms.param1;
+  let numWaves = max(2.0, floor(uniforms.param2));
+  let decaySpeed = uniforms.param3;
+  let maxLengthPx = uniforms.param4;
+
+  let time = uniforms.time * uniforms.speed;
+  let scaleFactor = 1.0 / uniforms.pixelToISO;
+  let normX = vector.baseX * scaleFactor;
+  let normY = vector.baseY * scaleFactor;
+
+  var totalForceX: f32 = 0.0;
+  var totalForceY: f32 = 0.0;
+  var maxIntensity: f32 = 0.0;
+
+  // Múltiples puntos de impacto que se generan periódicamente
+  for (var i = 0; i < i32(numWaves); i = i + 1) {
+    let impactTime = floor(time * impactFreq / numWaves + f32(i)) * numWaves / impactFreq;
+    let timeSinceImpact = time - impactTime;
+
+    if (timeSinceImpact > 0.0 && timeSinceImpact < 10.0) {
+      // Posición del impacto (pseudo-aleatoria basada en tiempo)
+      let impactX = sin(impactTime * 1.3 + f32(i) * 2.7 + uniforms.seed) * 300.0;
+      let impactY = cos(impactTime * 1.7 + f32(i) * 3.1 + uniforms.seed) * 300.0;
+
+      let dx = normX - impactX;
+      let dy = normY - impactY;
+      let dist = sqrt(dx * dx + dy * dy);
+
+      // Frente de onda que se expande
+      let waveFront = timeSinceImpact * 150.0;
+      let distToWave = abs(dist - waveFront);
+
+      // Intensidad decae con distancia y tiempo
+      let waveIntensity = exp(-distToWave * 0.1) * exp(-timeSinceImpact * decaySpeed);
+
+      if (waveIntensity > 0.01) {
+        // Dirección radial desde el impacto
+        let dirX = dx / max(dist, 0.1);
+        let dirY = dy / max(dist, 0.1);
+
+        totalForceX += dirX * waveIntensity;
+        totalForceY += dirY * waveIntensity;
+        maxIntensity = max(maxIntensity, waveIntensity);
+      }
+    }
+  }
+
+  let targetAngle = atan2(totalForceY, totalForceX);
+  vector.angle = normalize_angle(targetAngle);
+
+  // Longitud basada en intensidad de la onda
+  let lengthMod = 0.3 + maxIntensity * 2.0;
+  vector.length = min(
+    uniforms.vectorLength * uniforms.pixelToISO * lengthMod,
+    maxLengthPx * uniforms.pixelToISO
+  );
+
+  vectors[index] = vector;
+}
+`;
+
+/**
+ * Gravity Field - Campo gravitacional con múltiples masas orbitantes
+ * Simula atracción gravitacional y órbitas
+ */
+export const gravityFieldShader = /* wgsl */ `
+${COMMON_STRUCTS}
+
+@compute @workgroup_size(64)
+fn computeMain(@builtin(global_invocation_id) global_id: vec3u) {
+  let index = global_id.x;
+  var vector = vectors[index];
+
+  let numMasses = max(1.0, floor(uniforms.param1));
+  let gravityStrength = uniforms.param2;
+  let orbitalSpeed = uniforms.param3;
+  let maxLengthPx = uniforms.param4;
+
+  let time = uniforms.time * uniforms.speed;
+  let scaleFactor = 1.0 / uniforms.pixelToISO;
+  let normX = vector.baseX * scaleFactor;
+  let normY = vector.baseY * scaleFactor;
+
+  var totalForceX: f32 = 0.0;
+  var totalForceY: f32 = 0.0;
+
+  // Múltiples masas orbitando
+  for (var i = 0; i < i32(numMasses); i = i + 1) {
+    let orbitAngle = time * orbitalSpeed + f32(i) * TWO_PI / numMasses;
+    let orbitRadius = 150.0 + f32(i) * 50.0;
+
+    let massX = cos(orbitAngle) * orbitRadius;
+    let massY = sin(orbitAngle) * orbitRadius;
+
+    let dx = normX - massX;
+    let dy = normY - massY;
+    let distSq = dx * dx + dy * dy + 1.0; // +1 para evitar división por cero
+    let dist = sqrt(distSq);
+
+    // Fuerza gravitacional inversamente proporcional al cuadrado de la distancia
+    let force = gravityStrength * 1000.0 / distSq;
+
+    // Dirección hacia la masa
+    totalForceX -= (dx / dist) * force;
+    totalForceY -= (dy / dist) * force;
+  }
+
+  let targetAngle = atan2(totalForceY, totalForceX);
+  vector.angle = lerp_angle(vector.angle, targetAngle, 0.15);
+
+  // Longitud basada en intensidad del campo
+  let forceIntensity = sqrt(totalForceX * totalForceX + totalForceY * totalForceY);
+  let lengthMod = 0.5 + min(forceIntensity * 0.1, 1.0);
+  vector.length = min(
+    uniforms.vectorLength * uniforms.pixelToISO * lengthMod,
+    maxLengthPx * uniforms.pixelToISO
+  );
+
+  vectors[index] = vector;
+}
+`;
+
+/**
+ * Coupled Oscillators - Osciladores acoplados (modelo Kuramoto)
+ * Simula sincronización emergente entre osciladores
+ */
+export const coupledOscillatorsShader = /* wgsl */ `
+${COMMON_STRUCTS}
+
+@compute @workgroup_size(64)
+fn computeMain(@builtin(global_invocation_id) global_id: vec3u) {
+  let index = global_id.x;
+  var vector = vectors[index];
+
+  let naturalFreq = uniforms.param1;
+  let couplingStrength = uniforms.param2;
+  let damping = uniforms.param3;
+  let maxLengthPx = uniforms.param4;
+
+  let time = uniforms.time * uniforms.speed;
+  let scaleFactor = 1.0 / uniforms.pixelToISO;
+  let normX = vector.baseX * scaleFactor;
+  let normY = vector.baseY * scaleFactor;
+
+  // Fase local basada en posición y tiempo
+  let localPhase = time * naturalFreq + perlin2d(normX * 0.01, normY * 0.01, uniforms.seed) * TWO_PI;
+
+  // Calcular fase promedio de los vecinos (simplificado con noise)
+  var neighborPhase: f32 = 0.0;
+  let numSamples: i32 = 8;
+
+  for (var i = 0; i < numSamples; i = i + 1) {
+    let angle = f32(i) * TWO_PI / f32(numSamples);
+    let sampleDist = 50.0;
+    let sampleX = normX + cos(angle) * sampleDist;
+    let sampleY = normY + sin(angle) * sampleDist;
+
+    let samplePhaseNoise = perlin2d(sampleX * 0.01, sampleY * 0.01, uniforms.seed);
+    let samplePhase = time * naturalFreq + samplePhaseNoise * TWO_PI;
+    neighborPhase += samplePhase;
+  }
+
+  neighborPhase = neighborPhase / f32(numSamples);
+
+  // Ecuación de Kuramoto: dθ/dt = ω + K*sin(θ_neighbor - θ)
+  let phaseDiff = sin(neighborPhase - localPhase);
+  let syncedPhase = localPhase + couplingStrength * phaseDiff;
+
+  // Aplicar damping
+  let targetAngle = syncedPhase + cos(localPhase) * (1.0 - damping) * PI * 0.3;
+  vector.angle = normalize_angle(targetAngle);
+
+  // Longitud basada en sincronización
+  let syncLevel = 1.0 - abs(phaseDiff);
+  let lengthMod = 0.5 + syncLevel * 0.8;
+  vector.length = min(
+    uniforms.vectorLength * uniforms.pixelToISO * lengthMod,
+    maxLengthPx * uniforms.pixelToISO
+  );
+
+  vectors[index] = vector;
+}
+`;
+
+/**
+ * Dynamic Maze - Laberinto dinámico que se reconfigura
+ * Crea y reforma caminos laberínticos
+ */
+export const dynamicMazeShader = /* wgsl */ `
+${COMMON_STRUCTS}
+
+@compute @workgroup_size(64)
+fn computeMain(@builtin(global_invocation_id) global_id: vec3u) {
+  let index = global_id.x;
+  var vector = vectors[index];
+
+  let changeSpeed = uniforms.param1;
+  let complexity = max(2.0, floor(uniforms.param2));
+  let density = uniforms.param3;
+  let maxLengthPx = uniforms.param4;
+
+  let time = uniforms.time * uniforms.speed;
+  let scaleFactor = 1.0 / uniforms.pixelToISO;
+  let normX = vector.baseX * scaleFactor;
+  let normY = vector.baseY * scaleFactor;
+
+  // Crear grid de celdas que cambia con el tiempo
+  let cellSize = 100.0 / complexity;
+  let cellX = floor(normX / cellSize);
+  let cellY = floor(normY / cellSize);
+
+  // Generar patrón de laberinto usando noise con evolución temporal
+  let timeLayer = floor(time * changeSpeed);
+  let cellNoise = perlin2d(
+    cellX * 0.5 + timeLayer * 0.1,
+    cellY * 0.5,
+    uniforms.seed
+  );
+
+  // Determinar si la celda es "pared" o "camino"
+  let isWall = cellNoise < (1.0 - density);
+
+  // Posición dentro de la celda
+  let localX = fract(normX / cellSize) - 0.5;
+  let localY = fract(normY / cellSize) - 0.5;
+
+  var targetAngle: f32;
+
+  if (isWall) {
+    // En paredes: vectores perpendiculares a la pared más cercana
+    if (abs(localX) > abs(localY)) {
+      targetAngle = PI * 0.5; // Vertical
+    } else {
+      targetAngle = 0.0; // Horizontal
+    }
+  } else {
+    // En caminos: flujo que sigue el laberinto
+    let flowNoise = perlin2d(
+      normX * 0.02 + time * changeSpeed * 0.5,
+      normY * 0.02,
+      uniforms.seed + 1.0
+    );
+
+    targetAngle = flowNoise * TWO_PI;
+  }
+
+  // Añadir variación suave en los bordes
+  let edgeNoise = perlin2d(normX * 0.05, normY * 0.05, uniforms.seed + 2.0);
+  targetAngle += edgeNoise * PI * 0.2;
+
+  vector.angle = lerp_angle(vector.angle, targetAngle, 0.2);
+
+  // Longitud mayor en caminos, menor en paredes
+  var lengthMod: f32;
+  if (isWall) {
+    lengthMod = 0.3;
+  } else {
+    lengthMod = 0.8 + abs(edgeNoise) * 0.4;
+  }
+
+  vector.length = min(
+    uniforms.vectorLength * uniforms.pixelToISO * lengthMod,
+    maxLengthPx * uniforms.pixelToISO
+  );
+
+  vectors[index] = vector;
+}
+`;
