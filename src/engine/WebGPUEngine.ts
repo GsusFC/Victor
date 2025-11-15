@@ -13,7 +13,7 @@ import { bloomExtractShader } from './shaders/render/bloom-extract.wgsl';
 import { bloomBlurShader } from './shaders/render/bloom-blur.wgsl';
 import { bloomCombineShader } from './shaders/render/bloom-combine.wgsl';
 import { ShapeLibrary } from './ShapeLibrary';
-import { Camera3D, type Camera3DConfig } from './Camera3D';
+import { Camera3D } from './Camera3D';
 import { CoordinateSystem3D } from './CoordinateSystem3D';
 import { ShapeLibrary3D } from './ShapeLibrary3D';
 import { vector3DShader } from './shaders/render/vector3d.wgsl';
