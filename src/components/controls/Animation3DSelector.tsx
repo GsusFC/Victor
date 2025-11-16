@@ -4,7 +4,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Waves, Rotate3D, CircleDot } from 'lucide-react';
 import type { WebGPUEngine } from '@/engine/WebGPUEngine';
@@ -39,15 +39,7 @@ const ANIMATIONS_3D = [
 export function Animation3DSelector({ engine }: Animation3DSelector) {
   const [selectedAnimation, setSelectedAnimation] = useState<Animation3DType>('smoothWaves3D');
 
-  // Sync with engine on mount
-  useEffect(() => {
-    if (!engine) return;
-
-    // Set initial animation
-    handleAnimationChange('smoothWaves3D');
-  }, [engine]);
-
-  const handleAnimationChange = (animationId: Animation3DType) => {
+  const handleAnimationChange = useCallback((animationId: Animation3DType) => {
     if (!engine) {
       console.warn('⚠️ Animation3DSelector: Engine not available');
       return;
@@ -60,7 +52,15 @@ export function Animation3DSelector({ engine }: Animation3DSelector) {
     setSelectedAnimation(animationId);
 
     console.log('✅ Animation3DSelector: Animation changed to', animationId);
-  };
+  }, [engine]);
+
+  // Sync with engine on mount
+  useEffect(() => {
+    if (!engine) return;
+
+    // Set initial animation
+    handleAnimationChange('smoothWaves3D');
+  }, [engine, handleAnimationChange]);
 
   return (
     <div className="space-y-3">

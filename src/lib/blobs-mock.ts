@@ -6,7 +6,6 @@
 
 // Storage en memoria persistente durante HMR (Hot Module Replacement)
 // Usamos globalThis para evitar que se reinicialice en cada recarga del módulo
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const globalAny: any = global;
 
 // Asegurar que el storage exista y sea persistente

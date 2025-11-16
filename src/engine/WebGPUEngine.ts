@@ -13,7 +13,7 @@ import { bloomExtractShader } from './shaders/render/bloom-extract.wgsl';
 import { bloomBlurShader } from './shaders/render/bloom-blur.wgsl';
 import { bloomCombineShader } from './shaders/render/bloom-combine.wgsl';
 import { ShapeLibrary } from './ShapeLibrary';
-import { Camera3D, type Camera3DConfig } from './Camera3D';
+import { Camera3D } from './Camera3D';
 import { CoordinateSystem3D } from './CoordinateSystem3D';
 import { ShapeLibrary3D } from './ShapeLibrary3D';
 import { vector3DShader } from './shaders/render/vector3d.wgsl';
@@ -105,9 +105,6 @@ export class WebGPUEngine {
   private uniformBuffer: GPUBuffer | null = null;
   private shapeBuffer: GPUBuffer | null = null; // Nuevo: geometría de la forma actual
   private camera3DBuffer: GPUBuffer | null = null; // Buffer para matrices de cámara 3D
-
-  // Camera 3D
-  private camera3D: Camera3D | null = null;
   private camera3DEnabled: boolean = false;
 
   // Vector data cache (para exportación)
