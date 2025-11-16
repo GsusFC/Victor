@@ -895,7 +895,7 @@ export class WebGPUEngine {
     });
 
     // Escribir datos de geometría
-    this.device.queue.writeBuffer(buffer, 0, shapeGeometry.vertices);
+    this.device.queue.writeBuffer(buffer, 0, shapeGeometry.vertices as BufferSource);
 
     // Actualizar contador de vértices
     this.currentShapeVertexCount = shapeGeometry.vertexCount;
