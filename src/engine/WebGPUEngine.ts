@@ -105,9 +105,6 @@ export class WebGPUEngine {
   private uniformBuffer: GPUBuffer | null = null;
   private shapeBuffer: GPUBuffer | null = null; // Nuevo: geometría de la forma actual
   private camera3DBuffer: GPUBuffer | null = null; // Buffer para matrices de cámara 3D
-
-  // Camera 3D
-  private camera3D: Camera3D | null = null;
   private camera3DEnabled: boolean = false;
 
   // Vector data cache (para exportación)
