@@ -110,14 +110,14 @@ export function useVideoRecorder({
       if (recorderRef.current) {
         const newStats = recorderRef.current.getStats();
         const currentState = recorderRef.current.getState();
-        
+
         setStats(newStats);
-        
+
         // Sincronizar estado en caso de que VideoRecorder se haya detenido automáticamente
         if (currentState !== 'recording' && currentState !== 'paused') {
           console.log('🔄 Detectado cambio de estado en VideoRecorder:', currentState);
           setState(currentState);
-          
+
           // Si se completó el loop, finalizar la grabación
           if (currentState === 'idle' || currentState === 'processing') {
             stopStatsInterval();
@@ -126,7 +126,7 @@ export function useVideoRecorder({
         }
       }
     }, 100); // Reducido a 100ms para detección más rápida
-  }, []);
+  }, [stopStatsInterval]);
 
   const stopStatsInterval = useCallback(() => {
     if (statsIntervalRef.current) {

@@ -45,7 +45,7 @@ export function Animation3DSelector({ engine }: Animation3DSelector) {
 
     // Set initial animation
     handleAnimationChange('smoothWaves3D');
-  }, [engine]);
+  }, [engine, handleAnimationChange]);
 
   const handleAnimationChange = (animationId: Animation3DType) => {
     if (!engine) {
