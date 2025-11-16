@@ -28,6 +28,8 @@ export function generateArtTitle(animationType: AnimationType): string {
     organicGrowth: ['Crecimiento Orgánico', 'Reacción-Difusión', 'Patrón Vivo'],
     fluidDynamics: ['Dinámica de Fluidos', 'Turbulencia', 'Flujo Viscoso'],
     aurora: ['Aurora Boreal', 'Cortinas de Luz', 'Fenómeno Polar'],
+    particleFlow: ['Flujo de Partículas', 'Dinámica Viscosa', 'Corrientes Orgánicas'],
+    crystallization: ['Cristalización', 'Crecimiento Dendrítico', 'Formación de Cristales'],
     // Energéticas
     electricPulse: ['Pulso Eléctrico', 'Energía', 'Expansión Radial'],
     vortex: ['Vórtice', 'Remolino', 'Espiral Centrípeta'],
@@ -41,6 +43,8 @@ export function generateArtTitle(animationType: AnimationType): string {
     blackHole: ['Agujero Negro', 'Singularidad', 'Espacio-Tiempo'],
     lightningStorm: ['Tormenta Eléctrica', 'Relámpagos', 'Descarga Fractal'],
     quantumField: ['Campo Cuántico', 'Superposición', 'Fluctuaciones'],
+    shockWaves: ['Ondas de Choque', 'Impacto Expansivo', 'Explosión'],
+    interferenceWaves: ['Ondas de Interferencia', 'Patrón de Interferencia', 'Múltiples Fuentes'],
     // Geométricas
     tangenteClasica: ['Tangente', 'Espiral', 'Rotación'],
     lissajous: ['Lissajous', 'Armonía', 'Resonancia'],
@@ -51,8 +55,12 @@ export function generateArtTitle(animationType: AnimationType): string {
     voronoiDiagram: ['Diagrama de Voronoi', 'Teselación', 'Partición del Espacio'],
     mandalas: ['Mandalas', 'Simetría Radial', 'Patrón Sagrado'],
     kaleidoscope: ['Caleidoscopio', 'Reflejo Espejo', 'Simetría Múltiple'],
+    animatedFractals: ['Fractales Animados', 'Conjunto de Julia', 'Iteración Compleja'],
     // Experimentales
     springMesh: ['Malla Elástica', 'Red de Resortes', 'Tejido Dinámico'],
+    gravityField: ['Campo Gravitacional', 'N-Cuerpos', 'Atracción Masiva'],
+    coupledOscillators: ['Osciladores Acoplados', 'Sincronización Kuramoto', 'Emergencia Colectiva'],
+    dynamicMaze: ['Laberinto Dinámico', 'Reconfiguración', 'Caminos Cambiantes'],
     // 3D Animations
     smoothWaves3D: ['Ondas Suaves 3D', 'Olas Tridimensionales', 'Flujo Espacial'],
     vortex3D: ['Vórtice 3D', 'Torbellino Espacial', 'Espiral Helicoidal'],

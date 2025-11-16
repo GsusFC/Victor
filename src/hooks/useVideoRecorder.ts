@@ -98,6 +98,17 @@ export function useVideoRecorder({
   }, [canvas]); // Solo depende del canvas, NO del config
 
   /**
+   * Detiene el intervalo de actualización de stats
+   */
+  const stopStatsInterval = useCallback(() => {
+    if (statsIntervalRef.current) {
+      clearInterval(statsIntervalRef.current);
+      statsIntervalRef.current = null;
+      console.log('⏹️ Intervalo de stats detenido');
+    }
+  }, []);
+
+  /**
    * Actualiza stats periódicamente durante grabación
    * También verifica si el recorder se detuvo automáticamente
    */
@@ -127,14 +138,6 @@ export function useVideoRecorder({
       }
     }, 100); // Reducido a 100ms para detección más rápida
   }, [stopStatsInterval]);
-
-  const stopStatsInterval = useCallback(() => {
-    if (statsIntervalRef.current) {
-      clearInterval(statsIntervalRef.current);
-      statsIntervalRef.current = null;
-      console.log('⏹️ Intervalo de stats detenido');
-    }
-  }, []);
 
   /**
    * Inicia la grabación

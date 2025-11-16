@@ -6,11 +6,11 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import type { AnimationType, VectorShape } from '@/types/engine';
-import type { ProjectionType } from '@/engine/Camera3D';
 
 // ============= TYPES =============
 
 export type AnimationCategory = 'natural' | 'energetic' | 'geometric' | 'experimental';
+export type ProjectionType = 'perspective' | 'orthographic';
 
 export interface Camera3DState {
   enabled: boolean; // Toggle entre modo 2D y 3D
@@ -157,6 +157,14 @@ const animationParamsDefaults: Record<AnimationType, AnimationParamSet> = {
   mandalas: { frequency: 6, amplitude: 1.5, elasticity: 0.4, maxLength: 95 },
   kaleidoscope: { frequency: 3, amplitude: 1.0, elasticity: 1.0, maxLength: 100 },
   springMesh: { frequency: 1.0, amplitude: 0.8, elasticity: 0.6, maxLength: 100 },
+  particleFlow: { frequency: 0.8, amplitude: 1.2, elasticity: 0.6, maxLength: 110 },
+  crystallization: { frequency: 0.8, amplitude: 6.0, elasticity: 0.5, maxLength: 130 },
+  shockWaves: { frequency: 1.2, amplitude: 4.0, elasticity: 0.7, maxLength: 140 },
+  interferenceWaves: { frequency: 1.5, amplitude: 30, elasticity: 2.0, maxLength: 120 },
+  animatedFractals: { frequency: 0.5, amplitude: 1.8, elasticity: 4.0, maxLength: 100 },
+  gravityField: { frequency: 2.0, amplitude: 1.5, elasticity: 0.8, maxLength: 140 },
+  coupledOscillators: { frequency: 1.5, amplitude: 0.6, elasticity: 0.5, maxLength: 100 },
+  dynamicMaze: { frequency: 0.3, amplitude: 4.0, elasticity: 0.7, maxLength: 90 },
   // 3D Animations (valores aumentados para que sean visibles con los multiplicadores del shader)
   // smoothWaves3D: param1 * 0.05 (frequency), param2 (amplitude)
   // vortex3D: param1 * 0.5 (strength)
@@ -706,6 +714,8 @@ export const getAnimationCategory = (type: AnimationType): AnimationCategory => 
     organicGrowth: 'natural',
     fluidDynamics: 'natural',
     aurora: 'natural',
+    particleFlow: 'natural',
+    crystallization: 'natural',
     electricPulse: 'energetic',
     vortex: 'energetic',
     directionalFlow: 'energetic',
@@ -718,6 +728,8 @@ export const getAnimationCategory = (type: AnimationType): AnimationCategory => 
     blackHole: 'energetic',
     lightningStorm: 'energetic',
     quantumField: 'energetic',
+    shockWaves: 'energetic',
+    interferenceWaves: 'energetic',
     tangenteClasica: 'geometric',
     lissajous: 'geometric',
     geometricPattern: 'geometric',
@@ -727,7 +739,11 @@ export const getAnimationCategory = (type: AnimationType): AnimationCategory => 
     voronoiDiagram: 'geometric',
     mandalas: 'geometric',
     kaleidoscope: 'geometric',
+    animatedFractals: 'geometric',
     springMesh: 'experimental',
+    gravityField: 'experimental',
+    coupledOscillators: 'experimental',
+    dynamicMaze: 'experimental',
     // 3D Animations
     smoothWaves3D: 'natural',
     vortex3D: 'energetic',
