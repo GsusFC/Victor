@@ -1905,7 +1905,7 @@ fn computeMain(@builtin(global_invocation_id) global_id: vec3u) {
   // Normalizar y aplicar amplitud
   totalWave = totalWave / numSources;
   let targetAngle = totalWave * amplitude;
-  vector.angle = normalize_angle(targetAngle);
+  vector.angle = lerp_angle(vector.angle, targetAngle, 0.15);
 
   // Modulación de longitud basada en interferencia
   let lengthMod = 1.0 + abs(totalWave) * 0.5;
@@ -2033,7 +2033,7 @@ fn computeMain(@builtin(global_invocation_id) global_id: vec3u) {
   let originalAngle = atan2(normY, normX);
   let targetAngle = mix(escapeAngle, originalAngle, mixFactor);
 
-  vector.angle = normalize_angle(targetAngle);
+  vector.angle = lerp_angle(vector.angle, targetAngle, 0.1);
 
   // Longitud basada en velocidad de escape
   let lengthMod = 0.3 + (1.0 - mixFactor) * 1.2;
@@ -2101,7 +2101,7 @@ fn computeMain(@builtin(global_invocation_id) global_id: vec3u) {
   let frontInfluence = exp(-distToFront * 0.01);
   let targetAngle = mix(angle, growthAngle, frontInfluence);
 
-  vector.angle = normalize_angle(targetAngle);
+  vector.angle = lerp_angle(vector.angle, targetAngle, 0.12);
 
   // Longitud mayor en el frente de crecimiento
   let lengthMod = 0.5 + frontInfluence * 1.0 + abs(branchNoise) * 0.5;
@@ -2174,7 +2174,7 @@ fn computeMain(@builtin(global_invocation_id) global_id: vec3u) {
   }
 
   let targetAngle = atan2(totalForceY, totalForceX);
-  vector.angle = normalize_angle(targetAngle);
+  vector.angle = lerp_angle(vector.angle, targetAngle, 0.15);
 
   // Longitud basada en intensidad de la onda
   let lengthMod = 0.3 + maxIntensity * 2.0;
