@@ -82,11 +82,11 @@ export const ANIMATION_DEFAULTS: Record<AnimationType, AnimationDefaults> = {
   dynamicMaze: { frequency: 0.3, amplitude: 4.0, elasticity: 0.7, maxLength: 90 },
 
   // NUEVAS ANIMACIONES
-  interferenceWaves: { frequency: 1.5, amplitude: 30, elasticity: 2.0, maxLength: 120 },
+  interferenceWaves: { frequency: 3.0, amplitude: 30, elasticity: 2.0, maxLength: 120 },
   particleFlow: { frequency: 0.8, amplitude: 1.2, elasticity: 0.6, maxLength: 110 },
-  animatedFractals: { frequency: 0.5, amplitude: 1.8, elasticity: 4.0, maxLength: 100 },
+  animatedFractals: { frequency: 0.5, amplitude: 1.8, elasticity: 10.0, maxLength: 100 },
   crystallization: { frequency: 0.8, amplitude: 6.0, elasticity: 0.5, maxLength: 130 },
-  shockWaves: { frequency: 1.2, amplitude: 4.0, elasticity: 0.7, maxLength: 140 },
+  shockWaves: { frequency: 1.2, amplitude: 4.0, elasticity: 0.3, maxLength: 140 },
 
   // 3D ANIMATIONS
   smoothWaves3D: { frequency: 0.1, amplitude: 1.0, elasticity: 0, maxLength: 80 },
