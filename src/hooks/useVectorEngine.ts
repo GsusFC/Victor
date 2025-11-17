@@ -235,18 +235,20 @@ export function useVectorEngine(options: UseVectorEngineOptions | RefObject<HTML
     if (!engine || !engine.initialized) return;
 
     // Habilitar/deshabilitar modo 3D
-    engine.setCamera3DEnabled(camera3d.enabled);
+    engine.setRenderMode(camera3d.enabled ? '3D' : '2D');
 
     // Si está habilitado, actualizar configuración
     if (camera3d.enabled) {
-      engine.updateCamera3D({
-        azimuth: camera3d.azimuth,
-        elevation: camera3d.elevation,
-        distance: camera3d.distance,
-        fov: camera3d.fov,
-        projectionType: camera3d.projectionType,
-        target: camera3d.target,
-      });
+      const camera = engine.getCamera3D();
+      if (camera) {
+        camera.azimuth = camera3d.azimuth;
+        camera.elevation = camera3d.elevation;
+        camera.distance = camera3d.distance;
+        camera.fov = camera3d.fov;
+        camera.target.x = camera3d.target.x;
+        camera.target.y = camera3d.target.y;
+        camera.target.z = camera3d.target.z;
+      }
     }
   }, [
     camera3d.enabled,
